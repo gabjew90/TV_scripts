@@ -249,7 +249,21 @@ This **supersedes** the request.security-only finding above (which only saw SGX 
 - Fix-B premise shift: NOT a step → the ~8× step pseudo-replication worry is largely void; but funding LEVEL persists in multi-day regimes → **block bootstrap still the honest significance gate** (for level autocorrelation).
 
 **v9 spec (A+B + two-outcome, pending final confirm):** event = every post-cal bar; conditioner = **z-funding** `(funding − SMA)/STDEV` over an a-priori ~weeks window (fix A, no sweep); outcomes (both signed, both predicted NEGATIVE vs z-funding) = O1 signed forward return `(close−entry)/atr` (stingy endpoint screen) + O2 signed peak-excursion (dominant of up/down excursion, signed — catches front-loaded reverted moves, so a fail isn't a false-kill); significance via **block bootstrap CI** (blocks ≥ multi-day, parametric t indicative only); pass bar **≥5/6** cells correct-signed + CI-excludes-0 + monotone-decreasing terciles.
-**CURRENT TASK:** build v9 once advisor confirms the C-shift (live funding) is acceptable.
+## v9 — H1 funding instrument (file `jamal-phase2.pine`)
+**Date:** 2026-06-06
+**Build:** import `TradingView/Request/3`; conditioner = **z-funding** `(funding − SMA)/STDEV` over a-priori 14-day window (fix A, not swept); event = every post-cal bar; outcomes O1 signed return + O2 signed peak-excursion (both predicted NEGATIVE); significance = **block-bootstrap 95% CI** of winsorized corr (fix B; multi-day blocks; parametric t indicative). LCG RNG (function-local var — Pine forbids modifying a global var in a function). Lean build, fade engine stripped.
+**Leak gate #1 (rigorous, before trusting any number):** forward-settle test over 2663 boundaries — interval FIRST bar == its settlement only **19%**, any-early **22.9%**, avg |first−settle| **0.0031** → mid-interval live ≠ next settled ⇒ **no backfill leak; series genuinely live.** (Earlier flat-backfill check + this forward test = #1 PASSED.)
+**Result (BTC 1h, n=2001, nEff=167):**
+| outcome | r | t~ | boot CI95 | terciles lo/mid/hi |
+|---|---|---|---|---|
+| O1 signed-return | +0.13 | 1.7 | [+.01, +.22] | −.46 / −.12 / +.18 |
+| O2 signed-peak | +0.15 | 1.9 | [+.02, +.23] | −.72 / −.22 / +.31 |
+
+**H1 VERDICT: KILLED (wrong-signed).** Predicted negative (reversion); got **significant POSITIVE** — bootstrap CI entirely above 0 on *both* outcomes, terciles **monotone increasing** (high z-funding → continuation UP, not reversion). The O2 excursion safeguard did not rescue it (also positive) → not an exit-blind false-kill; the favorable excursion runs *with* funding. z-score (fix A) did not flip it, and leak #1 is clean → the positive sign is real. **No BTC-4h cell** (pre-reg replicates only IF it carves; it didn't — a 4h cell would only probe the *momentum* finding, a different hypothesis). Verdict scoped: "H1 on **Binance** funding"; aggregate not a rescue.
+**PARKED NOTE (not an open thread):** funding extremity → short-horizon *continuation/momentum* (the mirror of H1). Only marginally significant (boot floor +.01/+.02, t<2) and its credibility was itself hostage to #1. If ever pursued, it requires a **cold separate pre-registration** that opens by killing the leak question — NOT a pivot off this run (that would be HARK).
+
+## STANDING GATE — data-layer integrity (all of Phase 2)
+Every derivative series must pass a check-#1-equivalent (no settlement/lookahead backfill) BEFORE its hypothesis is trusted. A leak contaminates the whole layer. Reusable tool: `p2_leak_check.pine`. **Next: H3 (OI) — run the OI leak check first, then wire ΔOI.**
 
 ---
 

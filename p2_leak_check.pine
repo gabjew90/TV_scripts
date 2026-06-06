@@ -1,0 +1,58 @@
+//@version=6
+// Phase 2 STANDING DATA-INTEGRITY GATE — reusable check-#1 (no settlement/lookahead backfill).
+// A positive series->forward-return correlation is the fingerprint of a settlement backfill leak;
+// run this on EVERY derivative series before trusting its hypothesis. Here for funding; swap the
+// metric/series for OI etc. Logic: a backfilled series would have an interval's EARLY bars already
+// equal to that interval's END (settlement) value. We test interval-first vs interval-settlement at
+// each 8h boundary. FIRST==settle ~100% => leak; low% + nonzero avg|first-settle| => genuinely live.
+// Funding result (BINANCE:BTCUSDT.P 1h, 2026-06-06): 19% first==settle, avg diff 0.0031 -> LIVE, no leak.
+indicator("P2 leak check (forward settle)", overlay=false)
+import TradingView/Request/3 as r
+
+// --- series under test (edit this line for OI / other metrics) ---
+ser = r.cryptoDerivativeMetric(metricName = "Funding Rate", symbol = syminfo.tickerid, timeframe = timeframe.period)
+
+intbars = math.max(2, math.round(28800 / timeframe.in_seconds()))   // 8h settlement interval in chart bars
+b8 = ta.change(time("480")) != 0
+
+eps = 0.0000001
+var int   nB = 0
+var int   nFirstEqSettle = 0
+var int   nAnyEarlyEqSettle = 0
+var float sumFirstDiff = 0.0
+if b8 and not na(ser[1]) and not na(ser[intbars])
+    settled  = ser[1]
+    firstBar = ser[intbars]
+    nB += 1
+    if math.abs(firstBar - settled) < eps
+        nFirstEqSettle += 1
+    anyeq = false
+    for k = math.max(2, intbars / 2) to intbars
+        if not na(ser[k]) and math.abs(ser[k] - settled) < eps
+            anyeq := true
+    if anyeq
+        nAnyEarlyEqSettle += 1
+    sumFirstDiff += math.abs(firstBar - settled)
+
+fracFirst    = nB > 0 ? 100.0 * nFirstEqSettle / nB : na
+fracAny      = nB > 0 ? 100.0 * nAnyEarlyEqSettle / nB : na
+avgFirstDiff = nB > 0 ? sumFirstDiff / nB : na
+
+var table t = table.new(position.top_left, 2, 7, border_color=color.gray, border_width=1, frame_color=color.gray, frame_width=1)
+if barstate.islast
+    table.cell(t,0,0,"leak check (fwd settle)",text_color=color.silver,text_size=size.normal)
+    table.cell(t,1,0,"value",text_color=color.silver,text_size=size.normal)
+    table.cell(t,0,1,"bars/8h",text_color=color.silver,text_size=size.normal)
+    table.cell(t,1,1,str.tostring(intbars),text_color=color.white,text_size=size.normal)
+    table.cell(t,0,2,"boundaries n",text_color=color.silver,text_size=size.normal)
+    table.cell(t,1,2,str.tostring(nB),text_color=color.white,text_size=size.normal)
+    table.cell(t,0,3,"% interval FIRST == settle",text_color=color.silver,text_size=size.normal)
+    table.cell(t,1,3,str.tostring(fracFirst,"#.#")+"%",text_color=(fracFirst>20?color.red:color.lime),text_size=size.normal)
+    table.cell(t,0,4,"% ANY early == settle",text_color=color.silver,text_size=size.normal)
+    table.cell(t,1,4,str.tostring(fracAny,"#.#")+"%",text_color=(fracAny>30?color.red:color.lime),text_size=size.normal)
+    table.cell(t,0,5,"avg |first-settle|",text_color=color.silver,text_size=size.normal)
+    table.cell(t,1,5,str.tostring(avgFirstDiff,"#.#######"),text_color=(avgFirstDiff>0?color.lime:color.red),text_size=size.normal)
+    table.cell(t,0,6,"verdict",text_color=color.silver,text_size=size.normal)
+    table.cell(t,1,6,(fracFirst<20 and avgFirstDiff>0)?"LIVE (no fwd backfill)":"LEAK SUSPECT",text_color=color.white,text_size=size.normal)
+
+plot(na)
