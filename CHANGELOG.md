@@ -144,6 +144,17 @@ Vol%lo (cascade-pollution tag): Taken 35–53 (losers NOT high-vol) · Veto-CSC 
 | Veto-dir/csc | n/a | | | | | | 6–7 |
 
 **Finding:** effN fix lifted Taken nEff +27% (22→28, 17→22); min_eff correctly n/a's the thin veto buckets. **The bracket-free envelope is ~SYMMETRIC: MFE ≈ MAE ≈ 2 ATR, tH ≈ sH ≈ 50%** → no bracket-only edge on BTC 1h Range/Taken; the v5 "edge handed back" was a bracket-truncation artifact. Gate-0 negative on the fixed bracket, and the symmetric envelope says that's not a tuning problem — the *unconditional* fade looks edgeless. The surviving (conditional) hypothesis — counter-trend Veto-dir bounces with MFE>MAE — is exactly the bucket below the min_eff floor (nEff 6–7) and unreadable at lookback 1500.
+**Status:** superseded by v7 (regime-mix readout).
+
+## v7 — Regime-mix readout (label-sparsity verification)
+**Date:** 2026-06-06 · **On-chart:** "Jamal Phase 1 v7" (shorttitle "Jamal P1v7")
+**Code changes**
+- Added `bs_reg` array — logs the current `regime` each post-cal bar, pruned with the baseline timeline.
+- State panel +1 row **"Reg mix"**: % of window bars colored (regime≠0) + U/D/C breakdown + n. No engine logic touched — pure measurement.
+**Rationale:** advisor verification — turn "looks sparse" into a number vs the v3 ER-only ~48% ceiling, BEFORE the Veto-dir probe. If colored% << expected → slope deadband/dwell over-trimming (a bug); if in-band → sparseness is the market, proceed.
+**Tests run:** `pine_check` 0/0; pushed + remove/re-add; BTC 1h, lookback 1500.
+**Results:** **Reg mix = 30% colored (13U / 15D / 2C), n=1501** (Range 70%). In the predicted 30–45% band (ER-only 48% minus the slope-deadband + dwell filters), well above the <15% over-trimming threshold. The balanced 13U/15D split = both directions label (not down-only). Scout numbers unchanged from v6 (no logic change).
+**Verdict:** **labels are clean; the sparseness is the market, not a bug.** Engine verified — cleared to run the Veto-dir conditional probe. (Explicit single-episode up-leg concordance eyeball still pending — UI replay-dialog/editor overlay obstructed the screenshot; the aggregate 13U is strong proxy evidence.)
 **Status:** current on chart.
 
 ---
@@ -154,9 +165,11 @@ Vol%lo (cascade-pollution tag): Taken 35–53 (losers NOT high-vol) · Veto-CSC 
 - **Re-home the research:** triple-barrier expectancy + signed-regime test across symbols/TFs with CPCV is a **Python pipeline** job; Pine scout demoted to live monitoring. (No existing CPCV/pipeline found in this workspace as of 2026-06-06.)
 
 ## Next (planned, not yet done)
-1. **Unconditional fade looks edgeless** (BTC 1h Range/Taken: symmetric MFE≈MAE≈2 ATR, tH≈sH≈50%, gate-0 negative). The bracket is NOT the lever after all — symmetric excursion means no target/stop sizing creates edge.
-2. **Open decision (advisor):** strict "pooled gate-0 first" → fade is dead, stop. OR read gate-0 **per regime slice** — the conditional (counter-trend Veto-dir) hypothesis from v4 — which needs the Veto-dir buckets over min_eff. Lean: raise lookback (`in_27`) to ~3000 ONCE to see if the Veto-dir envelope is asymmetric (MFE>MAE); watch stationarity (~4 months on 1h). If it's also symmetric, the fade is dead.
-3. If pursued: sequence/front-loading evidence beyond tH/sH (e.g. bars-to-MFE vs bars-to-MAE) only if the conditional envelope looks asymmetric.
+1. **Engine labels verified** (v7: 30% colored, in-band, balanced) — sparseness is the market, not a bug. Cleared to probe.
+2. **Veto-dir conditional probe** (the surviving hypothesis): the unconditional fade is edgeless (symmetric MFE≈MAE), so the only edge candidate is the counter-trend Veto-dir bucket. Raise lookback (`in_27`) to ~3000 ONCE to lift Veto-dir nEff over min_eff, then read whether its envelope is asymmetric (MFE>MAE) and gate-Δ positive. Watch stationarity (~4 months on 1h). If Veto-dir is also symmetric → fade is dead, say so.
+3. **Open decision (advisor):** pooled gate-0 is negative; do we accept reading gate-0 *per regime slice* (Veto-dir) since the hypothesis is conditional? (Lean yes, once.)
+4. Pending: explicit up-leg / different-period concordance eyeball (aggregate 13U is proxy; UI obstructed the shot).
+5. If conditional envelope looks asymmetric: sequence evidence (bars-to-MFE vs bars-to-MAE) before believing it.
 
 ## Open items / parked
 - **Cascade ingredients redesign** (range-expansion + volume surge + single large-range bar vs 20-bar ER). Parked — measured low-value via Vol%lo. Documented as NOTE on `er_cascade`.
