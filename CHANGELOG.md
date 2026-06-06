@@ -233,7 +233,17 @@ The overshoot mean-reversion fade is **descriptively dead** on BINANCE BTC/TAO/H
 - **H2 liquidations DEAD on data** (not in TV Pine). Bounded-to-TV ⇒ only a price/volume flush *proxy* is possible, which discards the "direct forced-flow" rationale. Decision pending: drop vs proxy.
 - Cadence/repaint: funding is a step series (8h); all confirmed values sampled LAGGED in the harness (same as price excursion). OI is per-bar.
 
-**CURRENT TASK:** await advisor calls on (1) reorder to OI-first, (2) funding proxy accept/defer, (3) liquidations drop/proxy — then wire the first conditioner into the harness.
+**SPIKE CORRECTION (2026-06-06) — use the official `TradingView/Request` library, not raw `request.security` suffixes.** `import TradingView/Request/3 as r` exposes: `r.openInterestCrypto(symbol, timeframe)` → `[o,h,l,close,rising]`; `r.cryptoDerivativeMetric(metricName, symbol, timeframe)` with metricName ∈ {"Funding Rate","Liquidations Buy","Liquidations Sell", …}. Re-probed BTC 1h (`p2_data_probe.pine`), all gapless over the full 21311-bar (~2.4y) window:
+| series | non-NA / span | last |
+|---|---|---|
+| OI close (`openInterestCrypto`) | 21311 / 21311 | 101831.97 |
+| Funding ("Funding Rate") | 21311 / 21311 | −0.001012 |
+| Liquidations Buy | 21311 / 21311 | 9.43 |
+| Liquidations Sell | 21311 / 21311 | 0.69 |
+
+This **supersedes** the request.security-only finding above (which only saw SGX funding proxy + no liquidations). **All three Phase-2 series are fully available with deep history.** Consequences: (1) no reorder forced — the pre-committed **H1 funding-first** plan stands (full real-funding history); (2) funding proxy concern void; (3) **H2 liquidations revived** — Buy/Sell available, though liquidation *spikes* are rare so the spike-tail nEff (not history) is the binding limit. Funding is a step series (8h) — sample LAGGED. Units of funding/liq TBD from lib docs; sign/percentile is what the hypotheses use.
+
+**CURRENT TASK:** wire **H1 (signed funding → signed forward return)** into the harness as v9 — add the signed-outcome mode, pre-committed sign (negative) + kill, run BTC 1h. Spec pending advisor green-light.
 
 ---
 
