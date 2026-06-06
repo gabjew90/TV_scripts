@@ -122,7 +122,28 @@ Vol%lo (cascade-pollution tag): Taken 35–53 (losers NOT high-vol) · Veto-CSC 
 | L gate Δ | +0.10 | +0.2 ns | | | | |
 | S gate Δ | −0.45 | −0.9 ns | | | | |
 
-**Finding:** **MFE ≈ +1.0 ATR while Exp ≈ 0** on the Taken buckets → the front-loaded favorable excursion exists but the bracket hands it back (target 1.0 < stop 1.5 needs ~60% tHit to break even; getting ~50%). Confirms the v4 "no" was an exit-blindness artifact: there IS a catchable bounce; the **exit is the lever**. Signed-regime gate Δ inconclusive at lookback 1500 (nEff 6–22; thin).
+**Finding:** **MFE ≈ +1.0 ATR while Exp ≈ 0** on the Taken buckets → looked like the front-loaded favorable excursion exists but the bracket hands it back. ⚠ **Partly an artifact** — MFE here was bracket-TRUNCATED (loop broke on first touch), so MFE was capped near the target. v6's bracket-free MFE corrects this (see below). Signed-regime gate Δ inconclusive at lookback 1500 (nEff 6–22; thin).
+**Status:** superseded by v6 (advisor hardening).
+
+## v6 — Scout hardening (advisor review)
+**Date:** 2026-06-06 · **On-chart:** "Jamal Phase 1 v6" (shorttitle "Jamal P1v6")
+**Code changes**
+- **`f_effn` spacing `fwd_bars` → `min(bar_tcap, fwd_bars)` (cap):** outcomes resolve within the cap, so cap-spaced entries are independent. Recovered ~+27% effective-n here. Caveat in comment: fixes window overlap only, not vol/regime clustering → corrected nEff still slightly overstates independence.
+- **Bracket-free MFE/MAE:** `f_barrier` no longer `break`s on first touch — it records the first-touch outcome but scans the full cap to accumulate max favorable / max adverse. De-circularizes the envelope (used to choose a target) from the bracket being tuned. Returns `[out, hit, mfe, mae]`.
+- `f_push` stores `mae`; added `fl_*_mae` / `fs_*_mae` arrays.
+- **`min_eff` input (`in_37`, default 8):** `f_edge_se` / `f_gap` return n/a unless effective-n ≥ min_eff (nEff still displayed). Pre-committed power floor. **Appended last so existing input IDs stay stable (lookback remains `in_27`).**
+- Dashboard → 8 cols: `bucket | Exp | t | tH% | sH% | MFE | MAE | nEff`.
+- Context comments only: stop-first pessimizes a fader → Exp = conservative FLOOR; cost-blind → haircut before believing a cell.
+**Rationale:** advisor code review — recover power, de-circularize MFE, enforce a power floor.
+**Tests run:** `pine_check` 0/0; pushed + remove/re-add; BTC 1h, lookback 1500, bracket 1.0/−1.5/12.
+**Results (BTC 1h):**
+| bucket | Exp | t | tH% | sH% | MFE | MAE | nEff |
+|---|---|---|---|---|---|---|---|
+| L Taken | −0.10 | −0.4 | 50% | 43% | +1.94 | +1.88 | 28 |
+| S Taken | −0.25 | −0.9 | 48% | 48% | +2.17 | +2.07 | 22 |
+| Veto-dir/csc | n/a | | | | | | 6–7 |
+
+**Finding:** effN fix lifted Taken nEff +27% (22→28, 17→22); min_eff correctly n/a's the thin veto buckets. **The bracket-free envelope is ~SYMMETRIC: MFE ≈ MAE ≈ 2 ATR, tH ≈ sH ≈ 50%** → no bracket-only edge on BTC 1h Range/Taken; the v5 "edge handed back" was a bracket-truncation artifact. Gate-0 negative on the fixed bracket, and the symmetric envelope says that's not a tuning problem — the *unconditional* fade looks edgeless. The surviving (conditional) hypothesis — counter-trend Veto-dir bounces with MFE>MAE — is exactly the bucket below the min_eff floor (nEff 6–7) and unreadable at lookback 1500.
 **Status:** current on chart.
 
 ---
@@ -133,9 +154,9 @@ Vol%lo (cascade-pollution tag): Taken 35–53 (losers NOT high-vol) · Veto-CSC 
 - **Re-home the research:** triple-barrier expectancy + signed-regime test across symbols/TFs with CPCV is a **Python pipeline** job; Pine scout demoted to live monitoring. (No existing CPCV/pipeline found in this workspace as of 2026-06-06.)
 
 ## Next (planned, not yet done)
-1. **Bracket is the lever.** MFE≈1 ATR / Exp≈0 says the favorable excursion exists but isn't harvested. Principled bracket perturbation (NOT single-cell tuning): vary target/stop/cap and watch where Exp turns positive AND the tH/sH split, across the **sweep grid** (BTC/TAO/HYPE × 1h/4h) for robustness — not one tuned cell.
-2. **Re-run gate-0 + signed-regime gate Δ** on the chosen bracket across the grid (needs more samples than lookback 1500 gave — nEff was 6–22; consider lookback up via `in_27`, watch stationarity).
-3. Watch the **bounce-vs-knife** question directly: if tH and sH are both high, the bracket/feature must separate them — the net edge lives there.
+1. **Unconditional fade looks edgeless** (BTC 1h Range/Taken: symmetric MFE≈MAE≈2 ATR, tH≈sH≈50%, gate-0 negative). The bracket is NOT the lever after all — symmetric excursion means no target/stop sizing creates edge.
+2. **Open decision (advisor):** strict "pooled gate-0 first" → fade is dead, stop. OR read gate-0 **per regime slice** — the conditional (counter-trend Veto-dir) hypothesis from v4 — which needs the Veto-dir buckets over min_eff. Lean: raise lookback (`in_27`) to ~3000 ONCE to see if the Veto-dir envelope is asymmetric (MFE>MAE); watch stationarity (~4 months on 1h). If it's also symmetric, the fade is dead.
+3. If pursued: sequence/front-loading evidence beyond tH/sH (e.g. bars-to-MFE vs bars-to-MAE) only if the conditional envelope looks asymmetric.
 
 ## Open items / parked
 - **Cascade ingredients redesign** (range-expansion + volume surge + single large-range bar vs 20-bar ER). Parked — measured low-value via Vol%lo. Documented as NOTE on `er_cascade`.
