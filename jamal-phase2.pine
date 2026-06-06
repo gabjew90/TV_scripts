@@ -1,35 +1,37 @@
 //@version=6
-// JAMAL PHASE 2 — derivatives-flow conditioner instrument. v9 = H1 (funding).
-// Tests: does LIVE Binance funding extremity forecast reversion? Conditioner = z-funding
-// (standardized over an a-priori ~weeks window, NOT swept — fix A). Event = every bar (H1 is
-// not a fade hypothesis). Outcomes, both predicted NEGATIVE vs z-funding:
-//   O1 signed forward return (close-entry)/ATR   — stingy, exit-blind endpoint screen
-//   O2 signed dominant peak-excursion            — catches a front-loaded move that reverts by
-//                                                   the endpoint, so a fail isn't a false-kill
-// Significance = BLOCK BOOTSTRAP 95% CI of the winsorized correlation (fix B; multi-day blocks span
-// funding regimes — funding LEVEL autocorrelates even though the live series isn't an 8h step, so the
-// parametric t lies; t shown but INDICATIVE only). Winsorized 5/95 corr (fat-tail robust).
-// Pass bar (locked): correct sign (neg) + bootstrap CI excludes 0 + monotone-decreasing terciles,
-// in >= 5 of 6 cells across BTC/TAO/HYPE x 1h/4h. Verdict logged as "H1 on BINANCE funding"
-// (single venue; aggregate not available via ticker call; not a rescue for a near-miss).
-// Data verified (2026-06-06): funding LIVE/continuous, known-at-bar, no flat settlement backfill.
-// NOT a backtest; descriptive, cost-blind, overlapping. Bounded to TradingView.
+// JAMAL PHASE 2 — derivatives-flow conditioner instrument. v10 = H3 (open interest).
+// H1 (funding->reversion) KILLED v9 (significant WRONG-SIGN = continuation; leak-clean). See CHANGELOG.
+//
+// H3: ΔOI is NOT direction-fixed (rising OI in uptrend = new longs -> up-continuation; in downtrend =
+// new shorts -> down-continuation), so it must be wired as an INTERACTION, else up/down regimes cancel
+// to r~0 by construction (false-kill). Encoding:
+//   outcome  O1 = sign(formation move) * forward return        (continuation return; + = move continued)
+//            O2 = sign(formation move) * signed peak-excursion  (exit-blind safeguard, continuation dir)
+//   conditioner C = z-scored formation-window OI %change (fix A: strip secular OI-growth baseline;
+//                   a-priori windows, NOT swept)
+//   PREDICTED SIGN: POSITIVE (OI-build -> continuation; OI-unwind/cover -> hollow/reversal); terciles up.
+// Continuation ONLY; the "fragile / delayed squeeze" idea is a separate cold pre-reg if this carries.
+// Significance = block-bootstrap 95% CI of winsorized corr (regime-spanning blocks; parametric t indicative).
+// Pass bar (locked): predicted sign + CI excludes 0 + monotone terciles, in >=5 of 6 cells BTC/TAO/HYPE x 1h/4h.
+// Data: OI = BINANCE:BTCUSDT.P_OI via TradingView/Request lib; hygiene clean (100% cov, 0% flat, no fill).
+// Binance-only (venue caveat logged). NOT a backtest; descriptive, cost-blind, overlapping.
 import TradingView/Request/3 as r
 
 // ===== Inputs =====
 atr_len         = input.int(20,  "ATR length", minval=2, group="Core")
-fwd_bars        = input.int(12,  "Forward / excursion window (bars)", minval=2, group="Scout", tooltip="Horizon for O1/O2 and the effective-n spacing.")
-fund_z_days     = input.float(14, "Funding z-score window (DAYS, a-priori — do NOT sweep)", minval=1, group="Scout", tooltip="Standardize funding over ~weeks to strip the bull-baseline confound. Fixed a-priori from the mechanism timescale.")
-boot_block_days = input.float(2, "Bootstrap block length (DAYS)", minval=0.1, group="Scout", tooltip="Blocks must span a positioning regime (funding LEVEL autocorrelates). >= funding cadence.")
+fwd_bars        = input.int(12,  "Forward window (bars)", minval=2, group="Scout")
+form_bars       = input.int(12,  "Formation window (bars, a-priori - do NOT sweep)", minval=2, group="Scout")
+oi_z_days       = input.float(14, "OI %chg z-score window (DAYS, a-priori - do NOT sweep)", minval=1, group="Scout")
+boot_block_days = input.float(2, "Bootstrap block length (DAYS)", minval=0.1, group="Scout")
 boot_iters      = input.int(150, "Bootstrap iterations", minval=50, maxval=1000, group="Scout")
 min_samples     = input.int(20,  "Min samples", minval=1, group="Scout")
 min_eff         = input.int(8,   "Min effective-n (parametric t gate; indicative)", minval=1, group="Scout")
 lookback_bars   = input.int(2000, "Lookback (bars)", minval=50, maxval=10000, group="Scout")
 cal_len         = input.int(250, "Calibration burn-in (bars)", minval=30, group="Scout")
 show_scout      = input.bool(true, "Show dashboard", group="Display")
-show_fz         = input.bool(true, "Plot z-funding", group="Display")
+show_oi         = input.bool(true, "Plot z-OI%chg", group="Display")
 
-// ===== helpers =====
+// ===== helpers (harness, unchanged from v9) =====
 f_pctile(arr, p) =>
     n = array.size(arr)
     float res = na
@@ -57,44 +59,57 @@ f_effn(barr) =>
                 last := b
     cnt
 
-// deterministic LCG (Pine has no guaranteed runtime RNG); var persists across calls within the bar
 f_randi(maxv) =>
     var int rng = 987654321
     rng := math.abs((rng * 1103515 + 12345) % 2147483647)
     maxv <= 0 ? 0 : int((rng / 2147483647.0) * maxv)
 
-// winsorized (5/95) Pearson correlation of x vs y
 f_wcorr(x, y) =>
     n = array.size(x)
     float rr = na
     if n >= min_samples
-        xl = f_pctile(x, 5), xh = f_pctile(x, 95), yl = f_pctile(y, 5), yh = f_pctile(y, 95)
-        float sx = 0.0, sy = 0.0
+        xl = f_pctile(x, 5)
+        xh = f_pctile(x, 95)
+        yl = f_pctile(y, 5)
+        yh = f_pctile(y, 95)
+        float sx = 0.0
+        float sy = 0.0
         for i = 0 to n - 1
             sx += f_clip(array.get(x, i), xl, xh)
             sy += f_clip(array.get(y, i), yl, yh)
-        mx = sx / n, my = sy / n
-        float num = 0.0, dx = 0.0, dy = 0.0
+        mx = sx / n
+        my = sy / n
+        float num = 0.0
+        float dx = 0.0
+        float dy = 0.0
         for i = 0 to n - 1
             a = f_clip(array.get(x, i), xl, xh) - mx
             b = f_clip(array.get(y, i), yl, yh) - my
-            num += a * b, dx += a * a, dy += b * b
+            num += a * b
+            dx += a * a
+            dy += b * b
         rr := (dx > 0 and dy > 0) ? num / math.sqrt(dx * dy) : na
     rr
 
 f_corr_t(rr, neff) => (na(rr) or neff < 3) ? na : rr * math.sqrt(math.max(neff - 2, 0) / math.max(1 - rr * rr, 0.000001))
 
-// block-bootstrap 95% CI of winsorized corr -> [lo, hi]
 f_boot_ci(x, y, blockLen, iters) =>
     n = array.size(x)
     float lo = na
     float hi = na
     if n >= min_samples and blockLen >= 1 and n > blockLen
-        xl = f_pctile(x, 5), xh = f_pctile(x, 95), yl = f_pctile(y, 5), yh = f_pctile(y, 95)
+        xl = f_pctile(x, 5)
+        xh = f_pctile(x, 95)
+        yl = f_pctile(y, 5)
+        yh = f_pctile(y, 95)
         nb = int(math.ceil(n / blockLen))
         rs = array.new<float>()
         for b = 1 to iters
-            float sx = 0.0, sy = 0.0, sxy = 0.0, sx2 = 0.0, sy2 = 0.0
+            float sx = 0.0
+            float sy = 0.0
+            float sxy = 0.0
+            float sx2 = 0.0
+            float sy2 = 0.0
             int m = 0
             for bk = 1 to nb
                 st = f_randi(n - blockLen + 1)
@@ -103,7 +118,12 @@ f_boot_ci(x, y, blockLen, iters) =>
                     if idx < n
                         xv = f_clip(array.get(x, idx), xl, xh)
                         yv = f_clip(array.get(y, idx), yl, yh)
-                        sx += xv, sy += yv, sxy += xv * yv, sx2 += xv * xv, sy2 += yv * yv, m += 1
+                        sx  += xv
+                        sy  += yv
+                        sxy += xv * yv
+                        sx2 += xv * xv
+                        sy2 += yv * yv
+                        m   += 1
             den = math.sqrt(math.max(m * sx2 - sx * sx, 0.0) * math.max(m * sy2 - sy * sy, 0.0))
             rb = den > 0 ? (m * sxy - sx * sy) / den : na
             if not na(rb)
@@ -113,78 +133,94 @@ f_boot_ci(x, y, blockLen, iters) =>
             hi := f_pctile(rs, 97.5)
     [lo, hi]
 
-// tercile mean-y (winsorized y) by x terciles -> [lo, mid, hi]
 f_bins(x, y) =>
     n = array.size(x)
-    float m0 = na, m1 = na, m2 = na
+    float m0 = na
+    float m1 = na
+    float m2 = na
     if n >= min_samples
-        e1 = f_pctile(x, 33.33333), e2 = f_pctile(x, 66.66667)
-        yl = f_pctile(y, 5), yh = f_pctile(y, 95)
-        float s0 = 0.0, s1 = 0.0, s2 = 0.0
-        int k0 = 0, k1 = 0, k2 = 0
+        e1 = f_pctile(x, 33.33333)
+        e2 = f_pctile(x, 66.66667)
+        yl = f_pctile(y, 5)
+        yh = f_pctile(y, 95)
+        float s0 = 0.0
+        float s1 = 0.0
+        float s2 = 0.0
+        int k0 = 0
+        int k1 = 0
+        int k2 = 0
         for i = 0 to n - 1
             xi = array.get(x, i)
             yi = f_clip(array.get(y, i), yl, yh)
             if xi < e1
-                s0 += yi, k0 += 1
+                s0 += yi
+                k0 += 1
             else if xi < e2
-                s1 += yi, k1 += 1
+                s1 += yi
+                k1 += 1
             else
-                s2 += yi, k2 += 1
+                s2 += yi
+                k2 += 1
         m0 := k0 > 0 ? s0 / k0 : na
         m1 := k1 > 0 ? s1 / k1 : na
         m2 := k2 > 0 ? s2 / k2 : na
     [m0, m1, m2]
 
-f_num(v)  => na(v) ? "n/a" : (v > 0 ? "+" : "") + str.tostring(v, "#.00")
-f_t(v)    => na(v) ? "n/a" : str.tostring(v, "#.0")
-// CI verdict colour: whole CI < 0 = significant negative (predicted) = green; whole CI > 0 = red; spans 0 = gray
-f_ci_col(lo, hi) => (na(lo) or na(hi)) ? color.new(color.gray, 30) : hi < 0 ? color.new(#00C853, 0) : lo > 0 ? color.new(#FF1744, 0) : color.new(color.gray, 30)
+f_num(v) => na(v) ? "n/a" : (v > 0 ? "+" : "") + str.tostring(v, "#.00")
+f_t(v)   => na(v) ? "n/a" : str.tostring(v, "#.0")
+// predicted POSITIVE: whole CI > 0 = confirmed (green); whole CI < 0 = wrong-sign (red); spans 0 = gray
+f_ci_col(lo, hi) => (na(lo) or na(hi)) ? color.new(color.gray, 30) : lo > 0 ? color.new(#00C853, 0) : hi < 0 ? color.new(#FF1744, 0) : color.new(color.gray, 30)
 
 // ===== data =====
 atr = ta.atr(atr_len)
 safe_atr = atr > 0 ? atr : na
-funding = r.cryptoDerivativeMetric(metricName = "Funding Rate", symbol = syminfo.tickerid, timeframe = timeframe.period)
-zlen  = math.max(2, math.round(fund_z_days * 86400 / timeframe.in_seconds()))
-fmean = ta.sma(funding, zlen)
-fsd   = ta.stdev(funding, zlen)
-fz    = (not na(funding) and not na(fsd) and fsd > 0) ? (funding - fmean) / fsd : na
+[oio, oih, oil, oi, oirise] = r.openInterestCrypto(symbol = syminfo.tickerid, timeframe = timeframe.period)
+
+oichg = (not na(oi) and not na(oi[form_bars]) and oi[form_bars] > 0) ? (oi / oi[form_bars] - 1.0) : na
+ozlen = math.max(2, math.round(oi_z_days * 86400 / timeframe.in_seconds()))
+omean = ta.sma(oichg, ozlen)
+osd   = ta.stdev(oichg, ozlen)
+ozi   = (not na(oichg) and not na(osd) and osd > 0) ? (oichg - omean) / osd : na
 
 hh = ta.highest(high, fwd_bars)
 ll = ta.lowest(low, fwd_bars)
 
-// ===== sample every post-cal bar: conditioner z-funding (lagged) + O1/O2 over the window =====
+// ===== sample every post-cal bar: continuation outcome + z-OI conditioner (lagged to entry) =====
 var array<int>   cb  = array.new<int>()
 var array<float> cC  = array.new<float>()
 var array<float> cO1 = array.new<float>()
 var array<float> cO2 = array.new<float>()
 
-post_cal = bar_index - fwd_bars >= cal_len
+post_cal = bar_index - fwd_bars - form_bars >= cal_len
 if post_cal
-    entry   = close[fwd_bars]
-    atr_sig = safe_atr[fwd_bars]
-    cz      = fz[fwd_bars]
-    if not na(atr_sig) and atr_sig > 0 and not na(entry) and not na(cz)
-        o1  = (close - entry) / atr_sig
-        upx = (hh - entry) / atr_sig
-        dnx = (entry - ll) / atr_sig
-        o2  = upx >= dnx ? upx : -dnx
-        array.push(cb, bar_index)
-        array.push(cC, cz)
-        array.push(cO1, o1)
-        array.push(cO2, o2)
-        while array.size(cb) > 0 and bar_index - array.first(cb) > lookback_bars
-            array.shift(cb)
-            array.shift(cC)
-            array.shift(cO1)
-            array.shift(cO2)
+    entry     = close[fwd_bars]
+    atr_sig   = safe_atr[fwd_bars]
+    formStart = close[fwd_bars + form_bars]
+    cz        = ozi[fwd_bars]
+    if not na(atr_sig) and atr_sig > 0 and not na(entry) and not na(formStart) and not na(cz)
+        fmove = (entry - formStart) / atr_sig
+        sgn = fmove > 0 ? 1.0 : fmove < 0 ? -1.0 : 0.0
+        if sgn != 0
+            fret = (close - entry) / atr_sig
+            upx  = (hh - entry) / atr_sig
+            dnx  = (entry - ll) / atr_sig
+            o2s  = upx >= dnx ? upx : -dnx
+            array.push(cb, bar_index)
+            array.push(cC, cz)
+            array.push(cO1, sgn * fret)
+            array.push(cO2, sgn * o2s)
+            while array.size(cb) > 0 and bar_index - array.first(cb) > lookback_bars
+                array.shift(cb)
+                array.shift(cC)
+                array.shift(cO1)
+                array.shift(cO2)
 
-plot(show_fz ? fz : na, "z-funding", color=color.new(#BB86FC, 0))
+plot(show_oi ? ozi : na, "z-OI%chg", color=color.new(#26C6DA, 0))
 hline(0, "0", color=color.new(color.gray, 0))
 hline(2, "+2z", color=color.new(color.gray, 60))
 hline(-2, "-2z", color=color.new(color.gray, 60))
 
-// ===== dashboard =====
+// ===== dashboard (predicted POSITIVE) =====
 var table sc = table.new(position.bottom_right, 9, 4, border_color=color.new(color.gray,50), border_width=1, frame_color=color.new(color.gray,50), frame_width=1)
 bg = color.new(color.black, 50)
 f_drow(rw, lbl, ocol) =>
@@ -202,10 +238,10 @@ f_drow(rw, lbl, ocol) =>
     table.cell(sc, 5, rw, f_num(a0), text_color=color.silver, text_size=size.tiny)
     table.cell(sc, 6, rw, f_num(a1), text_color=color.silver, text_size=size.tiny)
     table.cell(sc, 7, rw, f_num(a2), text_color=color.silver, text_size=size.tiny)
-    table.cell(sc, 8, rw, str.tostring(f_effn(cb)), text_color=color.white, text_size=size.tiny)
+    table.cell(sc, 8, rw, str.tostring(ne), text_color=color.white, text_size=size.tiny)
 
 if show_scout and barstate.islast
-    table.cell(sc, 0, 0, "H1 fz  n=" + str.tostring(array.size(cC)), text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    table.cell(sc, 0, 0, "H3 zOI  n=" + str.tostring(array.size(cC)), text_color=color.silver, bgcolor=bg, text_size=size.tiny)
     table.cell(sc, 1, 0, "r", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
     table.cell(sc, 2, 0, "t~", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
     table.cell(sc, 3, 0, "CIlo", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
@@ -214,5 +250,5 @@ if show_scout and barstate.islast
     table.cell(sc, 6, 0, "O.mid", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
     table.cell(sc, 7, 0, "O.hi", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
     table.cell(sc, 8, 0, "nEff", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
-    f_drow(1, "O1 sret", cO1)
-    f_drow(2, "O2 speak", cO2)
+    f_drow(1, "O1 cont", cO1)
+    f_drow(2, "O2 cpeak", cO2)

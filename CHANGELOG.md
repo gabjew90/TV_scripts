@@ -262,8 +262,25 @@ This **supersedes** the request.security-only finding above (which only saw SGX 
 **H1 VERDICT: KILLED (wrong-signed).** Predicted negative (reversion); got **significant POSITIVE** — bootstrap CI entirely above 0 on *both* outcomes, terciles **monotone increasing** (high z-funding → continuation UP, not reversion). The O2 excursion safeguard did not rescue it (also positive) → not an exit-blind false-kill; the favorable excursion runs *with* funding. z-score (fix A) did not flip it, and leak #1 is clean → the positive sign is real. **No BTC-4h cell** (pre-reg replicates only IF it carves; it didn't — a 4h cell would only probe the *momentum* finding, a different hypothesis). Verdict scoped: "H1 on **Binance** funding"; aggregate not a rescue.
 **PARKED NOTE (not an open thread):** funding extremity → short-horizon *continuation/momentum* (the mirror of H1). Only marginally significant (boot floor +.01/+.02, t<2) and its credibility was itself hostage to #1. If ever pursued, it requires a **cold separate pre-registration** that opens by killing the leak question — NOT a pivot off this run (that would be HARK).
 
+## v10 — H3 OI instrument (file `jamal-phase2.pine`)
+**Date:** 2026-06-06
+**Build:** import `TradingView/Request/3` → `r.openInterestCrypto`. Conditioner = **z-scored formation-window ΔOI**: `oichg = oi/oi[form_bars] − 1`, `ozi = (oichg − SMA)/STDEV` over a-priori 14-day window (fix A, not swept). Per the advisor's required fix, ΔOI is **NOT direction-fixed** (unlike funding in v9) — it is encoded as an **interaction with the continuation direction**: at each post-cal bar `sgn = sign(formation move)`, outcome **O1 = sgn × forward return** (continuation return), **O2 = sgn × signed peak-excursion** (continuation-peak safeguard). Both predicted **POSITIVE** (price↑ + OI↑ = fresh leverage → continuation carries). Continuation-only; hollow/short-cover leg parked. Same block-bootstrap 95% CI gate + ≥5/6 locked replication bar + min_eff floor. Binance-only venue caveat.
+**Hygiene/continuity gate (OI, before trusting any number):** 100% coverage, 0% flat bars, max flat-run 0, avg |ΔOI|/OI ≈ 0.38%/bar → genuinely live differenced series, no forward-fill / no settlement backfill. STANDING GATE **PASSED.**
+**Result (BTC 1h, n=2001, nEff=167):**
+| outcome | r | t~ | boot CI95 | terciles lo/mid/hi |
+|---|---|---|---|---|
+| O2 cont-peak *(safeguard, read first)* | −0.04 | −0.5 | [−.12, +.06] | +.32 / +.32 / +.20 |
+| O1 cont-return | −0.04 | −0.5 | [−.12, +.05] | +.18 / +.15 / −.05 |
+
+**H3 VERDICT: KILLED (flat).** Predicted positive; got **r≈0 on both outcomes, bootstrap CI spans 0**, terciles flat-to-mildly-*decreasing* (high-ΔOI tercile is the lowest continuation, the opposite of predicted, though not itself significant). The O2 excursion safeguard was read first per the kill rule and is **also flat** → not an exit-blind false-null; the favorable continuation excursion does not run with fresh OI. nEff=167 (well above the min_eff floor) → this is a **well-powered null**, not a power failure. The hygiene gate is clean, so the flat is real, not a data artifact. **No replication ×6** — a decisive fail on the anchor cell does not move the locked bar (same precedent as H1's BTC-1h kill). Verdict scoped: "H3 on **Binance** OI, continuation encoding." Hollow/short-cover leg stays parked (would need its own cold pre-registration; pivoting to it off this null would be HARK).
+
 ## STANDING GATE — data-layer integrity (all of Phase 2)
-Every derivative series must pass a check-#1-equivalent (no settlement/lookahead backfill) BEFORE its hypothesis is trusted. A leak contaminates the whole layer. Reusable tool: `p2_leak_check.pine`. **Next: H3 (OI) — run the OI leak check first, then wire ΔOI.**
+Every derivative series must pass a check-#1-equivalent (no settlement/lookahead backfill) BEFORE its hypothesis is trusted. A leak contaminates the whole layer. Reusable tool: `p2_leak_check.pine`. OI passed via the hygiene/continuity gate (v10). **Next remaining pre-committed conditioner: H2 (liquidations) — magnitude-percentile → fade-flush, A (direction-agnostic) outcome. Liquidation series must clear its OWN leak/hygiene gate first (spikes are rare → nEff tail will be the binding limit).**
+
+## PHASE 2 SCORECARD (pre-committed cap = 3)
+- **H1 funding → reversion:** KILLED (significant *continuation*, wrong-signed; v9).
+- **H3 ΔOI → continuation:** KILLED (flat / well-powered null; v10).
+- **H2 liquidations → fade-flush:** OPEN (next; pending its data-integrity gate).
 
 ---
 
