@@ -1,27 +1,37 @@
 //@version=6
-indicator("Jamal Phase 1 v7", shorttitle="Jamal P1v7", overlay=false)
+indicator("Jamal Phase 1 v8", shorttitle="Jamal P1v8", overlay=false)
 
 // =====================================================================
-// OS core = overshoot fader + REGIME (a CONDITIONER, not a veto).
+// CONDITIONER-DISCOVERY INSTRUMENT (advisor reframe).
 //
-// METRIC: TRIPLE-BARRIER first-touch (+target*ATR / -stop*ATR / time cap) -> outcome ATR,
-// target/stop first-touch rates, and BRACKET-FREE full-cap MFE/MAE excursion envelope.
-// Buckets: Taken / Veto-DIR / Veto-CSC per side vs a random-bar baseline (same bracket).
-// Exp = bucket - baseline, SE from EFFECTIVE-n (cap-spaced, non-overlapping); read |t|>=1.5
-// and effective-n >= min_eff. GATE-0 = Taken row Exp. "gate d" = Taken - Veto-DIR.
+// Stop asserting "trend = ER>0.30" and hoping it separates fade outcomes. Instead measure,
+// per overshoot signal, the forward ASYMMETRY  A = MFE - MAE  (bracket-free, ATR, full window)
+// against pre-committed candidate CONDITIONERS, and let outcome-separation DEFINE the regime
+// variable. The label becomes an output you discover, not an input you defend.
 //
-// v7: added a REGIME-MIX readout (fraction of window bars colored vs Range) to the state
-//   panel -> verifies the engine is correctly sparse (market is unimodal-choppy, ER median
-//   ~0.235 < 0.30 enter) rather than under-labeling trends. Compare colored% to the v3
-//   ER-only ceiling (~48%): ~30-45% colored = ER minus the direction/dwell filter, working;
-//   far below (<~15%) = slope deadband / dwell over-trimming (a bug to fix first).
+// Per conditioner the dashboard reports: winsorized (fat-tail-robust) correlation r(C, A) with
+// effective-n t, plus a tercile mean-A table (shape check). A conditioner is REAL only if:
+//   significant |t| AND monotone across the 3 bins AND correctly signed by its mechanism AND
+//   it replicates across symbols/TFs. Otherwise -> no regime carves the fade here -> fade is dead
+//   (this instrument is equally a clean KILL TEST).
 //
-// CONTEXT (not modelled): stop-first on same-bar ambiguity PESSIMIZES a fader -> Exp is a
-//   conservative FLOOR. Cost-blind -> haircut before believing a cell. BOUNDED TO TRADINGVIEW.
+// Correlation (every signal, one number) not more buckets (binning shreds nEff). Winsorized
+// Pearson, not raw Pearson (one liquidation candle manufactures a correlation). Tercile table is
+// a SHAPE check only: monotone slope = real; all signal in one bin = outlier artifact.
+//
+// PRE-COMMITTED CONDITIONERS (4, each with a mechanism — anti-HARK):
+//   C1 signed-efficiency = ER * sign(os) * sign(slope): counter-trend overshoots inside a strong
+//      trend bounce hardest (one-sided positioning -> squeeze); with-trend ones continue. [v4 lead]
+//   C2 |overshoot|      : depth past the trigger — does a deeper extreme revert more?
+//   C3 velocity         = |os - os[vel_len]|: violent spike vs slow grind into the extreme.
+//   C4 |carry| = |tc|   : trend's displacement from VWAP at signal, as a reversion conditioner.
+//
+// BOUNDED TO TRADINGVIEW. NOT a backtest; descriptive, cost-blind, overlapping. Regime state
+// machine retained only for the tint/context (C1 uses ER+slope directly, not the discrete label).
 // =====================================================================
 
 // ===== Inputs =====
-// --- Regime ---
+// --- Regime (context + provides ER/slope/tc for conditioners) ---
 regime_filter   = input.bool(true,  "Apply regime veto (live plot only)", group="Regime")
 er_len          = input.int(20,   "Efficiency Ratio length",      minval=5,                         group="Regime")
 er_trend        = input.float(0.30, "ER trend ENTER threshold",    minval=0.05, maxval=0.95, step=0.01, group="Regime")
@@ -45,17 +55,15 @@ arm_max_bars  = input.int(24, "Reversion arm timeout (bars)", minval=1, group="A
 show_turns       = input.bool(true,  "Show fade arrows on price", group="Display")
 show_provisional = input.bool(true,  "Show provisional (forming-bar) signals", group="Display")
 show_table       = input.bool(true,  "Show state panel (top-right)", group="Display")
-show_scout       = input.bool(true,  "Show scout dashboard (bottom-right)", group="Display")
+show_scout       = input.bool(true,  "Show conditioner dashboard (bottom-right)", group="Display")
 show_regime_bg   = input.bool(true,  "Tint pane by regime", group="Display")
 os_color_mode    = input.string("State", "Overshoot column color", options=["State", "Direction"], group="Display")
 
-// --- Scout sampling / barrier ---
-fwd_bars      = input.int(24,  "Forward window (bars)",     minval=2,                group="Scout")
-bar_target_atr = input.float(1.0, "Barrier target (ATR)",   minval=0.1, step=0.1,    group="Scout")
-bar_stop_atr   = input.float(1.5, "Barrier stop (ATR)",     minval=0.1, step=0.1,    group="Scout")
-bar_tcap       = input.int(12, "Barrier time cap (bars)",   minval=1,                group="Scout")
+// --- Scout / conditioner instrument ---
+fwd_bars      = input.int(12,  "Excursion window (bars)",   minval=2,                group="Scout", tooltip="Horizon over which MFE/MAE (and A=MFE-MAE) are measured; also the effective-n independence spacing.")
+vel_len       = input.int(3,   "Velocity lookback (bars)",  minval=1,                group="Scout", tooltip="C3 velocity = |os - os[vel_len]| at signal time.")
 min_samples   = input.int(20,  "Min samples to display",  minval=1,                  group="Scout")
-lookback_bars = input.int(750, "Lookback window (bars)",  minval=50, maxval=10000,   group="Scout")
+lookback_bars = input.int(1500, "Lookback window (bars)", minval=50, maxval=10000,   group="Scout")
 cal_len       = input.int(250, "Calibration burn-in (bars)", minval=30,              group="Scout")
 
 // --- Overshoot ---
@@ -73,7 +81,7 @@ carry_basis = input.string("VWAP", "Carry baseline",     options=["VWAP", "SMA",
 carry_len   = input.int(50,     "Carry baseline length", minval=5, group="Anchors")
 atr_len  = input.int(20, "ATR length (normalizer)", minval=2, group="Anchors")
 
-// --- Scout (appended last to keep input IDs stable) ---
+// --- Scout (appended last to keep input IDs stable hereafter) ---
 min_eff = input.int(8, "Min effective-n (gate floor)", minval=1, group="Scout")
 
 // ===== Helper: arm/fire latch =====
@@ -113,20 +121,14 @@ f_pctile(arr, p) =>
         res := array.get(s, lo) + frac * (array.get(s, hi) - array.get(s, lo))
     res
 
-// ===== Helpers: scout =====
-// Triple-barrier first-touch + BRACKET-FREE full-cap excursion envelope.
-// Returns [outcome_ATR, hit(0 timeout/1 target/2 stop), mfe_full_ATR, mae_full_ATR].
-// First touch is recorded but the loop does NOT break, so MFE/MAE span the full cap.
-// Conservative: stop-first on same-bar ambiguity.
-f_barrier(is_long, entry, atr_sig) =>
-    float tgt = is_long ? entry + bar_target_atr * atr_sig : entry - bar_target_atr * atr_sig
-    float stp = is_long ? entry - bar_stop_atr   * atr_sig : entry + bar_stop_atr   * atr_sig
-    int   cap = math.min(bar_tcap, fwd_bars)
-    float out = na
-    int   hitc = 0
+// ===== Helpers: conditioner instrument =====
+f_clip(v, lo, hi) => math.max(lo, math.min(hi, v))
+
+// Full-window MFE/MAE (bracket-free) from the entry bar (fwd_bars back). [mfe_ATR, mae_ATR]
+f_excursion(is_long, entry, atr_sig) =>
     float mfe = 0.0
     float mae = 0.0
-    for k = 1 to cap
+    for k = 1 to fwd_bars
         off = fwd_bars - k
         hi = high[off]
         lo = low[off]
@@ -134,104 +136,103 @@ f_barrier(is_long, entry, atr_sig) =>
         adv = is_long ? (entry - lo) / atr_sig : (hi - entry) / atr_sig
         mfe := math.max(mfe, fav)
         mae := math.max(mae, adv)
-        if hitc == 0
-            if is_long
-                if lo <= stp
-                    out := -bar_stop_atr
-                    hitc := 2
-                else if hi >= tgt
-                    out := bar_target_atr
-                    hitc := 1
-            else
-                if hi >= stp
-                    out := -bar_stop_atr
-                    hitc := 2
-                else if lo <= tgt
-                    out := bar_target_atr
-                    hitc := 1
-    if hitc == 0
-        eoff = fwd_bars - cap
-        out := is_long ? (close[eoff] - entry) / atr_sig : (entry - close[eoff]) / atr_sig
-    [out, hitc, mfe, mae]
+    [mfe, mae]
 
-f_push(bar_arr, out_arr, mfe_arr, mae_arr, hit_arr, out_v, mfe_v, mae_v, hit_v) =>
-    array.push(bar_arr, bar_index)
-    array.push(out_arr, out_v)
-    array.push(mfe_arr, mfe_v)
-    array.push(mae_arr, mae_v)
-    array.push(hit_arr, hit_v)
-    while array.size(bar_arr) > 0 and bar_index - array.first(bar_arr) > lookback_bars
-        array.shift(bar_arr)
-        array.shift(out_arr)
-        array.shift(mfe_arr)
-        array.shift(mae_arr)
-        array.shift(hit_arr)
+f_cpush(bar_a, a_a, c1_a, c2_a, c3_a, c4_a, av, c1v, c2v, c3v, c4v) =>
+    array.push(bar_a, bar_index)
+    array.push(a_a, av)
+    array.push(c1_a, c1v)
+    array.push(c2_a, c2v)
+    array.push(c3_a, c3v)
+    array.push(c4_a, c4v)
+    while array.size(bar_a) > 0 and bar_index - array.first(bar_a) > lookback_bars
+        array.shift(bar_a)
+        array.shift(a_a)
+        array.shift(c1_a)
+        array.shift(c2_a)
+        array.shift(c3_a)
+        array.shift(c4_a)
 
-// Effective n: non-overlapping samples spaced by the barrier CAP (outcome resolution horizon).
+// Effective n: non-overlapping signals spaced by the excursion window (outcome resolution horizon).
 f_effn(bar_arr) =>
-    int sp = math.min(bar_tcap, fwd_bars)
     n = array.size(bar_arr)
     cnt = 0
     int last = na
     if n > 0
         for i = 0 to n - 1
             b = array.get(bar_arr, i)
-            if na(last) or b - last >= sp
+            if na(last) or b - last >= fwd_bars
                 cnt += 1
                 last := b
     cnt
 
-// Edge with SE from effective-n + dispersion. na unless raw n >= min_samples AND effN >= min_eff.
-f_edge_se(sig, sig_bar, base, base_bar) =>
-    ns = array.size(sig)
-    nb = array.size(base)
-    float edge = na
-    float se   = na
-    float t    = na
-    int   es   = 0
-    if ns >= min_samples and nb >= 1
-        es := f_effn(sig_bar)
-        eb = f_effn(base_bar)
-        if es >= min_eff
-            edge := array.avg(sig) - array.avg(base)
-            vs = ns > 1 ? math.pow(array.stdev(sig), 2) : 0.0
-            vb = nb > 1 ? math.pow(array.stdev(base), 2) : 0.0
-            se := math.sqrt((es > 0 ? vs / es : 0.0) + (eb > 0 ? vb / eb : 0.0))
-            t  := se > 0 ? edge / se : na
-    [edge, se, t, es]
-
-// Gate gap (Taken - Veto), baseline cancels. na unless both >= min_samples AND effN >= min_eff.
-f_gap(a, a_bar, b, b_bar) =>
-    na_ = array.size(a)
-    nb  = array.size(b)
-    float gap = na
-    float se  = na
-    float t   = na
-    if na_ >= min_samples and nb >= min_samples
-        ea = f_effn(a_bar)
-        eb = f_effn(b_bar)
-        if math.min(ea, eb) >= min_eff
-            gap := array.avg(a) - array.avg(b)
-            va = math.pow(array.stdev(a), 2)
-            vb = math.pow(array.stdev(b), 2)
-            se := math.sqrt((ea > 0 ? va / ea : 0.0) + (eb > 0 ? vb / eb : 0.0))
-            t  := se > 0 ? gap / se : na
-    [gap, se, t]
-
-f_rate(hit_arr, code) =>
-    n = array.size(hit_arr)
-    int c = 0
-    if n > 0
+// Winsorized (5/95) Pearson correlation of c vs a — fat-tail robust, O(n). na if n < min_samples.
+f_wins_corr(c, a) =>
+    n = array.size(c)
+    float r = na
+    if n >= min_samples
+        cl = f_pctile(c, 5)
+        ch = f_pctile(c, 95)
+        al = f_pctile(a, 5)
+        ah = f_pctile(a, 95)
+        float mc = 0.0
+        float ma = 0.0
         for i = 0 to n - 1
-            if array.get(hit_arr, i) == code
-                c += 1
-    n > 0 ? 100.0 * c / n : na
+            mc += f_clip(array.get(c, i), cl, ch)
+            ma += f_clip(array.get(a, i), al, ah)
+        mc := mc / n
+        ma := ma / n
+        float num = 0.0
+        float dc  = 0.0
+        float da  = 0.0
+        for i = 0 to n - 1
+            cc = f_clip(array.get(c, i), cl, ch) - mc
+            aa = f_clip(array.get(a, i), al, ah) - ma
+            num += cc * aa
+            dc  += cc * cc
+            da  += aa * aa
+        r := (dc > 0 and da > 0) ? num / math.sqrt(dc * da) : na
+    r
 
-f_mean_min(arr) => array.size(arr) >= min_samples ? array.avg(arr) : na
+f_corr_t(r, neff) => (na(r) or neff < 3) ? na : r * math.sqrt(math.max(neff - 2, 0) / math.max(1 - r * r, 0.000001))
+
+// Tercile mean-A (winsorized A) by C bin -> [lo, mid, hi]. Shape check for monotonicity.
+f_bins(c, a) =>
+    n = array.size(c)
+    float m0 = na
+    float m1 = na
+    float m2 = na
+    if n >= min_samples
+        e1 = f_pctile(c, 33.33333)
+        e2 = f_pctile(c, 66.66667)
+        al = f_pctile(a, 5)
+        ah = f_pctile(a, 95)
+        float s0 = 0.0
+        float s1 = 0.0
+        float s2 = 0.0
+        int k0 = 0
+        int k1 = 0
+        int k2 = 0
+        for i = 0 to n - 1
+            ci = array.get(c, i)
+            ai = f_clip(array.get(a, i), al, ah)
+            if ci < e1
+                s0 += ai
+                k0 += 1
+            else if ci < e2
+                s1 += ai
+                k1 += 1
+            else
+                s2 += ai
+                k2 += 1
+        m0 := k0 > 0 ? s0 / k0 : na
+        m1 := k1 > 0 ? s1 / k1 : na
+        m2 := k2 > 0 ? s2 / k2 : na
+    [m0, m1, m2]
+
 f_num_str(v) => na(v) ? "n/a" : (v > 0 ? "+" : "") + str.tostring(v, "#.00")
-f_pct_str(v) => na(v) ? "-" : str.tostring(v, "#") + "%"
 f_t_str(t)   => na(t) ? "n/a" : str.tostring(t, "#.0")
-f_t_col(edge, t) => na(t) or math.abs(t) < 1.5 ? color.new(color.gray, 30) : edge > 0 ? color.new(#00C853, 0) : color.new(#FF1744, 0)
+f_t_col(v, t) => na(t) or math.abs(t) < 2.0 ? color.new(color.gray, 30) : v > 0 ? color.new(#00C853, 0) : color.new(#FF1744, 0)
 
 // ===== Components: overshoot engine =====
 atr      = ta.atr(atr_len)
@@ -255,6 +256,7 @@ carry_base = carry_basis == "SMA" ? sma_v : carry_basis == "EMA" ? ema_v : rvwap
 
 os = (na(atr_os) or na(reg))        ? na : (close - reg)      / atr_os
 tc = (na(atr_os) or na(carry_base)) ? na : (reg - carry_base) / atr_os
+os_vel = os - os[vel_len]
 
 // --- Extremity ---
 os_pct  = ta.percentrank(os, pct_len)
@@ -295,7 +297,7 @@ os_ext_dn  = not na(os) and os <= trig_dn
 bind_up_code = nz(os_p_hi, -1e9) >= os_min_atr  ? 1 : 0
 bind_dn_code = nz(os_p_lo,  1e9) <= -os_min_atr ? 1 : 0
 
-// ===== REGIME LAYER =====
+// ===== REGIME LAYER (context + ER/slope for C1) =====
 er_den = math.sum(math.abs(close - close[1]), er_len)
 er     = er_den > 0 ? math.abs(close - close[er_len]) / er_den : na
 
@@ -347,81 +349,34 @@ fade_dn_sig = use_reversion ? fade_dn_fire : fade_dn_raw
 fade_short = fade_up_sig and allow_short_live
 fade_long  = fade_dn_sig and allow_long_live
 
-// ===== Scout: triple-barrier outcomes, stratified Taken / Veto-DIR / Veto-CSC =====
-var array<int>   fl_t_bar  = array.new<int>()
-var array<int>   fl_vd_bar = array.new<int>()
-var array<int>   fl_vc_bar = array.new<int>()
-var array<float> fl_t_out  = array.new<float>()
-var array<float> fl_vd_out = array.new<float>()
-var array<float> fl_vc_out = array.new<float>()
-var array<float> fl_t_mfe  = array.new<float>()
-var array<float> fl_vd_mfe = array.new<float>()
-var array<float> fl_vc_mfe = array.new<float>()
-var array<float> fl_t_mae  = array.new<float>()
-var array<float> fl_vd_mae = array.new<float>()
-var array<float> fl_vc_mae = array.new<float>()
-var array<int>   fl_t_hit  = array.new<int>()
-var array<int>   fl_vd_hit = array.new<int>()
-var array<int>   fl_vc_hit = array.new<int>()
-var array<int>   fs_t_bar  = array.new<int>()
-var array<int>   fs_vd_bar = array.new<int>()
-var array<int>   fs_vc_bar = array.new<int>()
-var array<float> fs_t_out  = array.new<float>()
-var array<float> fs_vd_out = array.new<float>()
-var array<float> fs_vc_out = array.new<float>()
-var array<float> fs_t_mfe  = array.new<float>()
-var array<float> fs_vd_mfe = array.new<float>()
-var array<float> fs_vc_mfe = array.new<float>()
-var array<float> fs_t_mae  = array.new<float>()
-var array<float> fs_vd_mae = array.new<float>()
-var array<float> fs_vc_mae = array.new<float>()
-var array<int>   fs_t_hit  = array.new<int>()
-var array<int>   fs_vd_hit = array.new<int>()
-var array<int>   fs_vc_hit = array.new<int>()
-var array<int>   bs_bar    = array.new<int>()
-var array<float> bl_out    = array.new<float>()
-var array<float> bsh_out   = array.new<float>()
-var array<int>   bs_reg    = array.new<int>()
+// ===== Conditioner instrument: per signal, record A and C1..C4 (sampled at SIGNAL time) =====
+var array<int>   c_bar = array.new<int>()
+var array<float> c_a   = array.new<float>()
+var array<float> c_c1  = array.new<float>()
+var array<float> c_c2  = array.new<float>()
+var array<float> c_c3  = array.new<float>()
+var array<float> c_c4  = array.new<float>()
 
 post_cal = bar_index - fwd_bars >= cal_len
 if post_cal
     entry   = close[fwd_bars]
     atr_sig = safe_atr[fwd_bars]
-    if not na(atr_sig) and atr_sig > 0 and not na(entry)
-        [l_out, l_hit, l_mfe, l_mae] = f_barrier(true,  entry, atr_sig)
-        [s_out, s_hit, s_mfe, s_mae] = f_barrier(false, entry, atr_sig)
-
-        // Baseline = every bar, both perspectives. Also log current regime for the mix readout.
-        array.push(bs_bar, bar_index)
-        array.push(bl_out, l_out)
-        array.push(bsh_out, s_out)
-        array.push(bs_reg, regime)
-        while array.size(bs_bar) > 0 and bar_index - array.first(bs_bar) > lookback_bars
-            array.shift(bs_bar)
-            array.shift(bl_out)
-            array.shift(bsh_out)
-            array.shift(bs_reg)
-
-        raw_long  = fade_dn_sig[fwd_bars]
-        raw_short = fade_up_sig[fwd_bars]
-        reg_sig   = regime[fwd_bars]
-        long_ok   = reg_sig == 0 or reg_sig == 1
-        short_ok  = reg_sig == 0 or reg_sig == -1
-        is_casc   = math.abs(reg_sig) == 2
-        if raw_long
-            if long_ok
-                f_push(fl_t_bar,  fl_t_out,  fl_t_mfe,  fl_t_mae,  fl_t_hit,  l_out, l_mfe, l_mae, l_hit)
-            else if is_casc
-                f_push(fl_vc_bar, fl_vc_out, fl_vc_mfe, fl_vc_mae, fl_vc_hit, l_out, l_mfe, l_mae, l_hit)
-            else
-                f_push(fl_vd_bar, fl_vd_out, fl_vd_mfe, fl_vd_mae, fl_vd_hit, l_out, l_mfe, l_mae, l_hit)
-        if raw_short
-            if short_ok
-                f_push(fs_t_bar,  fs_t_out,  fs_t_mfe,  fs_t_mae,  fs_t_hit,  s_out, s_mfe, s_mae, s_hit)
-            else if is_casc
-                f_push(fs_vc_bar, fs_vc_out, fs_vc_mfe, fs_vc_mae, fs_vc_hit, s_out, s_mfe, s_mae, s_hit)
-            else
-                f_push(fs_vd_bar, fs_vd_out, fs_vd_mfe, fs_vd_mae, fs_vd_hit, s_out, s_mfe, s_mae, s_hit)
+    sig_long  = fade_dn_sig[fwd_bars]   // down-extreme -> fade long
+    sig_short = fade_up_sig[fwd_bars]   // up-extreme   -> fade short
+    if (sig_long or sig_short) and not na(atr_sig) and atr_sig > 0 and not na(entry)
+        [mfe, mae] = f_excursion(sig_long, entry, atr_sig)
+        a   = mfe - mae
+        os_s  = os[fwd_bars]
+        sl_s  = slope_atr[fwd_bars]
+        er_s  = er[fwd_bars]
+        tc_s  = tc[fwd_bars]
+        vel_s = os_vel[fwd_bars]
+        float c1 = (na(er_s) or na(sl_s) or na(os_s)) ? na : er_s * math.sign(os_s) * math.sign(sl_s)
+        float c2 = na(os_s)  ? na : math.abs(os_s)
+        float c3 = na(vel_s) ? na : math.abs(vel_s)
+        float c4 = na(tc_s)  ? na : math.abs(tc_s)
+        if not na(a) and not na(c1) and not na(c2) and not na(c3) and not na(c4)
+            f_cpush(c_bar, c_a, c_c1, c_c2, c_c3, c_c4, a, c1, c2, c3, c4)
 
 // ===== Colors =====
 committed = barstate.isconfirmed
@@ -444,10 +399,7 @@ plot(ac1,    "Return autocorr (lag-1)",    color=color.new(color.gray, 100), dis
 plot(vr,     "Variance ratio",             color=color.new(color.gray, 100), display=display.data_window)
 plot(atr_pct,"Vol percentile",             color=color.new(color.gray, 100), display=display.data_window)
 plot(regime, "Regime (0/+-1/+-2)",         color=color.new(color.gray, 100), display=display.data_window)
-plot(os_p_hi,      "Pctile lvl + (pre-floor)", color=color.new(color.gray, 100), display=display.data_window)
-plot(os_p_lo,      "Pctile lvl - (pre-floor)", color=color.new(color.gray, 100), display=display.data_window)
-plot(bind_up_code, "Binding + (1=pctile,0=floor)", color=color.new(color.gray, 100), display=display.data_window)
-plot(bind_dn_code, "Binding - (1=pctile,0=floor)", color=color.new(color.gray, 100), display=display.data_window)
+plot(os_vel, "Overshoot velocity",         color=color.new(color.gray, 100), display=display.data_window)
 
 pTrigUp = plot(trig_up, "Trigger + (fire level)", color=color.new(color.gray, 45), style=plot.style_stepline)
 pTrigDn = plot(trig_dn, "Trigger - (fire level)", color=color.new(color.gray, 45), style=plot.style_stepline)
@@ -461,94 +413,61 @@ plotshape(show_turns and show_provisional and not committed and fade_short ? hig
 plotshape(show_turns and show_provisional and not committed and fade_long  ? low  : na, "FADE LONG (prov)",  shape.triangleup,   location.belowbar, color=color.new(color.gray, 60), size=size.tiny, force_overlay=true)
 
 // ===== State panel =====
-string reg_label = regime == 1 ? "Trend-up (longs only)" : regime == -1 ? "Trend-down (shorts only)" : math.abs(regime) == 2 ? "CASCADE (stand aside)" : "Range (both)"
+string reg_label = regime == 1 ? "Trend-up" : regime == -1 ? "Trend-down" : math.abs(regime) == 2 ? "CASCADE" : "Range"
 color  reg_bgc   = regime == 1 ? color.new(#00C853, 0) : regime == -1 ? color.new(#FF1744, 0) : math.abs(regime) == 2 ? color.new(#FF6D00, 0) : color.new(color.gray, 40)
 string ext_label = os_ext_up ? "Up-extreme (SHORT)" : os_ext_dn ? "Down-extreme (LONG)" : "-"
 color  ext_bg    = os_ext_up ? color.new(#FF1744, 0) : os_ext_dn ? color.new(#00C853, 0) : color.new(color.gray, 40)
 
-var table panel = table.new(position.top_right, 2, 8, border_color=color.new(color.gray, 50), border_width=1, frame_color=color.new(color.gray, 50), frame_width=1)
+var table panel = table.new(position.top_right, 2, 7, border_color=color.new(color.gray, 50), border_width=1, frame_color=color.new(color.gray, 50), frame_width=1)
 if show_table and barstate.islast
     string forming = barstate.isconfirmed ? " (confirmed)" : " (forming)"
     table.cell(panel, 0, 0, "Regime",        text_color=color.silver, text_size=size.tiny)
-    table.cell(panel, 1, 0, reg_label + (regime_filter ? "" : " [veto OFF]"), text_color=color.white, bgcolor=reg_bgc, text_size=size.tiny)
+    table.cell(panel, 1, 0, reg_label,       text_color=color.white, bgcolor=reg_bgc, text_size=size.tiny)
     table.cell(panel, 0, 1, "ER / AC1 / VR", text_color=color.silver, text_size=size.tiny)
     table.cell(panel, 1, 1, str.tostring(er, "#.00") + " / " + str.tostring(ac1, "#.00") + " / " + str.tostring(vr, "#.00"), text_color=color.white, text_size=size.tiny)
     table.cell(panel, 0, 2, "Vol pctile",    text_color=color.silver, text_size=size.tiny)
-    table.cell(panel, 1, 2, str.tostring(atr_pct, "#.0") + " %" + (cascade ? "  SURGE" : ""), text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 1, 2, str.tostring(atr_pct, "#.0") + " %", text_color=color.white, text_size=size.tiny)
     table.cell(panel, 0, 3, "Overshoot",     text_color=color.silver, text_size=size.tiny)
     table.cell(panel, 1, 3, str.tostring(os, "#.00") + " ATR", text_color=color.white, text_size=size.tiny)
     table.cell(panel, 0, 4, "Extremity",     text_color=color.silver, text_size=size.tiny)
     table.cell(panel, 1, 4, ext_label,       text_color=color.white, bgcolor=ext_bg, text_size=size.tiny)
     table.cell(panel, 0, 5, "Carry",         text_color=color.silver, text_size=size.tiny)
     table.cell(panel, 1, 5, str.tostring(tc, "#.00") + " ATR (" + carry_basis + ")", text_color=color.white, text_size=size.tiny)
-    table.cell(panel, 0, 6, "Bracket",       text_color=color.silver, text_size=size.tiny)
-    table.cell(panel, 1, 6, "+" + str.tostring(bar_target_atr, "#.0") + " / -" + str.tostring(bar_stop_atr, "#.0") + " / " + str.tostring(bar_tcap) + "b" + forming, text_color=color.white, text_size=size.tiny)
-    int rn = array.size(bs_reg)
-    int c0 = 0
-    int c1 = 0
-    int cm = 0
-    int c2 = 0
-    if rn > 0
-        for i = 0 to rn - 1
-            rgv = array.get(bs_reg, i)
-            if rgv == 0
-                c0 += 1
-            else if rgv == 1
-                c1 += 1
-            else if rgv == -1
-                cm += 1
-            else
-                c2 += 1
-    string mixs = rn > 0 ? str.tostring(100.0 * (c1 + cm + c2) / rn, "#") + "% col (" + str.tostring(100.0 * c1 / rn, "#") + "U/" + str.tostring(100.0 * cm / rn, "#") + "D/" + str.tostring(100.0 * c2 / rn, "#") + "C) n=" + str.tostring(rn) : "n/a"
-    table.cell(panel, 0, 7, "Reg mix",       text_color=color.silver, text_size=size.tiny)
-    table.cell(panel, 1, 7, mixs,            text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 0, 6, "Window/sig",    text_color=color.silver, text_size=size.tiny)
+    table.cell(panel, 1, 6, str.tostring(fwd_bars) + "b / n=" + str.tostring(array.size(c_a)) + forming, text_color=color.white, text_size=size.tiny)
 
-// ===== Scout dashboard (triple-barrier) =====
-var table scout = table.new(position.bottom_right, 8, 10, border_color=color.new(color.gray, 50), border_width=1, frame_color=color.new(color.gray, 50), frame_width=1)
+// ===== Conditioner dashboard =====
+// r = winsorized corr(C, A); A = MFE-MAE (fade asymmetry, ATR). t from effective-n; colour |t|>=2.
+// A.lo/mid/hi = tercile mean-A (shape: monotone = real conditioner, one hot bin = artifact).
+// REAL conditioner = significant t + monotone bins + correct sign + cross-symbol replication.
+var table scout = table.new(position.bottom_right, 7, 6, border_color=color.new(color.gray, 50), border_width=1, frame_color=color.new(color.gray, 50), frame_width=1)
 bgsc = color.new(color.black, 50)
 
-f_hdr(col, txt) => table.cell(scout, col, 0, txt, text_color=color.silver, bgcolor=bgsc, text_size=size.tiny)
-
-f_row(r, lbl, out_arr, bar_arr, mfe_arr, mae_arr, hit_arr, base_out, base_bar, lblcol) =>
-    [edge, se, t, neff] = f_edge_se(out_arr, bar_arr, base_out, base_bar)
-    table.cell(scout, 0, r, lbl, text_color=lblcol, bgcolor=bgsc, text_size=size.tiny)
-    table.cell(scout, 1, r, f_num_str(edge), text_color=color.white, bgcolor=f_t_col(edge, t), text_size=size.tiny)
-    table.cell(scout, 2, r, f_t_str(t), text_color=color.white, text_size=size.tiny)
-    table.cell(scout, 3, r, f_pct_str(f_rate(hit_arr, 1)), text_color=color.white, text_size=size.tiny)
-    table.cell(scout, 4, r, f_pct_str(f_rate(hit_arr, 2)), text_color=color.silver, text_size=size.tiny)
-    table.cell(scout, 5, r, f_num_str(f_mean_min(mfe_arr)), text_color=color.silver, text_size=size.tiny)
-    table.cell(scout, 6, r, f_num_str(f_mean_min(mae_arr)), text_color=color.silver, text_size=size.tiny)
-    table.cell(scout, 7, r, str.tostring(neff), text_color=color.white, text_size=size.tiny)
-
-f_gate(r, lbl, t_out, t_bar, v_out, v_bar) =>
-    [gap, se, tt] = f_gap(t_out, t_bar, v_out, v_bar)
-    verdict = na(tt) ? "n/a" : tt >= 1.5 ? "EDGE" : tt <= -1.5 ? "ANTI" : "ns"
-    table.cell(scout, 0, r, lbl, text_color=color.white, bgcolor=bgsc, text_size=size.tiny)
-    table.cell(scout, 1, r, f_num_str(gap), text_color=color.white, bgcolor=f_t_col(gap, tt), text_size=size.tiny)
+f_crow(r, lbl, carr, aarr, barr) =>
+    rr = f_wins_corr(carr, aarr)
+    nef = f_effn(barr)
+    tt = nef >= min_eff ? f_corr_t(rr, nef) : na
+    [m0, m1, m2] = f_bins(carr, aarr)
+    table.cell(scout, 0, r, lbl, text_color=color.silver, bgcolor=bgsc, text_size=size.tiny)
+    table.cell(scout, 1, r, na(tt) ? "n/a" : f_num_str(rr), text_color=color.white, bgcolor=f_t_col(rr, tt), text_size=size.tiny)
     table.cell(scout, 2, r, f_t_str(tt), text_color=color.white, text_size=size.tiny)
-    table.cell(scout, 3, r, verdict, text_color=color.white, bgcolor=f_t_col(gap, tt), text_size=size.tiny)
-    table.cell(scout, 4, r, "", text_color=color.silver, text_size=size.tiny)
-    table.cell(scout, 5, r, "", text_color=color.silver, text_size=size.tiny)
-    table.cell(scout, 6, r, "", text_color=color.silver, text_size=size.tiny)
-    table.cell(scout, 7, r, "", text_color=color.silver, text_size=size.tiny)
+    table.cell(scout, 3, r, f_num_str(m0), text_color=color.silver, text_size=size.tiny)
+    table.cell(scout, 4, r, f_num_str(m1), text_color=color.silver, text_size=size.tiny)
+    table.cell(scout, 5, r, f_num_str(m2), text_color=color.silver, text_size=size.tiny)
+    table.cell(scout, 6, r, str.tostring(nef), text_color=color.white, text_size=size.tiny)
 
 if show_scout and barstate.islast
-    f_hdr(0, "bucket")
-    f_hdr(1, "Exp")
-    f_hdr(2, "t")
-    f_hdr(3, "tH%")
-    f_hdr(4, "sH%")
-    f_hdr(5, "MFE")
-    f_hdr(6, "MAE")
-    f_hdr(7, "nEff")
-    f_row(1, "L Taken",    fl_t_out,  fl_t_bar,  fl_t_mfe,  fl_t_mae,  fl_t_hit,  bl_out,  bs_bar, color.silver)
-    f_row(2, "L Veto-dir", fl_vd_out, fl_vd_bar, fl_vd_mfe, fl_vd_mae, fl_vd_hit, bl_out,  bs_bar, color.gray)
-    f_row(3, "L Veto-csc", fl_vc_out, fl_vc_bar, fl_vc_mfe, fl_vc_mae, fl_vc_hit, bl_out,  bs_bar, color.gray)
-    f_row(4, "S Taken",    fs_t_out,  fs_t_bar,  fs_t_mfe,  fs_t_mae,  fs_t_hit,  bsh_out, bs_bar, color.silver)
-    f_row(5, "S Veto-dir", fs_vd_out, fs_vd_bar, fs_vd_mfe, fs_vd_mae, fs_vd_hit, bsh_out, bs_bar, color.gray)
-    f_row(6, "S Veto-csc", fs_vc_out, fs_vc_bar, fs_vc_mfe, fs_vc_mae, fs_vc_hit, bsh_out, bs_bar, color.gray)
-    f_gate(7, "L gate d",  fl_t_out, fl_t_bar, fl_vd_out, fl_vd_bar)
-    f_gate(8, "S gate d",  fs_t_out, fs_t_bar, fs_vd_out, fs_vd_bar)
+    table.cell(scout, 0, 0, "C\\A n=" + str.tostring(array.size(c_a)), text_color=color.silver, bgcolor=bgsc, text_size=size.tiny)
+    table.cell(scout, 1, 0, "r",     text_color=color.silver, bgcolor=bgsc, text_size=size.tiny)
+    table.cell(scout, 2, 0, "t",     text_color=color.silver, bgcolor=bgsc, text_size=size.tiny)
+    table.cell(scout, 3, 0, "A.lo",  text_color=color.silver, bgcolor=bgsc, text_size=size.tiny)
+    table.cell(scout, 4, 0, "A.mid", text_color=color.silver, bgcolor=bgsc, text_size=size.tiny)
+    table.cell(scout, 5, 0, "A.hi",  text_color=color.silver, bgcolor=bgsc, text_size=size.tiny)
+    table.cell(scout, 6, 0, "nEff",  text_color=color.silver, bgcolor=bgsc, text_size=size.tiny)
+    f_crow(1, "C1 SignEff", c_c1, c_a, c_bar)
+    f_crow(2, "C2 |OS|",    c_c2, c_a, c_bar)
+    f_crow(3, "C3 Veloc",   c_c3, c_a, c_bar)
+    f_crow(4, "C4 |Carry|", c_c4, c_a, c_bar)
 
 // ===== Alerts (committed-only, regime-gated) =====
 alertcondition(fade_short and committed, "FADE SHORT", "Overshoot extreme up, regime allows - fade short")

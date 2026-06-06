@@ -154,7 +154,33 @@ Vol%lo (cascade-pollution tag): Taken 35–53 (losers NOT high-vol) · Veto-CSC 
 **Rationale:** advisor verification — turn "looks sparse" into a number vs the v3 ER-only ~48% ceiling, BEFORE the Veto-dir probe. If colored% << expected → slope deadband/dwell over-trimming (a bug); if in-band → sparseness is the market, proceed.
 **Tests run:** `pine_check` 0/0; pushed + remove/re-add; BTC 1h, lookback 1500.
 **Results:** **Reg mix = 30% colored (13U / 15D / 2C), n=1501** (Range 70%). In the predicted 30–45% band (ER-only 48% minus the slope-deadband + dwell filters), well above the <15% over-trimming threshold. The balanced 13U/15D split = both directions label (not down-only). Scout numbers unchanged from v6 (no logic change).
-**Verdict:** **labels are clean; the sparseness is the market, not a bug.** Engine verified — cleared to run the Veto-dir conditional probe. (Explicit single-episode up-leg concordance eyeball still pending — UI replay-dialog/editor overlay obstructed the screenshot; the aggregate 13U is strong proxy evidence.)
+**Verdict:** **labels are clean; the sparseness is the market, not a bug.** Engine verified — cleared to run the conditional probe. (Explicit single-episode up-leg concordance eyeball still pending — UI obstructed the screenshot; aggregate 13U is strong proxy.)
+**Status:** superseded by v8 (conditioner reframe).
+
+## v8 — Conditioner-discovery instrument (advisor reframe)
+**Date:** 2026-06-06 · **On-chart:** "Jamal Phase 1 v8" (shorttitle "Jamal P1v8")
+**Code changes**
+- **REFRAME:** stop asserting the regime gate; measure per overshoot signal the forward asymmetry **A = MFE − MAE** (bracket-free, full window) vs pre-committed candidate conditioners, and let outcome-separation define the regime. Label = discovered output, not defended input.
+- **Stripped** the stratified Taken/Veto bucket scout, the bracket inputs (bar_target/stop/tcap), and the barrier outcome tables. Regime engine kept for tint/context only (C1 uses ER+slope directly, not the discrete label).
+- **New inputs (Scout):** `fwd_bars` repurposed as "Excursion window" (default 12); `vel_len` (3); lookback default → 1500. `min_eff` kept (last). ⚠ Input IDs shifted: **lookback_bars = `in_25`** now (fwd_bars in_22, vel_len in_23, min_samples in_24, cal_len in_26, min_eff in_38).
+- **New helpers:** `f_excursion` (bracket-free MFE/MAE), `f_clip`, `f_wins_corr` (winsorized-5/95 Pearson — fat-tail robust, O(n), avoids O(n²) ranking), `f_corr_t` (t from effective-n), `f_bins` (tercile mean-A), `f_cpush`. Removed the barrier/bucket helpers. (Fixed a vestigial extra param in f_cpush on first compile.)
+- **4 pre-committed conditioners:** C1 = `er*sign(os)*sign(slope)` (counter-trend-in-strong-trend); C2 = `|os|`; C3 = `|os−os[vel_len]|`; C4 = `|tc|`.
+- **Dashboard:** `feat | r | t | A.lo | A.mid | A.hi | nEff`; r coloured at |t|≥2; tercile bins = shape check.
+**Rationale:** advisor reframe — discover the conditioner that carves the outcome. Correlation over all signals (sample-efficient) not buckets (which shred nEff); winsorized (one liquidation candle can't manufacture it); built-in KILL TEST.
+**Tests run:** compile 0/0 (after the f_cpush fix); BTC 1h, lookback 1500, **n=302 signals, nEff=54**.
+**Results (BTC 1h):**
+| Conditioner | r | t | A.lo | A.mid | A.hi |
+|---|---|---|---|---|---|
+| C1 SignEff | −.10 | −0.7 | +.07 | +.66 | −.64 |
+| C2 \|OS\| | −.12 | −0.9 | +.18 | −.01 | −.08 |
+| C3 Veloc | −.01 | −0.1 | +.02 | +.19 | −.13 |
+| C4 \|Carry\| | +.20 | 1.5 | −1.00 | +.75 | +.33 |
+
+**Finding: none passes (|t|≥2 + monotone + correct sign).**
+- **C1 (the v4 counter-trend lead) is DEAD as a continuous conditioner** — ns, non-monotone (inverted-U), and inverted: counter-trend extremes (hi C1) show the *lowest* asymmetry (−.64). Mechanistically confirms v6 (counter-trend bounces are violent both ways: big MFE AND big MAE → net asymmetry unfavorable). The v4 "lead" was the exit-blind artifact.
+- C2 weakly wrong-signed + ns; C3 dead.
+- **C4 |carry|** is the only correctly-signed, near-significant thread (r+.20, t1.5) but bins not cleanly monotone — suggestive, not passing.
+**Verdict:** BTC 1h near-kill — no conditioner cleanly carves the fade. C4 is the sole candidate for cross-symbol replication before declaring the fade dead.
 **Status:** current on chart.
 
 ---
@@ -165,11 +191,9 @@ Vol%lo (cascade-pollution tag): Taken 35–53 (losers NOT high-vol) · Veto-CSC 
 - **Re-home the research:** triple-barrier expectancy + signed-regime test across symbols/TFs with CPCV is a **Python pipeline** job; Pine scout demoted to live monitoring. (No existing CPCV/pipeline found in this workspace as of 2026-06-06.)
 
 ## Next (planned, not yet done)
-1. **Engine labels verified** (v7: 30% colored, in-band, balanced) — sparseness is the market, not a bug. Cleared to probe.
-2. **Veto-dir conditional probe** (the surviving hypothesis): the unconditional fade is edgeless (symmetric MFE≈MAE), so the only edge candidate is the counter-trend Veto-dir bucket. Raise lookback (`in_27`) to ~3000 ONCE to lift Veto-dir nEff over min_eff, then read whether its envelope is asymmetric (MFE>MAE) and gate-Δ positive. Watch stationarity (~4 months on 1h). If Veto-dir is also symmetric → fade is dead, say so.
-3. **Open decision (advisor):** pooled gate-0 is negative; do we accept reading gate-0 *per regime slice* (Veto-dir) since the hypothesis is conditional? (Lean yes, once.)
-4. Pending: explicit up-leg / different-period concordance eyeball (aggregate 13U is proxy; UI obstructed the shot).
-5. If conditional envelope looks asymmetric: sequence evidence (bars-to-MFE vs bars-to-MAE) before believing it.
+1. **C1/C2/C3 dead on BTC 1h** (v8). The counter-trend lead (C1) is killed as a continuous conditioner. C4 |carry| is the only correctly-signed, near-significant thread (r+.20, t1.5, non-monotone bins).
+2. **Decision (advisor):** replicate **C4 |carry|** across BTC/TAO/HYPE × 1h/4h ONCE. Pre-committed pass = correct sign + approaching significance + roughly monotone bins, consistently. If C4 doesn't replicate → fade is **dead** (clean kill, the instrument's designed outcome). If it does → carry-displacement becomes the conditioner to develop.
+3. Strict reading: nothing passed pre-committed criteria on BTC 1h, so the default expectation is KILL unless C4 replicates.
 
 ## Open items / parked
 - **Cascade ingredients redesign** (range-expansion + volume surge + single large-range bar vs 20-bar ER). Parked — measured low-value via Vol%lo. Documented as NOTE on `er_cascade`.
