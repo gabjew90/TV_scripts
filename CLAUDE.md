@@ -16,3 +16,7 @@ Core workflow:
 - `mcp__tradingview__replay_*` — backtest signal behavior bar-by-bar via chart replay
 
 Note: `pine_get_source` can return 200KB+ on complex scripts — avoid unless editing.
+
+# Reference
+
+- Pine Script v6 language reference manual: https://github.com/codenamedevan/pinescriptv6/blob/main/Pine%20Script%20language%20reference%20manual
