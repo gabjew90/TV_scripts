@@ -274,13 +274,28 @@ This **supersedes** the request.security-only finding above (which only saw SGX 
 
 **H3 VERDICT: KILLED (flat).** Predicted positive; got **r≈0 on both outcomes, bootstrap CI spans 0**, terciles flat-to-mildly-*decreasing* (high-ΔOI tercile is the lowest continuation, the opposite of predicted, though not itself significant). The O2 excursion safeguard was read first per the kill rule and is **also flat** → not an exit-blind false-null; the favorable continuation excursion does not run with fresh OI. nEff=167 (well above the min_eff floor) → this is a **well-powered null**, not a power failure. The hygiene gate is clean, so the flat is real, not a data artifact. **No replication ×6** — a decisive fail on the anchor cell does not move the locked bar (same precedent as H1's BTC-1h kill). Verdict scoped: "H3 on **Binance** OI, continuation encoding." Hollow/short-cover leg stays parked (would need its own cold pre-registration; pivoting to it off this null would be HARK).
 
-## STANDING GATE — data-layer integrity (all of Phase 2)
-Every derivative series must pass a check-#1-equivalent (no settlement/lookahead backfill) BEFORE its hypothesis is trusted. A leak contaminates the whole layer. Reusable tool: `p2_leak_check.pine`. OI passed via the hygiene/continuity gate (v10). **Next remaining pre-committed conditioner: H2 (liquidations) — magnitude-percentile → fade-flush, A (direction-agnostic) outcome. Liquidation series must clear its OWN leak/hygiene gate first (spikes are rare → nEff tail will be the binding limit).**
+## v11 — H2 liquidations instrument (file `jamal-phase2.pine`)
+**Date:** 2026-06-06
+**Build:** import `TradingView/Request/3` → `r.cryptoDerivativeMetric` "Liquidations Buy"/"Liquidations Sell". The liquidation **imbalance defines the side** (no signed conditioner): `netliq = LiqSell − LiqBuy` (>0 = sell-liqs dominant = forced selling = price pushed DOWN → fade is UP); `fsign = sign(formation-window netliq)`, sampled at entry. Conditioner = **flush MAGNITUDE percentile** `magpct = percentrank(Σ(LiqBuy+LiqSell, form_bars), pctlen)`, a-priori 14-day window (not swept) — tests flush SIZE, not imbalance. Outcomes measured in the **fade frame**, both predicted **POSITIVE**: **O1 = fsign × (MFE − MAE)** = `fsign·(upx − dnx)` (the *pre-registered* `A` pass metric, fade path quality); **O2 = fsign × forward return** (corroborating, held-to-horizon). Conditioner/fsign sampled at `[fwd_bars]`; formation window sits entirely before entry, forward window entirely after → no overlap, no leak. Same block-bootstrap 95% CI + ≥5/6 locked bar + min_eff floor. Also fixed: restored the missing `indicator()` declaration (the v10 on-disk file had diverged from the editor and would not compile standalone).
+**Data-integrity / distribution gate (`p2_liq_gate.pine`, BTC 1h):** 100% coverage Buy/Sell/mag; `sign(netliq)`~same-bar concord **72.7%** (healthy mechanism, not leak-grade ~100%); fat tail p50/p90/p99 = 11/192.5/860.2, max 1923; top-decile **nEff = 841** (power abundant). **One** stale stretch (81 identical bars) exists but ended **8166 bars ago**, the only run >5 in 21312 bars, **0 stale bars in the recent 2250-bar H2 window** → STANDING GATE **PASSED** for the H2 sample. CAVEAT logged: if lookback ever extends past ~8k bars, exclude that ancient forward-filled stretch.
+**Result (BTC 1h, n=2001, nEff=167):**
+| outcome | r | t~ | boot CI95 | terciles lo/mid/hi |
+|---|---|---|---|---|
+| O1 A=MFE−MAE *(pre-registered)* | −0.01 | −0.1 | [−.11, +.10] | −.41 / −.27 / −.50 |
+| O2 fadeRet *(corroborating)* | 0.00 | 0.0 | [−.11, +.08] | −.17 / −.09 / −.24 |
 
-## PHASE 2 SCORECARD (pre-committed cap = 3)
+**H2 VERDICT: KILLED (flat conditioner; base rate is continuation).** Fails two ways: (1) **no carve** — r≈0, bootstrap CI spans 0 on the pre-registered metric *and* the corroborator → flush magnitude does not predict fade success. (2) **base rate against the fade** — every tercile is **negative** (fading a flush loses on average: adverse excursion > favorable, endpoint return < 0), and *most* negative in the **top flush tercile** (−.50), i.e. bigger flushes → *more* continuation, the opposite of the premise; terciles non-monotone, wrong-way at the extreme. Well-powered (nEff=167), gate-clean, no leak (windows non-overlapping). **No ×6 replication** — decisive anchor fail, locked bar doesn't move. Scoped to Binance liquidations.
+
+## STANDING GATE — data-layer integrity (all of Phase 2)
+Every derivative series must pass a check-#1-equivalent (no settlement/lookahead backfill) BEFORE its hypothesis is trusted. A leak contaminates the whole layer. Reusable tools: `p2_leak_check.pine` (signed-series forward-settle test, used for funding) and `p2_liq_gate.pine` (unsigned-series coverage/staleness/tail+nEff localizer, used for liquidations). Funding, OI, and liquidations all PASSED their respective gates.
+
+## PHASE 2 SCORECARD (pre-committed cap = 3 — EXHAUSTED)
 - **H1 funding → reversion:** KILLED (significant *continuation*, wrong-signed; v9).
 - **H3 ΔOI → continuation:** KILLED (flat / well-powered null; v10).
-- **H2 liquidations → fade-flush:** OPEN (next; pending its data-integrity gate).
+- **H2 liquidations → fade-flush:** KILLED (flat conditioner; base rate = continuation; v11).
+
+## PHASE 2 CONCLUSION — KILL (derivatives-flow conditioners find no reversion edge)
+All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anchor, each gate-clean and well-powered (nEff≈167, no leak/staleness in-window). **The cap of 3 is exhausted; no 4th conditioner without a fresh COLD pre-registration** (adding one now off these nulls = HARK). **Consistent cross-hypothesis theme:** every *directional* signal points to **continuation/momentum, never reversion** — H1 funding-extremity → continuation (significant), H2 large-flush → continuation base rate (the top tercile most negative for the fade), and the v9 parked funding-momentum residual. The reversion thesis that motivated Jamal (Phase 1 overshoot fade + Phase 2 derivatives reversion) is descriptively unsupported on BTC 1h across price, funding, OI, and liquidations. The *only* recurring positive signal is momentum — but pursuing it requires its own cold pre-registration (predicted sign flipped, leak question re-opened first), NOT a pivot off this layer.
 
 ---
 

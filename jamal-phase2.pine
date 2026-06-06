@@ -1,27 +1,32 @@
 //@version=6
-// JAMAL PHASE 2 — derivatives-flow conditioner instrument. v10 = H3 (open interest).
-// H1 (funding->reversion) KILLED v9 (significant WRONG-SIGN = continuation; leak-clean). See CHANGELOG.
+// JAMAL PHASE 2 — derivatives-flow conditioner instrument. v11 = H2 (liquidations -> fade-flush).
+// H1 (funding->reversion) KILLED v9 (significant WRONG-SIGN = continuation; leak-clean).
+// H3 (ΔOI->continuation) KILLED v10 (well-powered flat null on BTC 1h). See CHANGELOG.
 //
-// H3: ΔOI is NOT direction-fixed (rising OI in uptrend = new longs -> up-continuation; in downtrend =
-// new shorts -> down-continuation), so it must be wired as an INTERACTION, else up/down regimes cancel
-// to r~0 by construction (false-kill). Encoding:
-//   outcome  O1 = sign(formation move) * forward return        (continuation return; + = move continued)
-//            O2 = sign(formation move) * signed peak-excursion  (exit-blind safeguard, continuation dir)
-//   conditioner C = z-scored formation-window OI %change (fix A: strip secular OI-growth baseline;
-//                   a-priori windows, NOT swept)
-//   PREDICTED SIGN: POSITIVE (OI-build -> continuation; OI-unwind/cover -> hollow/reversal); terciles up.
-// Continuation ONLY; the "fragile / delayed squeeze" idea is a separate cold pre-reg if this carries.
+// H2: a large liquidation flush is FORCED, price-insensitive flow -> overshoot -> mean-reversion ("fade").
+// The liquidation IMBALANCE defines the side (the "liq event defines the side", so no signed conditioner):
+//   netliq = LiqSell - LiqBuy ; >0 = sell-liqs dominant = forced SELLING = price pushed DOWN -> fade is UP.
+//   fsign  = sign(formation-window netliq)  (+1 sell-flush -> fade up ; -1 buy-flush -> fade down)
+// Encoding (outcomes measured in the FADE frame, both predicted POSITIVE = fade works):
+//   conditioner C = flush MAGNITUDE percentile  (mag = LiqBuy+LiqSell, summed over formation window,
+//                   percentile-ranked over an a-priori window; magnitude, NOT imbalance -> tests flush SIZE)
+//   O1 (A, PRE-REGISTERED pass metric) = fsign * (MFE - MAE) = fsign*(upx - dnx)   (fade path quality)
+//   O2 (corroborating safeguard)       = fsign * forward return                     (fade held-to-horizon)
+//   PREDICTED SIGN: POSITIVE (bigger flush -> bigger reversion); terciles increasing.
 // Significance = block-bootstrap 95% CI of winsorized corr (regime-spanning blocks; parametric t indicative).
 // Pass bar (locked): predicted sign + CI excludes 0 + monotone terciles, in >=5 of 6 cells BTC/TAO/HYPE x 1h/4h.
-// Data: OI = BINANCE:BTCUSDT.P_OI via TradingView/Request lib; hygiene clean (100% cov, 0% flat, no fill).
-// Binance-only (venue caveat logged). NOT a backtest; descriptive, cost-blind, overlapping.
+// Data: Liquidations Buy/Sell via TradingView/Request lib; gate p2_liq_gate.pine PASSED for the recent
+//   ~2250-bar H2 window (100% cov; the one 81-bar stale stretch is 8166 bars ago, outside the window;
+//   netliq~bar concord 72.7%; top-decile nEff 841). CAVEAT: if lookback extends past ~8k bars, exclude
+//   that ancient stale stretch. Binance-only (venue caveat). NOT a backtest; descriptive, cost-blind, overlapping.
+indicator("Jamal Phase 2 v11 (H2 LIQ)", "JmlP2v11", overlay=false)
 import TradingView/Request/3 as r
 
 // ===== Inputs =====
 atr_len         = input.int(20,  "ATR length", minval=2, group="Core")
 fwd_bars        = input.int(12,  "Forward window (bars)", minval=2, group="Scout")
 form_bars       = input.int(12,  "Formation window (bars, a-priori - do NOT sweep)", minval=2, group="Scout")
-oi_z_days       = input.float(14, "OI %chg z-score window (DAYS, a-priori - do NOT sweep)", minval=1, group="Scout")
+liq_pct_days    = input.float(14, "Flush-magnitude percentile window (DAYS, a-priori - do NOT sweep)", minval=1, group="Scout")
 boot_block_days = input.float(2, "Bootstrap block length (DAYS)", minval=0.1, group="Scout")
 boot_iters      = input.int(150, "Bootstrap iterations", minval=50, maxval=1000, group="Scout")
 min_samples     = input.int(20,  "Min samples", minval=1, group="Scout")
@@ -29,9 +34,9 @@ min_eff         = input.int(8,   "Min effective-n (parametric t gate; indicative
 lookback_bars   = input.int(2000, "Lookback (bars)", minval=50, maxval=10000, group="Scout")
 cal_len         = input.int(250, "Calibration burn-in (bars)", minval=30, group="Scout")
 show_scout      = input.bool(true, "Show dashboard", group="Display")
-show_oi         = input.bool(true, "Plot z-OI%chg", group="Display")
+show_liq        = input.bool(true, "Plot flush-mag percentile", group="Display")
 
-// ===== helpers (harness, unchanged from v9) =====
+// ===== helpers (harness, unchanged from v9/v10) =====
 f_pctile(arr, p) =>
     n = array.size(arr)
     float res = na
@@ -174,53 +179,52 @@ f_ci_col(lo, hi) => (na(lo) or na(hi)) ? color.new(color.gray, 30) : lo > 0 ? co
 // ===== data =====
 atr = ta.atr(atr_len)
 safe_atr = atr > 0 ? atr : na
-[oio, oih, oil, oi, oirise] = r.openInterestCrypto(symbol = syminfo.tickerid, timeframe = timeframe.period)
+liq_buy  = r.cryptoDerivativeMetric(metricName = "Liquidations Buy",  symbol = syminfo.tickerid, timeframe = timeframe.period)
+liq_sell = r.cryptoDerivativeMetric(metricName = "Liquidations Sell", symbol = syminfo.tickerid, timeframe = timeframe.period)
+mag      = (na(liq_buy) ? 0.0 : liq_buy) + (na(liq_sell) ? 0.0 : liq_sell)
+netliq   = (na(liq_sell) ? 0.0 : liq_sell) - (na(liq_buy) ? 0.0 : liq_buy)   // >0 sell-liq dominant -> price pushed DOWN -> fade UP
 
-oichg = (not na(oi) and not na(oi[form_bars]) and oi[form_bars] > 0) ? (oi / oi[form_bars] - 1.0) : na
-ozlen = math.max(2, math.round(oi_z_days * 86400 / timeframe.in_seconds()))
-omean = ta.sma(oichg, ozlen)
-osd   = ta.stdev(oichg, ozlen)
-ozi   = (not na(oichg) and not na(osd) and osd > 0) ? (oichg - omean) / osd : na
+magSum = math.sum(mag, form_bars)        // formation-window total forced flow (flush size)
+netSum = math.sum(netliq, form_bars)     // formation-window imbalance -> fade side
+pctlen = math.max(2, math.round(liq_pct_days * 86400 / timeframe.in_seconds()))
+magpct = ta.percentrank(magSum, pctlen)  // 0..100 flush-size percentile (uses past values; known at bar)
 
 hh = ta.highest(high, fwd_bars)
 ll = ta.lowest(low, fwd_bars)
 
-// ===== sample every post-cal bar: continuation outcome + z-OI conditioner (lagged to entry) =====
+// ===== sample every post-cal bar: fade-framed outcomes + flush-magnitude conditioner (lagged to entry) =====
 var array<int>   cb  = array.new<int>()
 var array<float> cC  = array.new<float>()
-var array<float> cO1 = array.new<float>()
-var array<float> cO2 = array.new<float>()
+var array<float> cO1 = array.new<float>()   // A = fsign*(MFE-MAE)  (pre-registered pass metric)
+var array<float> cO2 = array.new<float>()   // fsign*forward return (corroborating safeguard)
 
 post_cal = bar_index - fwd_bars - form_bars >= cal_len
 if post_cal
-    entry     = close[fwd_bars]
-    atr_sig   = safe_atr[fwd_bars]
-    formStart = close[fwd_bars + form_bars]
-    cz        = ozi[fwd_bars]
-    if not na(atr_sig) and atr_sig > 0 and not na(entry) and not na(formStart) and not na(cz)
-        fmove = (entry - formStart) / atr_sig
-        sgn = fmove > 0 ? 1.0 : fmove < 0 ? -1.0 : 0.0
-        if sgn != 0
-            fret = (close - entry) / atr_sig
-            upx  = (hh - entry) / atr_sig
-            dnx  = (entry - ll) / atr_sig
-            o2s  = upx >= dnx ? upx : -dnx
-            array.push(cb, bar_index)
-            array.push(cC, cz)
-            array.push(cO1, sgn * fret)
-            array.push(cO2, sgn * o2s)
-            while array.size(cb) > 0 and bar_index - array.first(cb) > lookback_bars
-                array.shift(cb)
-                array.shift(cC)
-                array.shift(cO1)
-                array.shift(cO2)
+    entry   = close[fwd_bars]
+    atr_sig = safe_atr[fwd_bars]
+    cz      = magpct[fwd_bars]            // flush-size percentile, at entry
+    nsum    = netSum[fwd_bars]            // imbalance over formation window, at entry
+    fsign   = nsum > 0 ? 1.0 : nsum < 0 ? -1.0 : 0.0   // +1 sell-flush (fade up) ; -1 buy-flush (fade down)
+    if not na(atr_sig) and atr_sig > 0 and not na(entry) and not na(cz) and not na(nsum) and fsign != 0
+        fret = (close - entry) / atr_sig
+        upx  = (hh - entry) / atr_sig
+        dnx  = (entry - ll) / atr_sig
+        amfe = upx - dnx                  // MFE - MAE in long frame; fsign rotates it into the fade frame
+        array.push(cb, bar_index)
+        array.push(cC, cz)
+        array.push(cO1, fsign * amfe)     // + = path favored the fade
+        array.push(cO2, fsign * fret)     // + = price reverted against the flush by horizon
+        while array.size(cb) > 0 and bar_index - array.first(cb) > lookback_bars
+            array.shift(cb)
+            array.shift(cC)
+            array.shift(cO1)
+            array.shift(cO2)
 
-plot(show_oi ? ozi : na, "z-OI%chg", color=color.new(#26C6DA, 0))
-hline(0, "0", color=color.new(color.gray, 0))
-hline(2, "+2z", color=color.new(color.gray, 60))
-hline(-2, "-2z", color=color.new(color.gray, 60))
+plot(show_liq ? magpct : na, "flush-mag pctile", color=color.new(#FFA726, 0))
+hline(50, "50", color=color.new(color.gray, 0))
+hline(90, "p90", color=color.new(color.gray, 60))
 
-// ===== dashboard (predicted POSITIVE) =====
+// ===== dashboard (predicted POSITIVE = fade works) =====
 var table sc = table.new(position.bottom_right, 9, 4, border_color=color.new(color.gray,50), border_width=1, frame_color=color.new(color.gray,50), frame_width=1)
 bg = color.new(color.black, 50)
 f_drow(rw, lbl, ocol) =>
@@ -241,7 +245,7 @@ f_drow(rw, lbl, ocol) =>
     table.cell(sc, 8, rw, str.tostring(ne), text_color=color.white, text_size=size.tiny)
 
 if show_scout and barstate.islast
-    table.cell(sc, 0, 0, "H3 zOI  n=" + str.tostring(array.size(cC)), text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    table.cell(sc, 0, 0, "H2 liqMag  n=" + str.tostring(array.size(cC)), text_color=color.silver, bgcolor=bg, text_size=size.tiny)
     table.cell(sc, 1, 0, "r", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
     table.cell(sc, 2, 0, "t~", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
     table.cell(sc, 3, 0, "CIlo", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
@@ -250,5 +254,5 @@ if show_scout and barstate.islast
     table.cell(sc, 6, 0, "O.mid", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
     table.cell(sc, 7, 0, "O.hi", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
     table.cell(sc, 8, 0, "nEff", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
-    f_drow(1, "O1 cont", cO1)
-    f_drow(2, "O2 cpeak", cO2)
+    f_drow(1, "O1 A=MFE-MAE", cO1)
+    f_drow(2, "O2 fadeRet", cO2)
