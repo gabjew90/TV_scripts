@@ -243,7 +243,13 @@ The overshoot mean-reversion fade is **descriptively dead** on BINANCE BTC/TAO/H
 
 This **supersedes** the request.security-only finding above (which only saw SGX funding proxy + no liquidations). **All three Phase-2 series are fully available with deep history.** Consequences: (1) no reorder forced — the pre-committed **H1 funding-first** plan stands (full real-funding history); (2) funding proxy concern void; (3) **H2 liquidations revived** — Buy/Sell available, though liquidation *spikes* are rare so the spike-tail nEff (not history) is the binding limit. Funding is a step series (8h) — sample LAGGED. Units of funding/liq TBD from lib docs; sign/percentile is what the hypotheses use.
 
-**CURRENT TASK:** wire **H1 (signed funding → signed forward return)** into the harness as v9 — add the signed-outcome mode, pre-committed sign (negative) + kill, run BTC 1h. Spec pending advisor green-light.
+**C-VERIFICATION (2026-06-06) — funding is LIVE/CONTINUOUS, not an 8h step.** Probe `P2 funding verify`: funding changes ~1.3 bars/change (≈75% of bars), at arbitrary UTC hours (1/2/3…), not 00/08/16 boundaries. So `cryptoDerivativeMetric("Funding Rate")` = Binance **live/predicted** funding (off the premium index), **single-venue** (ticker-keyed, not aggregate), known at each bar.
+- Look-ahead: continuous & known-at-bar → lagged `funding[fwd_bars]` is safe (no step forward-fill look-ahead).
+- Venue: BINANCE only (aggregate unavailable via ticker call); dominant-venue proxy.
+- Fix-B premise shift: NOT a step → the ~8× step pseudo-replication worry is largely void; but funding LEVEL persists in multi-day regimes → **block bootstrap still the honest significance gate** (for level autocorrelation).
+
+**v9 spec (A+B + two-outcome, pending final confirm):** event = every post-cal bar; conditioner = **z-funding** `(funding − SMA)/STDEV` over an a-priori ~weeks window (fix A, no sweep); outcomes (both signed, both predicted NEGATIVE vs z-funding) = O1 signed forward return `(close−entry)/atr` (stingy endpoint screen) + O2 signed peak-excursion (dominant of up/down excursion, signed — catches front-loaded reverted moves, so a fail isn't a false-kill); significance via **block bootstrap CI** (blocks ≥ multi-day, parametric t indicative only); pass bar **≥5/6** cells correct-signed + CI-excludes-0 + monotone-decreasing terciles.
+**CURRENT TASK:** build v9 once advisor confirms the C-shift (live funding) is acceptable.
 
 ---
 
