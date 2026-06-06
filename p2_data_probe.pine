@@ -1,0 +1,81 @@
+//@version=6
+// Phase 2 data-availability spike (throwaway probe). Tests which derivatives series are
+// accessible via request.security (ignore_invalid_symbol=true so bad tickers return na, not error).
+// Counters run at GLOBAL scope (every bar) so nonNA/span = true history depth.
+// Result (BTC 1h, 2026-06-06): OI BINANCE:BTCUSDT.P_OI full 2.4y gapless; funding only SGX:BTFR
+// (~4.5mo proxy); liquidations + Binance funding unavailable. See CHANGELOG Phase 2.
+indicator("P2 data spike (probe)", overlay=false)
+
+f_get(s) => request.security(s, timeframe.period, close, ignore_invalid_symbol=true)
+f_cnt(v) =>
+    var int c = 0
+    if not na(v)
+        c += 1
+    c
+f_span(v) =>
+    var int fb = na
+    if not na(v) and na(fb)
+        fb := bar_index
+    na(fb) ? 0 : bar_index - fb + 1
+f_last(v) =>
+    var float l = na
+    if not na(v)
+        l := v
+    l
+
+px   = f_get("BINANCE:BTCUSDT.P")
+oi   = f_get("BINANCE:BTCUSDT.P_OI")
+fSGX = f_get("SGX:BTFR")
+fB1  = f_get("BINANCE:BTCUSDT.P_FUNDING")
+fB2  = f_get("BINANCE:BTCUSDT_FUNDING")
+fB3  = f_get("BINANCE:BTCUSDT.PFUNDINGRATE")
+lq1  = f_get("BINANCE:BTCUSDT.P_LIQUIDATIONS")
+lq2  = f_get("BINANCE:BTCUSDT.P_LIQ")
+
+n_px=f_cnt(px), s_px=f_span(px), l_px=f_last(px)
+n_oi=f_cnt(oi), s_oi=f_span(oi), l_oi=f_last(oi)
+n_fs=f_cnt(fSGX), s_fs=f_span(fSGX), l_fs=f_last(fSGX)
+n_f1=f_cnt(fB1), l_f1=f_last(fB1)
+n_f2=f_cnt(fB2), l_f2=f_last(fB2)
+n_f3=f_cnt(fB3), l_f3=f_last(fB3)
+n_l1=f_cnt(lq1), l_l1=f_last(lq1)
+n_l2=f_cnt(lq2), l_l2=f_last(lq2)
+tot = bar_index + 1
+
+var table t = table.new(position.top_left, 4, 10, border_color=color.gray, border_width=1, frame_color=color.gray, frame_width=1)
+if barstate.islast
+    table.cell(t,0,0,"series",text_color=color.silver,text_size=size.small)
+    table.cell(t,1,0,"nonNA",text_color=color.silver,text_size=size.small)
+    table.cell(t,2,0,"span",text_color=color.silver,text_size=size.small)
+    table.cell(t,3,0,"last",text_color=color.silver,text_size=size.small)
+    table.cell(t,0,1,"PRICE ctrl",text_color=color.silver,text_size=size.small)
+    table.cell(t,1,1,str.tostring(n_px),text_color=n_px>0?color.lime:color.red,text_size=size.small)
+    table.cell(t,2,1,str.tostring(s_px),text_color=color.white,text_size=size.small)
+    table.cell(t,3,1,str.tostring(l_px,"#.##"),text_color=color.white,text_size=size.small)
+    table.cell(t,0,2,"OI _OI",text_color=color.silver,text_size=size.small)
+    table.cell(t,1,2,str.tostring(n_oi),text_color=n_oi>0?color.lime:color.red,text_size=size.small)
+    table.cell(t,2,2,str.tostring(s_oi),text_color=color.white,text_size=size.small)
+    table.cell(t,3,2,str.tostring(l_oi,"#.##"),text_color=color.white,text_size=size.small)
+    table.cell(t,0,3,"FUND SGX",text_color=color.silver,text_size=size.small)
+    table.cell(t,1,3,str.tostring(n_fs),text_color=n_fs>0?color.lime:color.red,text_size=size.small)
+    table.cell(t,2,3,str.tostring(s_fs),text_color=color.white,text_size=size.small)
+    table.cell(t,3,3,str.tostring(l_fs,"#.####"),text_color=color.white,text_size=size.small)
+    table.cell(t,0,4,"FUND _FUNDING",text_color=color.silver,text_size=size.small)
+    table.cell(t,1,4,str.tostring(n_f1),text_color=n_f1>0?color.lime:color.red,text_size=size.small)
+    table.cell(t,3,4,na(l_f1)?"NA":str.tostring(l_f1,"#.####"),text_color=color.white,text_size=size.small)
+    table.cell(t,0,5,"FUND _FUND2",text_color=color.silver,text_size=size.small)
+    table.cell(t,1,5,str.tostring(n_f2),text_color=n_f2>0?color.lime:color.red,text_size=size.small)
+    table.cell(t,3,5,na(l_f2)?"NA":str.tostring(l_f2,"#.####"),text_color=color.white,text_size=size.small)
+    table.cell(t,0,6,"FUND _FR3",text_color=color.silver,text_size=size.small)
+    table.cell(t,1,6,str.tostring(n_f3),text_color=n_f3>0?color.lime:color.red,text_size=size.small)
+    table.cell(t,3,6,na(l_f3)?"NA":str.tostring(l_f3,"#.####"),text_color=color.white,text_size=size.small)
+    table.cell(t,0,7,"LIQ _LIQUID",text_color=color.silver,text_size=size.small)
+    table.cell(t,1,7,str.tostring(n_l1),text_color=n_l1>0?color.lime:color.red,text_size=size.small)
+    table.cell(t,3,7,na(l_l1)?"NA":str.tostring(l_l1,"#.##"),text_color=color.white,text_size=size.small)
+    table.cell(t,0,8,"LIQ _LIQ",text_color=color.silver,text_size=size.small)
+    table.cell(t,1,8,str.tostring(n_l2),text_color=n_l2>0?color.lime:color.red,text_size=size.small)
+    table.cell(t,3,8,na(l_l2)?"NA":str.tostring(l_l2,"#.##"),text_color=color.white,text_size=size.small)
+    table.cell(t,0,9,"total bars",text_color=color.silver,text_size=size.small)
+    table.cell(t,1,9,str.tostring(tot),text_color=color.white,text_size=size.small)
+
+plot(na)

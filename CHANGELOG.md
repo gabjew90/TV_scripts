@@ -201,6 +201,42 @@ The overshoot mean-reversion fade is **descriptively dead** on BINANCE BTC/TAO/H
 
 ---
 
+# ========================= PHASE 2 — DERIVATIVES-FLOW CONDITIONERS (OPEN) =========================
+**Premise (2026-06-06):** funding / OI / liquidations are direct reads of price-insensitive *forced* flow — where a moat can live and what price-only (Phase 1) couldn't see. Discipline identical to Phase 1; three rich series = data-mining minefield, so guards are stricter.
+
+**Keep** the v8 harness (winsorized corr(C, A) + tercile shape + effective-n + min_eff floor + locked-bar replication). **Strip** the overshoot-fade strategy framing. Phase 2 = feed the validated instrument *better, mechanism-gated* conditioners.
+
+**Mechanism gate** — no conditioner enters without a one-line "why it exists and persists." Pre-committed hypotheses (cap 3, locked before looking):
+- **H1 funding → counter-positioning reversion:** signed funding predicts *negative* signed forward return (extreme funding = crowded leveraged side paying carry → reversion against the crowd). Continuous, best history → **build first.**
+- **H2 liquidation magnitude → fade the flush:** side set by which side was liquidated; conditioner = liquidation-spike *magnitude percentile* (continuous, NOT a binary bucket); predicts favorable post-flush A.
+- **H3 ΔOI → continuation vs hollow:** sign of OI change interacts with forward continuation (price↑ + OI↑ = new leverage/fragile; price↑ + OI↓ = short-cover/hollow).
+
+**Required harness tweak:** A=MFE−MAE is direction-agnostic; H1/H3 are *directional* → add a **signed forward-outcome mode** (signed fwd return / signed first-touch) with a signed conditioner, so "+funding → down" reads as negative r. H2 stays on A (liq event defines the side).
+
+**Sequence (gated):** (a) **DATA-AVAILABILITY SPIKE first** — load the series via `request.security`, plot BTC 1h/4h, report history depth, NaN/gaps, funding step cadence, bar-close repaint; confirmed values sampled LAGGED. (b) wire H1, BTC 1h. (c) if it carves → locked-bar replication ×6 (≥4/6, correct sign, t≥1.5, monotone). (d) then H2, then H3.
+
+**Guardrails:** one pre-committed conditioner at a time (a non-registered series lighting up ≠ pass — the v8 HARK trap); a passer is necessary-not-sufficient (still needs a sequence/exit test); cost-blind / descriptive / overlapping. **nEff is the binding limit** — derivatives history is shorter and liquidation cascades are rare (H2 may be power-starved); protect nEff via event + window definition; don't over-read thin cells.
+
+**DATA-AVAILABILITY SPIKE — RESULT (2026-06-06, probe `p2_data_probe.pine`, BTC 1h, 21309 bars loaded ≈ 2.4y):**
+| series | ticker | non-NA / span | verdict |
+|---|---|---|---|
+| price (control) | BINANCE:BTCUSDT.P | 21309 / 21309 | ✓ |
+| **Open Interest** | **BINANCE:BTCUSDT.P_OI** | **21309 / 21309** | ✓ full, gapless, native Binance (the `_OI` suffix works) |
+| Funding | SGX:BTFR | 3325 / 3325 | ⚠ proxy venue (SGX, not Binance), only ~4.5mo |
+| Funding (Binance) | `_FUNDING` / `_FUNDING`/`FUNDINGRATE` forms | 0 | ✗ invalid — no Binance funding in Pine |
+| Liquidations | `_LIQUIDATIONS` / `_LIQ` forms | 0 | ✗ **unavailable in TradingView Pine** |
+| OI/Funding/Liq via IntoTheBlock | ITB:BTC_* | 0 (on 1h) | ✗ |
+
+**Implications (reorders the pre-committed plan):**
+- **OI has the best data, not funding** — full 2.4y gapless native Binance. → **build H3 (OI) first**, contra the original "funding first."
+- **H1 funding compromised:** SGX proxy only, ~4.5mo → nEff-limited + venue mismatch. Decision pending: accept proxy (caveated) or defer.
+- **H2 liquidations DEAD on data** (not in TV Pine). Bounded-to-TV ⇒ only a price/volume flush *proxy* is possible, which discards the "direct forced-flow" rationale. Decision pending: drop vs proxy.
+- Cadence/repaint: funding is a step series (8h); all confirmed values sampled LAGGED in the harness (same as price excursion). OI is per-bar.
+
+**CURRENT TASK:** await advisor calls on (1) reorder to OI-first, (2) funding proxy accept/defer, (3) liquidations drop/proxy — then wire the first conditioner into the harness.
+
+---
+
 ## Decisions / direction
 - **Do NOT proceed to v2 continuation.** Gate-0 precondition unmet on the exit-blind metric.
 - **Pivot: regime-as-conditioner, not veto.** The fade edge may be *largest* counter-trend inside trends (one-sided positioning → sharp squeezes); the catch is continuation risk → needs an exit model (tight target + time-stop counter-trend; wider/longer in range).
