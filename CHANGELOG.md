@@ -180,22 +180,36 @@ Vol%lo (cascade-pollution tag): Taken 35–53 (losers NOT high-vol) · Veto-CSC 
 - **C1 (the v4 counter-trend lead) is DEAD as a continuous conditioner** — ns, non-monotone (inverted-U), and inverted: counter-trend extremes (hi C1) show the *lowest* asymmetry (−.64). Mechanistically confirms v6 (counter-trend bounces are violent both ways: big MFE AND big MAE → net asymmetry unfavorable). The v4 "lead" was the exit-blind artifact.
 - C2 weakly wrong-signed + ns; C3 dead.
 - **C4 |carry|** is the only correctly-signed, near-significant thread (r+.20, t1.5) but bins not cleanly monotone — suggestive, not passing.
-**Verdict:** BTC 1h near-kill — no conditioner cleanly carves the fade. C4 is the sole candidate for cross-symbol replication before declaring the fade dead.
-**Status:** current on chart.
+**Verdict:** BTC 1h near-kill — no conditioner cleanly carves the fade. C4 the sole candidate → ran the pre-committed cross-symbol replication (below).
+
+### v8 — C4 |carry| cross-symbol replication (kill-confirmation, bar locked before looking)
+**Pass bar (pre-committed):** C4 passes only if in **≥4 of 6 cells** it shows (a) r>0, (b) t≥1.5, (c) roughly monotone lo<mid≤hi. Testing **C4 only** (C2/C3 lighting up elsewhere is NOT a pass — dead + not pre-registered = HARK). Lookback 1500.
+| cell | r | t | bins lo/mid/hi | result |
+|---|---|---|---|---|
+| BTC 1h | +.20 | 1.5 | −1.00/+.75/+.33 | FAIL (c) |
+| BTC 4h | +.01 | 0.1 | −.76/−.65/−.55 | FAIL (b) |
+| TAO 1h | +.05 | 0.3 | −.33/−.31/−.38 | FAIL (b,c) |
+| TAO 4h | +.21 | 1.5 | −.73/−.75/+.39 | FAIL (c) |
+| HYPE 1h | −.15 | −1.0 | −.12/−.56/−1.05 | FAIL (a, sign flip) |
+| HYPE 4h | +.13 | 1.1 | −.04/−.08/+.52 | FAIL (b,c) |
+
+**Result: 0 of 6 pass.** r ∈ [−.15, +.21], sign unstable, never clears t≥1.5 with monotonicity — best-of-4 noise survivor at nEff≈50, not a mechanism. (Aside, NOT counted: C2 lit up on TAO 4h r+.30 t2.3 but is dead/not-pre-registered, and its sign was opposite on BTC 1h — counting it would be HARK.)
+
+## PHASE 1 CONCLUSION — KILL (2026-06-06)
+The overshoot mean-reversion fade is **descriptively dead** on BINANCE BTC/TAO/HYPE perps × 1h/4h. Evidence chain: regime veto failed (v4); unconditional forward envelope is symmetric (v6: MFE≈MAE≈2 ATR, tH≈sH≈50% — no bracket creates edge); the original counter-trend thesis inverted (v8 C1); and no pre-registered conditioner (C1–C4) carves the fade asymmetry, C4's replication 0/6. A=MFE−MAE is a generous necessary-not-sufficient screen, and it fails everywhere. This is a **successful kill test**, not a failed project. Per charter: no C5/C6, no Python/CPCV, no perturbing a corpse. Any future work starts from a *new* signal hypothesis, not a rescue of this fader.
+**Status:** v8 instrument current on chart (BTC 1h).
 
 ---
 
 ## Decisions / direction
 - **Do NOT proceed to v2 continuation.** Gate-0 precondition unmet on the exit-blind metric.
 - **Pivot: regime-as-conditioner, not veto.** The fade edge may be *largest* counter-trend inside trends (one-sided positioning → sharp squeezes); the catch is continuation risk → needs an exit model (tight target + time-stop counter-trend; wider/longer in range).
-- **Re-home the research:** triple-barrier expectancy + signed-regime test across symbols/TFs with CPCV is a **Python pipeline** job; Pine scout demoted to live monitoring. (No existing CPCV/pipeline found in this workspace as of 2026-06-06.)
+- **Bounded to TradingView (standing, per v5 directive): no Python/CPCV.** Robustness comes from in-Pine multi-symbol × multi-TF replication + effective-n/SE + parameter perturbation. (Searched 2026-06-06: no CPCV/pipeline exists in the workspace anyway.)
 
-## Next (planned, not yet done)
-1. **C1/C2/C3 dead on BTC 1h** (v8). The counter-trend lead (C1) is killed as a continuous conditioner. C4 |carry| is the only correctly-signed, near-significant thread (r+.20, t1.5, non-monotone bins).
-2. **Decision (advisor):** replicate **C4 |carry|** across BTC/TAO/HYPE × 1h/4h ONCE. Pre-committed pass = correct sign + approaching significance + roughly monotone bins, consistently. If C4 doesn't replicate → fade is **dead** (clean kill, the instrument's designed outcome). If it does → carry-displacement becomes the conditioner to develop.
-3. Strict reading: nothing passed pre-committed criteria on BTC 1h, so the default expectation is KILL unless C4 replicates.
+## Next
+- **Phase 1 is concluded: KILL** (see above). No further work on the overshoot fader — no C5/C6, no perturbation, no Python/CPCV.
+- The v8 conditioner instrument is reusable infrastructure: any *new* signal hypothesis can be screened through the same corr(C, A) + tercile + replication discipline. Don't reopen this one.
 
 ## Open items / parked
 - **Cascade ingredients redesign** (range-expansion + volume surge + single large-range bar vs 20-bar ER). Parked — measured low-value via Vol%lo. Documented as NOTE on `er_cascade`.
-- **nEff display cosmetic:** sub-`min_samples` buckets show nEff 0 (computed inside the edge gate). Cells are n/a anyway; fix on next push.
-- **lookback default:** code default 750 (`in_24`); on-chart instance set to 5000 via inputs for the sweep.
+- **lookback default:** code default **1500** (`in_25` in v8). NB `in_24` is now `min_samples`. (The v6 nEff-display cosmetic is obsolete — the bucket scout it referred to was removed in v8.)
