@@ -1,101 +1,91 @@
 //@version=6
-indicator("Jamal Phase 1 v4", shorttitle="Jamal P1v4", overlay=false)
+indicator("Jamal Phase 1 v5", shorttitle="Jamal P1v5", overlay=false)
 
 // =====================================================================
-// OS core v1 = OS core (overshoot fader) + REGIME GATE (veto-only).
+// OS core = overshoot fader + REGIME (now a CONDITIONER, not a veto).
 //
-// DESIGN
-//   - Overshoot oscillator is the TRIGGER (the clock). It is unchanged from OS core:
-//     decontaminated anchor (regression / SMA / EMA), lagged-ATR normalization,
-//     dual-gate extremity (percentile tail AND absolute ATR floor), reversion latch.
-//   - A REGIME CLASSIFIER sits in front as a GATE + SIGN. It decides whether an
-//     overshoot means FADE, or STAND ASIDE:
-//        Range            -> fade BOTH sides (pure mean-reversion).
-//        Trend-up         -> allow LONG fades (buy dips); VETO short fades.
-//        Trend-down       -> allow SHORT fades (sell rips); VETO long fades.
-//        Cascade/blowout  -> VETO BOTH (too hot to touch). [the liquidation guard]
-//   - v1 is VETO-ONLY: no new continuation strategy. The gate only removes trades.
-//     Toggle it off ("Apply regime veto") to A/B against raw fades live.
+// PIVOT (after the v4 sweep): Phase-1 veto-only failed gate-0 on an exit-blind
+// 24-bar horizon return. Mean-reversion edge is FRONT-LOADED, so a fixed hold
+// measures the decayed endpoint, not the catchable bounce. v5 replaces the
+// outcome metric with a TRIPLE-BARRIER first-touch (target / stop / time cap),
+// which captures sequence (which barrier hit first) and yields tradeable
+// expectancy + target-hit vs stop-hit rates (the ex-ante bounce-vs-knife test).
+// Regime is retained as a conditioning slice (Taken vs Veto-DIR vs Veto-CSC),
+// NOT as a live veto verdict.
 //
-// REGIME = small, economically-meaningful axes:
-//   TREND      : Kaufman Efficiency Ratio (drift-aware: ER is NOT mean-centered, so it sees a
-//                directional drift trend that autocorr/variance-ratio are blind to). Schmitt
-//                trigger (enter er_trend / exit er_exit) so it doesn't straddle one cutoff.
-//                ABSOLUTE threshold by design: ER is dimensionless 0..1, so the veto's firing
-//                rate is ALLOWED to rise in trending stretches and fall in quiet ones - that
-//                variation is the signal. Do NOT percentile-normalize.
-//   DIRECTION  : sign of the projected linreg slope (reused from the anchor), ATR deadband.
-//   VOL STATE  : ATR percentile (where current vol sits in its own history) + volume surge -> cascade.
-//   STABILITY  : signed-regime state machine with a minimum dwell; cascade is a priority interrupt.
-//   (lag-1 autocorr & variance ratio are kept as Data-Window READOUTS only — the gate-0 reversion
-//    lens "is this even fadeable" — never as trend gates, since both are blind to drift.)
+// BOUNDED TO TRADINGVIEW: no external/CPCV. Overfit-robustness comes from the
+// multi-symbol x multi-TF sweep, effective-n + SE/t significance, and parameter
+// perturbation. Still NOT a backtest: descriptive, cost-blind, overlapping.
 //
-// VALIDATION (scout, hardened v4): per side, edge = mean(horizon ret) - mean(baseline ret) in ATR,
-//   reported with a STANDARD ERROR from EFFECTIVE-n (non-overlapping samples) so a gap is only read
-//   when |t| >= 1.5. Read order:
-//     GATE-0  = the Taken row's Edge (does the fader beat baseline at all?). Precondition.
-//     GATE    = "gate d" rows: Taken - Veto-DIR gap with its own t (the gate's marginal value).
-//   Vetoed is SPLIT into Veto-DIR (vetoed by trend direction) and Veto-CSC (vetoed by cascade);
-//   Veto-CSC is expected near-empty -> cascade is a replay-validated TAIL guard, not statistical.
-//   Vol%lo = mean signal-time vol-percentile of the LOSING samples in a bucket; if L/Taken Vol%lo
-//   is high, falling-knife flush-fades are polluting Range/Taken (conservative bias - drags Taken
-//   down, can't fake a pass). Buckets are filter-INDEPENDENT (computed from regime), so the split
-//   populates with the live veto on or off. NOT a backtest; descriptive, cost-blind, overlapping.
+// REGIME axes (unchanged from v3/v4):
+//   TREND  : Kaufman ER (drift-aware; ABSOLUTE Schmitt enter/exit). DIRECTION: projected
+//            linreg slope, ATR deadband. VOL: ATR percentile + volume surge -> cascade.
+//   STABILITY: signed-regime state machine + min dwell; cascade = priority interrupt.
+//   (ac1 / variance-ratio kept as READOUTS only - mean-centered, blind to drift.)
+//
+// SCOUT (v5): per signal, scan the forward window for first touch of +target*ATR,
+//   -stop*ATR, or the time cap. Outcome in ATR. Buckets: Taken / Veto-DIR / Veto-CSC
+//   per side, each vs a random-bar baseline (same bracket). Exp = mean(bucket) -
+//   mean(baseline), with SE from EFFECTIVE-n (non-overlapping) -> read only |t|>=1.5.
+//   GATE-0 = the Taken row Exp (does the fader beat random entries?). "gate d" rows =
+//   Taken - Veto-DIR (regime's marginal value). tH%/sH% = target/stop first-touch rates.
+//   MFE = mean favorable excursion (front-loading tell: MFE>>Exp => edge handed back).
 // =====================================================================
 
 // ===== Inputs =====
-// --- Regime (the new layer) ---
-regime_filter   = input.bool(true,  "Apply regime veto (v1)", group="Regime", tooltip="ON: fades are gated by regime (veto-only). OFF: raw fades fire both sides (original OS core). The scout's Taken/Vetoed split is computed from regime regardless, so you can A/B with this on or off.")
-er_len          = input.int(20,   "Efficiency Ratio length",      minval=5,                         group="Regime", tooltip="Kaufman ER = |net change| / sum(|bar changes|) over N. 0..1. NOT mean-centered, so it sees DRIFT directly -> this is the trend-strength detector. High = directional/trending, low = choppy.")
-er_trend        = input.float(0.30, "ER trend ENTER threshold",    minval=0.05, maxval=0.95, step=0.01, group="Regime", tooltip="Schmitt trigger: ER at/above this (with a slope direction) ENTERS a trend. ABSOLUTE cut (ER is dimensionless 0..1, so the firing rate is ALLOWED to vary with the market - that variation is the signal; do NOT percentile-normalize). Calibrated for 1h crypto: 0.30 sits just above the ER median; 0.40 under-reported trend even in clean down-legs. Higher = stricter (fewer vetoes, more fades).")
-er_exit         = input.float(0.18, "ER trend EXIT threshold",     minval=0.01, maxval=0.95, step=0.01, group="Regime", tooltip="Schmitt trigger: once trending, stay until ER drops below this. The enter>exit dead band damps the bar-straddling flicker a single cutoff produces. Clamped to <= ER ENTER.")
-regime_min_dwell = input.int(3,   "Regime minimum dwell (bars)",  minval=1,                         group="Regime", tooltip="A trend/range/direction change must persist this many bars before the label flips, so a sustained move isn't carved into fragments. Cascade overrides this instantly.")
-ac_len          = input.int(50,   "Autocorr length (lag-1) [READOUT]", minval=10,                   group="Regime", tooltip="READOUT ONLY, not a gate. Lag-1 autocorr of 1-bar changes. Mean-centered -> ~0 for a drift trend, so it is blind to drift and was removed from the trend gate. Still useful as a reversion read (gate-0 lens): <0 = reversion present.")
-vr_k            = input.int(5,    "Variance-ratio horizon k [READOUT]", minval=2,                   group="Regime", tooltip="Multi-bar horizon for the variance-ratio readout.")
-vr_len          = input.int(50,   "Variance-ratio sample length [READOUT]", minval=20,              group="Regime", tooltip="Window for the variance-ratio readout. VR = Var(k-bar)/(k*Var(1-bar)); >1 persistent, <1 mean-reverting. Mean-centered -> ~1 for a drift trend, so demoted from the gate.")
-vol_pct_len     = input.int(250,  "Vol percentile lookback",      minval=50,                        group="Regime", tooltip="History for ranking current ATR. ~250 ~ 10 days on 1h.")
-vol_hi          = input.float(80,   "Vol-hot percentile (cascade)", minval=50, maxval=99, step=1,     group="Regime", tooltip="ATR percentile at/above this counts as a volatility expansion (one of the cascade conditions).")
-er_cascade      = input.float(0.45, "ER cascade threshold",        minval=0.3, maxval=0.99, step=0.01, group="Regime", tooltip="ER this high + hot vol + volume surge = cascade/blowout -> veto BOTH sides. 0.60 was near-unreachable (above what clean legs hit); 0.45 lets real flushes register. NOTE: cascade is a replay-validated TAIL guard, not a statistical one - don't over-tune. A sharp V-flush can have mediocre 20-bar ER, so vol-expansion + volume surge + single large-range bar may characterize it better; revisit ingredients later. The scout Vol%lo column measures how much this guard would actually buy.")
-vsma_len        = input.int(20,   "Volume MA length (surge)",     minval=5,                         group="Regime", tooltip="Baseline for the volume-surge test. Assets without volume just never flag a surge.")
-vsurge_mult     = input.float(1.8,  "Volume surge multiple",        minval=1.0, step=0.1,             group="Regime", tooltip="volume > mult * SMA(volume) counts as a surge (a cascade condition).")
-slope_dead_atr  = input.float(0.05, "Trend slope deadband (ATR/bar)", minval=0.0, step=0.01,         group="Regime", tooltip="Min |projected linreg slope|/ATR per bar to count as directional. With ac1/vr removed from the gate, THIS is now the binding directional gate, so it matters more than before. Inside the band = no clear direction = treated as Range.")
+// --- Regime ---
+regime_filter   = input.bool(true,  "Apply regime veto (live plot only)", group="Regime", tooltip="Live arrows/alerts gating only. The scout's Taken/Veto split is computed from regime regardless (conditioner), so analysis is unaffected by this toggle.")
+er_len          = input.int(20,   "Efficiency Ratio length",      minval=5,                         group="Regime", tooltip="Kaufman ER = |net change| / sum(|bar changes|) over N. 0..1. NOT mean-centered -> sees drift directly. Trend-strength detector.")
+er_trend        = input.float(0.30, "ER trend ENTER threshold",    minval=0.05, maxval=0.95, step=0.01, group="Regime", tooltip="Schmitt ENTER. ABSOLUTE cut (do not percentile-normalize). 0.30 calibrated for 1h crypto.")
+er_exit         = input.float(0.18, "ER trend EXIT threshold",     minval=0.01, maxval=0.95, step=0.01, group="Regime", tooltip="Schmitt EXIT (clamped <= ENTER). Dead band damps single-cutoff flicker.")
+regime_min_dwell = input.int(3,   "Regime minimum dwell (bars)",  minval=1,                         group="Regime", tooltip="A label change must persist this many bars (cascade overrides instantly).")
+ac_len          = input.int(50,   "Autocorr length (lag-1) [READOUT]", minval=10,                   group="Regime", tooltip="READOUT ONLY. Mean-centered -> blind to drift; reversion lens (<0 = reversion).")
+vr_k            = input.int(5,    "Variance-ratio horizon k [READOUT]", minval=2,                   group="Regime", tooltip="Readout horizon.")
+vr_len          = input.int(50,   "Variance-ratio sample length [READOUT]", minval=20,              group="Regime", tooltip="Readout window. VR>1 persistent, <1 mean-reverting; mean-centered -> ~1 for drift.")
+vol_pct_len     = input.int(250,  "Vol percentile lookback",      minval=50,                        group="Regime", tooltip="History for ranking current ATR.")
+vol_hi          = input.float(80,   "Vol-hot percentile (cascade)", minval=50, maxval=99, step=1,     group="Regime", tooltip="ATR percentile >= this = vol expansion (a cascade condition).")
+er_cascade      = input.float(0.45, "ER cascade threshold",        minval=0.3, maxval=0.99, step=0.01, group="Regime", tooltip="ER + hot vol + volume surge = cascade. Replay-validated tail guard, not statistical; don't over-tune.")
+vsma_len        = input.int(20,   "Volume MA length (surge)",     minval=5,                         group="Regime", tooltip="Baseline for the volume-surge test.")
+vsurge_mult     = input.float(1.8,  "Volume surge multiple",        minval=1.0, step=0.1,             group="Regime", tooltip="volume > mult * SMA(volume) = surge.")
+slope_dead_atr  = input.float(0.05, "Trend slope deadband (ATR/bar)", minval=0.0, step=0.01,         group="Regime", tooltip="Min |projected linreg slope|/ATR per bar to count as directional. The binding directional gate.")
 
 // --- Arrows ---
-use_reversion = input.bool(false, "Fire on reversion (1 per episode)", group="Arrows", tooltip="ON: arm on the extreme bar, fire ONCE as the overshoot contracts back inside the trigger band. OFF (default): every extreme bar fires.")
-arm_max_bars  = input.int(24, "Reversion arm timeout (bars)", minval=1, group="Arrows", tooltip="When reversion is on: an armed setup self-clears if it hasn't fired within this many bars of the extreme.")
+use_reversion = input.bool(false, "Fire on reversion (1 per episode)", group="Arrows", tooltip="ON: arm on extreme, fire once on contraction back inside the band. OFF: every extreme bar fires.")
+arm_max_bars  = input.int(24, "Reversion arm timeout (bars)", minval=1, group="Arrows", tooltip="Armed setup self-clears after this many bars.")
 
 // --- Display ---
 show_turns       = input.bool(true,  "Show fade arrows on price", group="Display")
-show_provisional = input.bool(true,  "Show provisional (forming-bar) signals", group="Display", tooltip="ON: the live forming bar's signal renders faint and solidifies on close. Committed marks never repaint; alerts fire on close only.")
+show_provisional = input.bool(true,  "Show provisional (forming-bar) signals", group="Display")
 show_table       = input.bool(true,  "Show state panel (top-right)", group="Display")
-show_scout       = input.bool(true,  "Show scout dashboard (bottom-right)", group="Display", tooltip="Stratified edge with error bars: Taken vs Veto-DIR vs Veto-CSC, each vs a random-bar baseline. NOT a backtest. Overlapping windows: effective n << displayed n.")
+show_scout       = input.bool(true,  "Show scout dashboard (bottom-right)", group="Display", tooltip="Triple-barrier expectancy with error bars: Taken vs Veto-DIR vs Veto-CSC per side. NOT a backtest.")
 show_regime_bg   = input.bool(true,  "Tint pane by regime", group="Display")
-os_color_mode    = input.string("State", "Overshoot column color", options=["State", "Direction"], group="Display", tooltip="State = up-extreme red (short), down-extreme green (long), grey otherwise. Direction = teal up / orange down by OS sign.")
+os_color_mode    = input.string("State", "Overshoot column color", options=["State", "Direction"], group="Display")
 
-// --- Scout sampling ---
-fwd_bars      = input.int(24,  "Forward bars",            minval=1,                group="Scout", tooltip="Window over which the horizon return is measured after each signal. Also the overlap length used for the effective-n (non-overlapping) count.")
-min_samples   = input.int(20,  "Min samples to display",  minval=1,                group="Scout", tooltip="Fewer than this many post-calibration samples -> the cell shows n/a. Stratifying into Taken/Veto-dir/Veto-csc thins each bucket; treat thin buckets with suspicion and read nEff, not n.")
-lookback_bars = input.int(750, "Lookback window (bars)",  minval=50, maxval=10000, group="Scout", tooltip="Rolling sample window. Signal and baseline both reflect the SAME recent window.")
-cal_len       = input.int(250, "Calibration burn-in (bars)", minval=30,            group="Scout", tooltip="Scout begins sampling only after this many bars (warm-up for the percentile ranks).")
+// --- Scout sampling / barrier ---
+fwd_bars      = input.int(24,  "Forward window (bars)",     minval=2,                group="Scout", tooltip="Max forward bars held in history for the barrier scan + the overlap length for effective-n. Must be >= time cap.")
+bar_target_atr = input.float(1.0, "Barrier target (ATR)",   minval=0.1, step=0.1,    group="Scout", tooltip="Take-profit distance in ATR (favorable). Tight for a fader = harvest the brief bounce.")
+bar_stop_atr   = input.float(1.5, "Barrier stop (ATR)",     minval=0.1, step=0.1,    group="Scout", tooltip="Stop distance in ATR (adverse). The 1R risk unit.")
+bar_tcap       = input.int(12, "Barrier time cap (bars)",   minval=1,                group="Scout", tooltip="Max hold; on timeout, exit at that bar's close. Clamped to <= forward window. Short = don't hold into continuation.")
+min_samples   = input.int(20,  "Min samples to display",  minval=1,                  group="Scout", tooltip="Below this, the cell shows n/a. Read nEff (independent), not n.")
+lookback_bars = input.int(750, "Lookback window (bars)",  minval=50, maxval=10000,   group="Scout", tooltip="Rolling sample window. Signal and baseline share it.")
+cal_len       = input.int(250, "Calibration burn-in (bars)", minval=30,              group="Scout", tooltip="Scout starts sampling after this many bars (percentile warm-up).")
 
-// --- Overshoot: extremity definition (unchanged from OS core) ---
-pct_len     = input.int(250,   "Overshoot percentile lookback",       minval=30,                       group="Overshoot", tooltip="History for ranking overshoot extremity.")
-pct_thresh  = input.float(90,  "Overshoot percentile threshold (%)",  minval=50, maxval=99.9, step=0.5, group="Overshoot", tooltip="Extreme above this rank (or below 100 minus this), AND must clear the ATR floor.")
-pctl_basis  = input.string("Pooled", "Percentile basis", options=["Pooled", "By-direction"], group="Overshoot", tooltip="Pooled = high/low tail of ONE distribution of all os. By-direction = up tail ranks only past UP-overshoots, down only past DOWN-overshoots (asymmetry fix for biased MA anchors).")
-os_min_atr  = input.float(1.0, "Min overshoot (ATR)",                 minval=0.0,             step=0.1, group="Overshoot", tooltip="Absolute floor (ATR) so a high percentile in a quiet window doesn't fire on a tiny move.")
-k_decontam  = input.int(3,     "Baseline exclude-recent (bars)",      minval=0,                        group="Overshoot", tooltip="Fit the anchor EXCLUDING the most recent k bars and project it forward; lag the ATR normalizer by k; exclude recent k from the percentile sample. 0 = original. Typical 2-5.")
-dir_min     = input.int(30,    "By-direction min same-sign sample",   minval=10,                       group="Overshoot", tooltip="Minimum same-sign observations before trusting a sign-conditioned tail; below this, fall back to the ATR floor. (OS core used 10 - too thin for a 90th-pctile tail.)")
+// --- Overshoot ---
+pct_len     = input.int(250,   "Overshoot percentile lookback",       minval=30,                       group="Overshoot")
+pct_thresh  = input.float(90,  "Overshoot percentile threshold (%)",  minval=50, maxval=99.9, step=0.5, group="Overshoot")
+pctl_basis  = input.string("Pooled", "Percentile basis", options=["Pooled", "By-direction"], group="Overshoot")
+os_min_atr  = input.float(1.0, "Min overshoot (ATR)",                 minval=0.0,             step=0.1, group="Overshoot")
+k_decontam  = input.int(3,     "Baseline exclude-recent (bars)",      minval=0,                        group="Overshoot")
+dir_min     = input.int(30,    "By-direction min same-sign sample",   minval=10,                       group="Overshoot")
 
-// --- Anchors (unchanged from OS core) ---
-os_anchor = input.string("Regression", "Overshoot anchor", options=["Regression", "SMA", "EMA"], group="Anchors", tooltip="What the overshoot measures price against. Regression recommended; all anchors are decontaminated and forward-projected.")
+// --- Anchors ---
+os_anchor = input.string("Regression", "Overshoot anchor", options=["Regression", "SMA", "EMA"], group="Anchors")
 reg_len   = input.int(50,    "Anchor length",          minval=5, group="Anchors")
 carry_basis = input.string("VWAP", "Carry baseline",     options=["VWAP", "SMA", "EMA"], group="Anchors")
 carry_len   = input.int(50,     "Carry baseline length", minval=5, group="Anchors")
 atr_len  = input.int(20, "ATR length (normalizer)", minval=2, group="Anchors")
 
 // ===== Helper: arm/fire latch =====
-// Arms on extreme; fires ONCE on the first bar back INSIDE the band (not extreme) while os is rolling
-// back toward the line. gate_valid clears a stale arm if the regime flips against it mid-episode.
 f_arm_fire(extreme, revert, gate_valid, max_bars) =>
     var bool armed   = false
     var int  arm_bar = 0
@@ -118,7 +108,7 @@ f_decon(b, k) =>
     p = b[k + 1]
     e + (e - p) * k
 
-// ===== Helper: linear-interpolation percentile of an arbitrary array =====
+// ===== Helper: linear-interpolation percentile of an array =====
 f_pctile(arr, p) =>
     n = array.size(arr)
     float res = na
@@ -132,20 +122,61 @@ f_pctile(arr, p) =>
         res := array.get(s, lo) + frac * (array.get(s, hi) - array.get(s, lo))
     res
 
-// ===== Helpers: scout (array-based, rolling time window) =====
-// Each signal sample stores: entry bar_index, horizon return (ATR), and the vol-percentile AS OF
-// SIGNAL TIME (the tag that reveals if Range/Taken losses cluster on high-vol/flush bars).
-f_push(bar_arr, ret_arr, vol_arr, ret_v, vol_v) =>
+// ===== Helpers: scout =====
+// Triple-barrier first-touch from the entry bar (which is fwd_bars back from `now`). Scans forward
+// offsets fwd_bars-1 .. fwd_bars-tcap. Returns [outcome_ATR, hit(0 timeout/1 target/2 stop), mfe_ATR].
+// Conservative: if both barriers fall in one bar, the STOP is assumed first.
+f_barrier(is_long, entry, atr_sig) =>
+    float tgt = is_long ? entry + bar_target_atr * atr_sig : entry - bar_target_atr * atr_sig
+    float stp = is_long ? entry - bar_stop_atr   * atr_sig : entry + bar_stop_atr   * atr_sig
+    int   cap = math.min(bar_tcap, fwd_bars)
+    float out = na
+    int   hitc = 0
+    float mfe = 0.0
+    for k = 1 to cap
+        off = fwd_bars - k
+        hi = high[off]
+        lo = low[off]
+        fav = is_long ? (hi - entry) / atr_sig : (entry - lo) / atr_sig
+        mfe := math.max(mfe, fav)
+        bool brk = false
+        if is_long
+            if lo <= stp
+                out := -bar_stop_atr
+                hitc := 2
+                brk := true
+            else if hi >= tgt
+                out := bar_target_atr
+                hitc := 1
+                brk := true
+        else
+            if hi >= stp
+                out := -bar_stop_atr
+                hitc := 2
+                brk := true
+            else if lo <= tgt
+                out := bar_target_atr
+                hitc := 1
+                brk := true
+        if brk
+            break
+    if hitc == 0
+        eoff = fwd_bars - cap
+        out := is_long ? (close[eoff] - entry) / atr_sig : (entry - close[eoff]) / atr_sig
+    [out, hitc, mfe]
+
+f_push(bar_arr, out_arr, mfe_arr, hit_arr, out_v, mfe_v, hit_v) =>
     array.push(bar_arr, bar_index)
-    array.push(ret_arr, ret_v)
-    array.push(vol_arr, vol_v)
+    array.push(out_arr, out_v)
+    array.push(mfe_arr, mfe_v)
+    array.push(hit_arr, hit_v)
     while array.size(bar_arr) > 0 and bar_index - array.first(bar_arr) > lookback_bars
         array.shift(bar_arr)
-        array.shift(ret_arr)
-        array.shift(vol_arr)
+        array.shift(out_arr)
+        array.shift(mfe_arr)
+        array.shift(hit_arr)
 
-// Effective n: count of NON-OVERLAPPING samples (entries >= fwd_bars apart). Overlapping forward
-// windows are correlated, so displayed n overstates independent information; this is the honest count.
+// Effective n: non-overlapping samples (entries >= fwd_bars apart).
 f_effn(bar_arr) =>
     n = array.size(bar_arr)
     cnt = 0
@@ -158,11 +189,10 @@ f_effn(bar_arr) =>
                 last := b
     cnt
 
-// Edge (mean signal ret - mean baseline ret) with standard error from effective-n + dispersion.
-// Returns [edge, se, t, neff]. na edge if the signal bucket has < min_samples.
-f_edge_se(sig_ret, sig_bar, base_ret, base_bar) =>
-    ns = array.size(sig_ret)
-    nb = array.size(base_ret)
+// Edge (mean bucket - mean baseline) with SE from effective-n + dispersion. [edge, se, t, neff]
+f_edge_se(sig, sig_bar, base, base_bar) =>
+    ns = array.size(sig)
+    nb = array.size(base)
     float edge = na
     float se   = na
     float t    = na
@@ -170,50 +200,47 @@ f_edge_se(sig_ret, sig_bar, base_ret, base_bar) =>
     if ns >= min_samples and nb >= 1
         es := f_effn(sig_bar)
         eb = f_effn(base_bar)
-        edge := array.avg(sig_ret) - array.avg(base_ret)
-        vs = ns > 1 ? math.pow(array.stdev(sig_ret), 2) : 0.0
-        vb = nb > 1 ? math.pow(array.stdev(base_ret), 2) : 0.0
+        edge := array.avg(sig) - array.avg(base)
+        vs = ns > 1 ? math.pow(array.stdev(sig), 2) : 0.0
+        vb = nb > 1 ? math.pow(array.stdev(base), 2) : 0.0
         se := math.sqrt((es > 0 ? vs / es : 0.0) + (eb > 0 ? vb / eb : 0.0))
         t  := se > 0 ? edge / se : na
     [edge, se, t, es]
 
-// Gate gap (mean Taken ret - mean Veto ret) with SE/t. The shared baseline cancels, so this
-// isolates the gate's marginal contribution. Returns [gap, se, t]. na if either < min_samples.
-f_gap(a_ret, a_bar, b_ret, b_bar) =>
-    na_ = array.size(a_ret)
-    nb  = array.size(b_ret)
+// Gate gap (mean Taken - mean Veto) with SE/t (baseline cancels). [gap, se, t]
+f_gap(a, a_bar, b, b_bar) =>
+    na_ = array.size(a)
+    nb  = array.size(b)
     float gap = na
     float se  = na
     float t   = na
     if na_ >= min_samples and nb >= min_samples
         ea = f_effn(a_bar)
         eb = f_effn(b_bar)
-        gap := array.avg(a_ret) - array.avg(b_ret)
-        va = math.pow(array.stdev(a_ret), 2)
-        vb = math.pow(array.stdev(b_ret), 2)
+        gap := array.avg(a) - array.avg(b)
+        va = math.pow(array.stdev(a), 2)
+        vb = math.pow(array.stdev(b), 2)
         se := math.sqrt((ea > 0 ? va / ea : 0.0) + (eb > 0 ? vb / eb : 0.0))
         t  := se > 0 ? gap / se : na
     [gap, se, t]
 
-// Mean signal-time vol-percentile of the LOSING samples (ret<0). High => losses cluster on
-// high-vol/flush bars (the cascade-pollution tell for Range/Taken).
-f_vol_losers(ret_arr, vol_arr) =>
-    n = array.size(ret_arr)
-    float s = 0.0
-    int   c = 0
+// First-touch rate for a hit code (1 target, 2 stop), as %.
+f_rate(hit_arr, code) =>
+    n = array.size(hit_arr)
+    int c = 0
     if n > 0
         for i = 0 to n - 1
-            if array.get(ret_arr, i) < 0
-                s += array.get(vol_arr, i)
+            if array.get(hit_arr, i) == code
                 c += 1
-    c > 0 ? s / c : na
+    n > 0 ? 100.0 * c / n : na
 
+f_mean_min(arr) => array.size(arr) >= min_samples ? array.avg(arr) : na
 f_num_str(v) => na(v) ? "n/a" : (v > 0 ? "+" : "") + str.tostring(v, "#.00")
+f_pct_str(v) => na(v) ? "-" : str.tostring(v, "#") + "%"
 f_t_str(t)   => na(t) ? "n/a" : str.tostring(t, "#.0")
-// Significance colour: needs |t| >= 1.5 to read as real; sign sets green/red, else gray.
 f_t_col(edge, t) => na(t) or math.abs(t) < 1.5 ? color.new(color.gray, 30) : edge > 0 ? color.new(#00C853, 0) : color.new(#FF1744, 0)
 
-// ===== Components: overshoot engine (unchanged from OS core) =====
+// ===== Components: overshoot engine =====
 atr      = ta.atr(atr_len)
 safe_atr = atr > 0 ? atr : na
 
@@ -236,9 +263,8 @@ carry_base = carry_basis == "SMA" ? sma_v : carry_basis == "EMA" ? ema_v : rvwap
 os = (na(atr_os) or na(reg))        ? na : (close - reg)      / atr_os
 tc = (na(atr_os) or na(carry_base)) ? na : (reg - carry_base) / atr_os
 
-// --- Extremity (dual gate, expressed as a plottable trigger band) ---
+// --- Extremity ---
 os_pct  = ta.percentrank(os, pct_len)
-
 os_p_hi_pool = ta.percentile_linear_interpolation(os, pct_len, pct_thresh)[k_decontam]
 os_p_lo_pool = ta.percentile_linear_interpolation(os, pct_len, 100 - pct_thresh)[k_decontam]
 
@@ -270,54 +296,39 @@ os_p_lo = pctl_basis == "By-direction" ? os_p_lo_dir : os_p_lo_pool
 
 trig_up = math.max(os_min_atr,  nz(os_p_hi,  os_min_atr))
 trig_dn = math.min(-os_min_atr, nz(os_p_lo, -os_min_atr))
-os_ext_up  = not na(os) and os >= trig_up   // stretched UP  -> fade SHORT
-os_ext_dn  = not na(os) and os <= trig_dn   // stretched DOWN -> fade LONG
+os_ext_up  = not na(os) and os >= trig_up
+os_ext_dn  = not na(os) and os <= trig_dn
 
 bind_up_code = nz(os_p_hi, -1e9) >= os_min_atr  ? 1 : 0
 bind_dn_code = nz(os_p_lo,  1e9) <= -os_min_atr ? 1 : 0
 
 // ===== REGIME LAYER =====
-// Trend strength = Efficiency Ratio. ER's numerator is net displacement, so it is NOT mean-centered
-// and sees DRIFT directly -> the correct "is there a directional move I shouldn't fade against"
-// detector. ac1 and vr ARE mean-centered (blind to drift: ac1~0 and vr~1 for a clean drift trend),
-// so they were removed from the gate and kept ONLY as Data-Window readouts (the gate-0 reversion lens).
 er_den = math.sum(math.abs(close - close[1]), er_len)
 er     = er_den > 0 ? math.abs(close - close[er_len]) / er_den : na
 
 ret1 = close - close[1]
-ac1  = ta.correlation(ret1, ret1[1], ac_len)    // READOUT ONLY (mean-centered -> blind to drift)
-
+ac1  = ta.correlation(ret1, ret1[1], ac_len)    // READOUT ONLY
 v1   = ta.variance(close - close[1],    vr_len)
 vk   = ta.variance(close - close[vr_k], vr_len)
-vr   = v1 > 0 ? vk / (vr_k * v1) : na            // READOUT ONLY (mean-centered -> ~1 for drift)
+vr   = v1 > 0 ? vk / (vr_k * v1) : na            // READOUT ONLY
 
-// Vol-state axis + volume surge.
 atr_pct   = ta.percentrank(atr, vol_pct_len)
 vol_ma    = ta.sma(volume, vsma_len)
 vol_surge = not na(vol_ma) and vol_ma > 0 and volume > vol_ma * vsurge_mult
 
-// Direction from the projected linreg slope (reused from the anchor), ATR-deadbanded.
-// With ac1/vr gone, this deadband is now the binding directional gate.
 slope_pb  = reg_lr_end - reg_lr_prev
 slope_atr = (na(atr_os) or atr_os == 0) ? na : slope_pb / atr_os
 dir_up    = not na(slope_atr) and slope_atr >  slope_dead_atr
 dir_dn    = not na(slope_atr) and slope_atr < -slope_dead_atr
 
-// Trend strength via Schmitt trigger on ER (drift-aware, hysteretic): enter at er_trend, stay
-// until er_exit (clamped <= enter). Damps the threshold-straddling flicker of a single cutoff.
 float er_exit_use = math.min(er_exit, er_trend)
 var bool trend_on = false
 trend_on := na(er) ? trend_on : (trend_on ? er >= er_exit_use : er >= er_trend)
 
-// Cascade = blowout guard. Instant; overrides everything (priority interrupt below).
 cascade = not na(er) and er >= er_cascade and not na(atr_pct) and atr_pct >= vol_hi and vol_surge
 
-// Desired (instantaneous) label. code: 0 Range, 1 TrendUp, -1 TrendDown, 2 CascadeUp, -2 CascadeDown
 int desired = cascade ? (dir_dn ? -2 : 2) : (trend_on and dir_up) ? 1 : (trend_on and dir_dn) ? -1 : 0
 
-// Signed-regime state machine with minimum dwell. Cascade is a PRIORITY INTERRUPT: instant on,
-// resets the dwell. Every other transition (trend<->range AND direction flips) must wait out
-// regime_min_dwell, so brief strength/direction wobble can't carve a sustained move into fragments.
 var int regime = 0
 var int regime_dwell = 0
 regime_dwell += 1
@@ -328,91 +339,88 @@ else if desired != regime and regime_dwell >= regime_min_dwell
     regime := desired
     regime_dwell := 0
 
-// Regime-derived permissions (filter-INDEPENDENT, used for scout bucketing and the live gate).
-regime_allow_long  = regime == 0 or regime == 1     // Range or Trend-up: dip buys ok
-regime_allow_short = regime == 0 or regime == -1    // Range or Trend-down: rip sells ok
+regime_allow_long  = regime == 0 or regime == 1
+regime_allow_short = regime == 0 or regime == -1
 allow_long_live    = regime_filter ? regime_allow_long  : true
 allow_short_live   = regime_filter ? regime_allow_short : true
 
-// ===== Fade signals (raw overshoot) then regime-gated =====
+// ===== Fade signals =====
 fade_up_raw = os_ext_up   // SHORT
 fade_dn_raw = os_ext_dn   // LONG
-
-// Reversion latch fires on first bar back inside the band. gate_valid clears the arm if the regime
-// turns against the side mid-episode (e.g. armed short while regime flips to Trend-up).
 fade_up_fire = f_arm_fire(fade_up_raw, not na(os) and not na(os[1]) and os < os[1], regime_allow_short, arm_max_bars)
 fade_dn_fire = f_arm_fire(fade_dn_raw, not na(os) and not na(os[1]) and os > os[1], regime_allow_long,  arm_max_bars)
-
-fade_up_sig = use_reversion ? fade_up_fire : fade_up_raw   // raw (ungated) signal, for scout bucketing
+fade_up_sig = use_reversion ? fade_up_fire : fade_up_raw
 fade_dn_sig = use_reversion ? fade_dn_fire : fade_dn_raw
+fade_short = fade_up_sig and allow_short_live
+fade_long  = fade_dn_sig and allow_long_live
 
-// Live, regime-gated signals (what actually plots/alerts).
-fade_short = fade_up_sig and allow_short_live   // up-extreme -> SHORT
-fade_long  = fade_dn_sig and allow_long_live    // down-extreme -> LONG
-
-// ===== Scout: stratified Taken vs Veto-DIR vs Veto-CSC, edge with error bars =====
-// Each bucket stores entry bar, horizon return (ATR), and signal-time vol-percentile.
+// ===== Scout: triple-barrier outcomes, stratified Taken / Veto-DIR / Veto-CSC =====
+// per bucket: entry bar, outcome (ATR), MFE (ATR), hit code (1 target / 2 stop / 0 timeout)
 var array<int>   fl_t_bar  = array.new<int>()
-var array<float> fl_t_ret  = array.new<float>()
-var array<float> fl_t_vol  = array.new<float>()
 var array<int>   fl_vd_bar = array.new<int>()
-var array<float> fl_vd_ret = array.new<float>()
-var array<float> fl_vd_vol = array.new<float>()
 var array<int>   fl_vc_bar = array.new<int>()
-var array<float> fl_vc_ret = array.new<float>()
-var array<float> fl_vc_vol = array.new<float>()
+var array<float> fl_t_out  = array.new<float>()
+var array<float> fl_vd_out = array.new<float>()
+var array<float> fl_vc_out = array.new<float>()
+var array<float> fl_t_mfe  = array.new<float>()
+var array<float> fl_vd_mfe = array.new<float>()
+var array<float> fl_vc_mfe = array.new<float>()
+var array<int>   fl_t_hit  = array.new<int>()
+var array<int>   fl_vd_hit = array.new<int>()
+var array<int>   fl_vc_hit = array.new<int>()
 var array<int>   fs_t_bar  = array.new<int>()
-var array<float> fs_t_ret  = array.new<float>()
-var array<float> fs_t_vol  = array.new<float>()
 var array<int>   fs_vd_bar = array.new<int>()
-var array<float> fs_vd_ret = array.new<float>()
-var array<float> fs_vd_vol = array.new<float>()
 var array<int>   fs_vc_bar = array.new<int>()
-var array<float> fs_vc_ret = array.new<float>()
-var array<float> fs_vc_vol = array.new<float>()
+var array<float> fs_t_out  = array.new<float>()
+var array<float> fs_vd_out = array.new<float>()
+var array<float> fs_vc_out = array.new<float>()
+var array<float> fs_t_mfe  = array.new<float>()
+var array<float> fs_vd_mfe = array.new<float>()
+var array<float> fs_vc_mfe = array.new<float>()
+var array<int>   fs_t_hit  = array.new<int>()
+var array<int>   fs_vd_hit = array.new<int>()
+var array<int>   fs_vc_hit = array.new<int>()
 var array<int>   bs_bar    = array.new<int>()
-var array<float> bl_ret    = array.new<float>()
-var array<float> bsh_ret   = array.new<float>()
+var array<float> bl_out    = array.new<float>()
+var array<float> bsh_out   = array.new<float>()
 
 post_cal = bar_index - fwd_bars >= cal_len
 if post_cal
     entry   = close[fwd_bars]
     atr_sig = safe_atr[fwd_bars]
     if not na(atr_sig) and atr_sig > 0 and not na(entry)
-        long_ret  = (close - entry) / atr_sig
-        short_ret = (entry - close) / atr_sig
+        [l_out, l_hit, l_mfe] = f_barrier(true,  entry, atr_sig)
+        [s_out, s_hit, s_mfe] = f_barrier(false, entry, atr_sig)
 
-        // Baseline = every bar, both perspectives, shared bar timeline.
+        // Baseline = every bar, both perspectives (random-entry expectancy, same bracket).
         array.push(bs_bar, bar_index)
-        array.push(bl_ret, long_ret)
-        array.push(bsh_ret, short_ret)
+        array.push(bl_out, l_out)
+        array.push(bsh_out, s_out)
         while array.size(bs_bar) > 0 and bar_index - array.first(bs_bar) > lookback_bars
             array.shift(bs_bar)
-            array.shift(bl_ret)
-            array.shift(bsh_ret)
+            array.shift(bl_out)
+            array.shift(bsh_out)
 
-        // Signal buckets, gated on regime AS OF SIGNAL TIME (filter-independent), split by veto reason.
         raw_long  = fade_dn_sig[fwd_bars]
         raw_short = fade_up_sig[fwd_bars]
         reg_sig   = regime[fwd_bars]
-        volp_sig  = atr_pct[fwd_bars]
         long_ok   = reg_sig == 0 or reg_sig == 1
         short_ok  = reg_sig == 0 or reg_sig == -1
         is_casc   = math.abs(reg_sig) == 2
         if raw_long
             if long_ok
-                f_push(fl_t_bar,  fl_t_ret,  fl_t_vol,  long_ret, volp_sig)
+                f_push(fl_t_bar,  fl_t_out,  fl_t_mfe,  fl_t_hit,  l_out, l_mfe, l_hit)
             else if is_casc
-                f_push(fl_vc_bar, fl_vc_ret, fl_vc_vol, long_ret, volp_sig)
+                f_push(fl_vc_bar, fl_vc_out, fl_vc_mfe, fl_vc_hit, l_out, l_mfe, l_hit)
             else
-                f_push(fl_vd_bar, fl_vd_ret, fl_vd_vol, long_ret, volp_sig)
+                f_push(fl_vd_bar, fl_vd_out, fl_vd_mfe, fl_vd_hit, l_out, l_mfe, l_hit)
         if raw_short
             if short_ok
-                f_push(fs_t_bar,  fs_t_ret,  fs_t_vol,  short_ret, volp_sig)
+                f_push(fs_t_bar,  fs_t_out,  fs_t_mfe,  fs_t_hit,  s_out, s_mfe, s_hit)
             else if is_casc
-                f_push(fs_vc_bar, fs_vc_ret, fs_vc_vol, short_ret, volp_sig)
+                f_push(fs_vc_bar, fs_vc_out, fs_vc_mfe, fs_vc_hit, s_out, s_mfe, s_hit)
             else
-                f_push(fs_vd_bar, fs_vd_ret, fs_vd_vol, short_ret, volp_sig)
+                f_push(fs_vd_bar, fs_vd_out, fs_vd_mfe, fs_vd_hit, s_out, s_mfe, s_hit)
 
 // ===== Colors =====
 committed = barstate.isconfirmed
@@ -421,7 +429,6 @@ color os_dir_col = os > 0 ? color.new(#26C6DA, 30) : os < 0 ? color.new(#FFA726,
 color os_col     = os_color_mode == "Direction" ? os_dir_col : color.new(st_col, 30)
 color tc_col     = color.new(#BB86FC, 0)
 
-// Regime tint.
 color reg_bg = na
 if show_regime_bg
     reg_bg := regime ==  1 ? color.new(#00C853, 92) : regime == -1 ? color.new(#FF1744, 92) : (math.abs(regime) == 2 ? color.new(#FF6D00, 88) : color.new(color.gray, 96))
@@ -446,7 +453,7 @@ pTrigDn = plot(trig_dn, "Trigger - (fire level)", color=color.new(color.gray, 45
 fill(pTrigUp, pTrigDn, color.new(color.gray, 92), "No-fire band")
 hline(0, "Zero", color=color.new(color.gray, 0), linestyle=hline.style_solid)
 
-// ===== Arrows on the PRICE pane (committed solid + provisional faint) =====
+// ===== Arrows on the PRICE pane =====
 plotshape(show_turns and committed and fade_short ? high : na, "FADE SHORT", shape.triangledown, location.abovebar, color=color.new(#FF1744, 0), size=size.tiny, force_overlay=true)
 plotshape(show_turns and committed and fade_long  ? low  : na, "FADE LONG",  shape.triangleup,   location.belowbar, color=color.new(#00C853, 0), size=size.tiny, force_overlay=true)
 plotshape(show_turns and show_provisional and not committed and fade_short ? high : na, "FADE SHORT (prov)", shape.triangledown, location.abovebar, color=color.new(color.gray, 60), size=size.tiny, force_overlay=true)
@@ -473,56 +480,55 @@ if show_table and barstate.islast
     table.cell(panel, 1, 4, ext_label,       text_color=color.white, bgcolor=ext_bg, text_size=size.tiny)
     table.cell(panel, 0, 5, "Carry",         text_color=color.silver, text_size=size.tiny)
     table.cell(panel, 1, 5, str.tostring(tc, "#.00") + " ATR (" + carry_basis + ")", text_color=color.white, text_size=size.tiny)
-    table.cell(panel, 0, 6, "Mode",          text_color=color.silver, text_size=size.tiny)
-    table.cell(panel, 1, 6, (use_reversion ? "Reversion" : "Raw") + " / " + os_anchor + " / " + (pctl_basis == "By-direction" ? "dir" : "pool") + forming, text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 0, 6, "Bracket",       text_color=color.silver, text_size=size.tiny)
+    table.cell(panel, 1, 6, "+" + str.tostring(bar_target_atr, "#.0") + " / -" + str.tostring(bar_stop_atr, "#.0") + " / " + str.tostring(bar_tcap) + "b" + forming, text_color=color.white, text_size=size.tiny)
 
-// ===== Scout dashboard (stratified, edge with error bars) =====
-// Edge = mean(horizon ret) - mean(baseline ret), in ATR. t = edge/SE using EFFECTIVE n (non-overlap).
-// Read a number only if |t| >= 1.5 (coloured); grey = within noise. The Taken row's Edge IS gate-0
-// (does the fader beat baseline at all). "gate d" rows = Taken - Veto-DIR gap (gate's marginal value).
+// ===== Scout dashboard (triple-barrier) =====
+// Exp = mean(bucket outcome ATR) - mean(baseline). t from effective-n; colour only |t|>=1.5.
+// Taken row Exp = GATE-0 (beats random entries?). "gate d" rows = Taken - Veto-DIR.
+// tH%/sH% = target/stop first-touch rates. MFE = mean favorable excursion (front-loading tell).
 var table scout = table.new(position.bottom_right, 7, 10, border_color=color.new(color.gray, 50), border_width=1, frame_color=color.new(color.gray, 50), frame_width=1)
 bgsc = color.new(color.black, 50)
 
 f_hdr(col, txt) => table.cell(scout, col, 0, txt, text_color=color.silver, bgcolor=bgsc, text_size=size.tiny)
 
-f_row(r, lbl, ret_arr, bar_arr, vol_arr, base_ret, base_bar, lblcol) =>
-    [edge, se, t, neff] = f_edge_se(ret_arr, bar_arr, base_ret, base_bar)
-    vl = f_vol_losers(ret_arr, vol_arr)
+f_row(r, lbl, out_arr, bar_arr, mfe_arr, hit_arr, base_out, base_bar, lblcol) =>
+    [edge, se, t, neff] = f_edge_se(out_arr, bar_arr, base_out, base_bar)
     table.cell(scout, 0, r, lbl, text_color=lblcol, bgcolor=bgsc, text_size=size.tiny)
     table.cell(scout, 1, r, f_num_str(edge), text_color=color.white, bgcolor=f_t_col(edge, t), text_size=size.tiny)
-    table.cell(scout, 2, r, na(se) ? "n/a" : str.tostring(se, "#.00"), text_color=color.silver, text_size=size.tiny)
-    table.cell(scout, 3, r, f_t_str(t), text_color=color.white, text_size=size.tiny)
-    table.cell(scout, 4, r, str.tostring(array.size(ret_arr)), text_color=color.silver, text_size=size.tiny)
-    table.cell(scout, 5, r, str.tostring(neff), text_color=color.white, text_size=size.tiny)
-    table.cell(scout, 6, r, na(vl) ? "n/a" : str.tostring(vl, "#.0"), text_color=color.white, bgcolor=(not na(vl) and vl >= 80 ? color.new(#FF6D00, 0) : color.new(color.gray, 40)), text_size=size.tiny)
+    table.cell(scout, 2, r, f_t_str(t), text_color=color.white, text_size=size.tiny)
+    table.cell(scout, 3, r, f_pct_str(f_rate(hit_arr, 1)), text_color=color.white, text_size=size.tiny)
+    table.cell(scout, 4, r, f_pct_str(f_rate(hit_arr, 2)), text_color=color.silver, text_size=size.tiny)
+    table.cell(scout, 5, r, f_num_str(f_mean_min(mfe_arr)), text_color=color.silver, text_size=size.tiny)
+    table.cell(scout, 6, r, str.tostring(neff), text_color=color.white, text_size=size.tiny)
 
-f_gate(r, lbl, t_ret, t_bar, v_ret, v_bar) =>
-    [gap, se, tt] = f_gap(t_ret, t_bar, v_ret, v_bar)
+f_gate(r, lbl, t_out, t_bar, v_out, v_bar) =>
+    [gap, se, tt] = f_gap(t_out, t_bar, v_out, v_bar)
     verdict = na(tt) ? "n/a" : tt >= 1.5 ? "EDGE" : tt <= -1.5 ? "ANTI" : "ns"
     table.cell(scout, 0, r, lbl, text_color=color.white, bgcolor=bgsc, text_size=size.tiny)
     table.cell(scout, 1, r, f_num_str(gap), text_color=color.white, bgcolor=f_t_col(gap, tt), text_size=size.tiny)
-    table.cell(scout, 2, r, na(se) ? "n/a" : str.tostring(se, "#.00"), text_color=color.silver, text_size=size.tiny)
-    table.cell(scout, 3, r, f_t_str(tt), text_color=color.white, text_size=size.tiny)
+    table.cell(scout, 2, r, f_t_str(tt), text_color=color.white, text_size=size.tiny)
+    table.cell(scout, 3, r, verdict, text_color=color.white, bgcolor=f_t_col(gap, tt), text_size=size.tiny)
     table.cell(scout, 4, r, "", text_color=color.silver, text_size=size.tiny)
     table.cell(scout, 5, r, "", text_color=color.silver, text_size=size.tiny)
-    table.cell(scout, 6, r, verdict, text_color=color.white, bgcolor=f_t_col(gap, tt), text_size=size.tiny)
+    table.cell(scout, 6, r, "", text_color=color.silver, text_size=size.tiny)
 
 if show_scout and barstate.islast
     f_hdr(0, "bucket")
-    f_hdr(1, "Edge")
-    f_hdr(2, "+-SE")
-    f_hdr(3, "t")
-    f_hdr(4, "n")
-    f_hdr(5, "nEff")
-    f_hdr(6, "Vol%lo")
-    f_row(1, "L Taken",    fl_t_ret,  fl_t_bar,  fl_t_vol,  bl_ret,  bs_bar, color.silver)
-    f_row(2, "L Veto-dir", fl_vd_ret, fl_vd_bar, fl_vd_vol, bl_ret,  bs_bar, color.gray)
-    f_row(3, "L Veto-csc", fl_vc_ret, fl_vc_bar, fl_vc_vol, bl_ret,  bs_bar, color.gray)
-    f_row(4, "S Taken",    fs_t_ret,  fs_t_bar,  fs_t_vol,  bsh_ret, bs_bar, color.silver)
-    f_row(5, "S Veto-dir", fs_vd_ret, fs_vd_bar, fs_vd_vol, bsh_ret, bs_bar, color.gray)
-    f_row(6, "S Veto-csc", fs_vc_ret, fs_vc_bar, fs_vc_vol, bsh_ret, bs_bar, color.gray)
-    f_gate(7, "L gate d",  fl_t_ret, fl_t_bar, fl_vd_ret, fl_vd_bar)
-    f_gate(8, "S gate d",  fs_t_ret, fs_t_bar, fs_vd_ret, fs_vd_bar)
+    f_hdr(1, "Exp")
+    f_hdr(2, "t")
+    f_hdr(3, "tH%")
+    f_hdr(4, "sH%")
+    f_hdr(5, "MFE")
+    f_hdr(6, "nEff")
+    f_row(1, "L Taken",    fl_t_out,  fl_t_bar,  fl_t_mfe,  fl_t_hit,  bl_out,  bs_bar, color.silver)
+    f_row(2, "L Veto-dir", fl_vd_out, fl_vd_bar, fl_vd_mfe, fl_vd_hit, bl_out,  bs_bar, color.gray)
+    f_row(3, "L Veto-csc", fl_vc_out, fl_vc_bar, fl_vc_mfe, fl_vc_hit, bl_out,  bs_bar, color.gray)
+    f_row(4, "S Taken",    fs_t_out,  fs_t_bar,  fs_t_mfe,  fs_t_hit,  bsh_out, bs_bar, color.silver)
+    f_row(5, "S Veto-dir", fs_vd_out, fs_vd_bar, fs_vd_mfe, fs_vd_hit, bsh_out, bs_bar, color.gray)
+    f_row(6, "S Veto-csc", fs_vc_out, fs_vc_bar, fs_vc_mfe, fs_vc_hit, bsh_out, bs_bar, color.gray)
+    f_gate(7, "L gate d",  fl_t_out, fl_t_bar, fl_vd_out, fl_vd_bar)
+    f_gate(8, "S gate d",  fs_t_out, fs_t_bar, fs_vd_out, fs_vd_bar)
 
 // ===== Alerts (committed-only, regime-gated) =====
 alertcondition(fade_short and committed, "FADE SHORT", "Overshoot extreme up, regime allows - fade short")

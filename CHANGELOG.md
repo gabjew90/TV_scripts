@@ -97,7 +97,33 @@ Vol%lo (cascade-pollution tag): Taken 35–53 (losers NOT high-vol) · Veto-CSC 
 4. **Cascade** un-validatable statistically + low-value (Taken Vol%lo 35–53 → minimal flush pollution). Correctly parked.
 
 **Caveat that reframes the verdict (open):** gate-0 was measured on an **exit-blind fixed 24-bar horizon return**. Mean-reversion edge is front-loaded — a fixed hold captures the decayed endpoint, not the catchable bounce — so a real fader can print ~0/negative ret. Need MFE-vs-ret check + a triple-barrier first-touch metric before concluding no edge. See "Next".
-**Status:** current on chart. Regime engine retained as **conditioning variable** (not gate).
+**Status:** superseded by v5 (outcome metric).
+
+## v5 — Triple-barrier outcome (regime = conditioner, not veto)
+**Date:** 2026-06-06 · **On-chart:** "Jamal Phase 1 v5" (shorttitle "Jamal P1v5")
+**Code changes**
+- **Bounded to TradingView** — Python/CPCV plan dropped (user directive). Robustness via sweep + effective-n/SE + perturbation only.
+- `regime_filter` now gates **live arrows/alerts only**; scout buckets are regime-conditioned regardless (conditioner, not veto verdict).
+- **New Scout inputs:** `bar_target_atr` (`in_23`, default 1.0), `bar_stop_atr` (`in_24`, default 1.5), `bar_tcap` (`in_25`, default 12). ⚠ **Input IDs shifted** — current Scout map: `fwd_bars`=in_22, `bar_target_atr`=in_23, `bar_stop_atr`=in_24, `bar_tcap`=in_25, `min_samples`=in_26, **`lookback_bars`=in_27**, `cal_len`=in_28.
+- **New `f_barrier(is_long, entry, atr_sig)` → `[outcome_ATR, hit(0 timeout/1 target/2 stop), mfe_ATR]`**: forward first-touch scan of +target·ATR / −stop·ATR / time cap; conservative stop-first on same-bar ambiguity.
+- `f_push` now stores `(bar, out, mfe, hit)`. Removed the vol arrays + `f_vol_losers`. Added `f_rate` (first-touch %), `f_mean_min`, `f_pct_str`.
+- Buckets store outcome/MFE/hit per Taken / Veto-DIR / Veto-CSC; baseline = barrier outcome on every bar, both sides (random-entry expectancy, same bracket).
+- Dashboard cols: `bucket | Exp(ATR) | t | tH% | sH% | MFE | nEff`. Exp = bucket − baseline expectancy with effective-n SE/t; Taken row = gate-0; "gate d" rows = Taken − Veto-DIR.
+**Rationale:** the exit-blind 24-bar horizon return measured the decayed endpoint of a front-loaded reversion. Triple-barrier first-touch captures sequence + tradeable expectancy + the ex-ante bounce-vs-knife split (tH vs sH).
+**Tests run:** `pine_check` 0/0; pushed + remove/re-add; BTC 1h, lookback 1500, bracket +1.0/−1.5/12b.
+**Bug (mine, fixed):** set inputs via `in_24` assuming it was lookback, but IDs had shifted → accidentally set `bar_stop_atr`=1500 (sH% = 0% everywhere, Bracket panel showed −1500). Corrected: `in_24`=1.5, `in_27`=1500.
+**Results (BTC 1h, lookback 1500, bracket 1.0/1.5/12):**
+| bucket | Exp | t | tH% | sH% | MFE | nEff |
+|---|---|---|---|---|---|---|
+| L Taken | −0.10 | −0.3 | 50% | 43% | +0.99 | 22 |
+| L Veto-dir | −0.20 | −0.4 | 45% | 50% | +0.81 | 6 |
+| S Taken | −0.25 | −0.8 | 48% | 48% | +0.96 | 17 |
+| S Veto-dir | +0.20 | +0.4 | 68% | 32% | +1.08 | 7 |
+| L gate Δ | +0.10 | +0.2 ns | | | | |
+| S gate Δ | −0.45 | −0.9 ns | | | | |
+
+**Finding:** **MFE ≈ +1.0 ATR while Exp ≈ 0** on the Taken buckets → the front-loaded favorable excursion exists but the bracket hands it back (target 1.0 < stop 1.5 needs ~60% tHit to break even; getting ~50%). Confirms the v4 "no" was an exit-blindness artifact: there IS a catchable bounce; the **exit is the lever**. Signed-regime gate Δ inconclusive at lookback 1500 (nEff 6–22; thin).
+**Status:** current on chart.
 
 ---
 
@@ -107,10 +133,9 @@ Vol%lo (cascade-pollution tag): Taken 35–53 (losers NOT high-vol) · Veto-CSC 
 - **Re-home the research:** triple-barrier expectancy + signed-regime test across symbols/TFs with CPCV is a **Python pipeline** job; Pine scout demoted to live monitoring. (No existing CPCV/pipeline found in this workspace as of 2026-06-06.)
 
 ## Next (planned, not yet done)
-1. **MFE-vs-ret check** on existing buckets — needs MFE re-added to the scout (dropped in v4) or falls out of the barrier work. Tests the "edge handed back" signature.
-2. **Triple-barrier first-touch** outcome: +target ATR / −stop ATR / time cap; label = which barrier hit first; yields tradeable expectancy + target-hit vs stop-hit rates (the ex-ante bounce-vs-knife separability question).
-3. **Re-run gate-0 + signed-regime** on the barrier metric (signed-regime slice is a re-cut of the same data, not separate work).
-4. Lookback: barrier expectancy is more sample-efficient; default ~1500, watch stationarity (5000 on 1h ≈ 7 months, blends bull/bear epochs).
+1. **Bracket is the lever.** MFE≈1 ATR / Exp≈0 says the favorable excursion exists but isn't harvested. Principled bracket perturbation (NOT single-cell tuning): vary target/stop/cap and watch where Exp turns positive AND the tH/sH split, across the **sweep grid** (BTC/TAO/HYPE × 1h/4h) for robustness — not one tuned cell.
+2. **Re-run gate-0 + signed-regime gate Δ** on the chosen bracket across the grid (needs more samples than lookback 1500 gave — nEff was 6–22; consider lookback up via `in_27`, watch stationarity).
+3. Watch the **bounce-vs-knife** question directly: if tH and sH are both high, the bracket/feature must separate them — the net edge lives there.
 
 ## Open items / parked
 - **Cascade ingredients redesign** (range-expansion + volume surge + single large-range bar vs 20-bar ER). Parked — measured low-value via Vol%lo. Documented as NOTE on `er_cascade`.
