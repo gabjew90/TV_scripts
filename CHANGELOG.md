@@ -349,3 +349,13 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 ## Open items / parked
 - **Cascade ingredients redesign** (range-expansion + volume surge + single large-range bar vs 20-bar ER). Parked — measured low-value via Vol%lo. Documented as NOTE on `er_cascade`.
 - **lookback default:** code default **1500** (`in_25` in v8). NB `in_24` is now `min_samples`. (The v6 nEff-display cosmetic is obsolete — the bucket scout it referred to was removed in v8.)
+
+# ========================= JAMAL CONTEXT — DISCRETIONARY TOOL (BUILD LOG) =========================
+**New direction (2026-06-06):** after Phase 1/2/3 research all KILLED, pivot to building `jamal-context.pine`, a **discretionary context tool** (NOT a strategy/backtest/edge). Spec: `docs/superpowers/specs/2026-06-06-jamal-context-indicator-design.md`; plan: `docs/superpowers/plans/2026-06-06-jamal-context-indicator.md`. Three mechanisms — overshoot (trigger), regime (type), flow (conviction). Phased build, each increment gated by a live-chart test.
+
+## Context v0.1 — Regime + tint + label (Mechanism A)
+**Date:** 2026-06-06 · **On-chart:** "Jamal Context v0.1 (regime)" (shorttitle "JmlCtx", `overlay=true`)
+**Code:** New file. Ported the Phase 1 regime engine **verbatim** (ER Schmitt enter 0.30/exit 0.18, dwell 3; signed linreg slope with ATR deadband 0.05; cascade = ER≥0.45 & vol-pct≥80 & volume surge; signed state machine → `regime ∈ {0 Range, ±1 Trend, ±2 Cascade}`). Render = background `bgcolor` tint + top-right state panel (Regime label / ER / Vol pctile). Label maps cascade→**"Flush"**. Data-window readouts (regime/ER/atr_pct) for cross-check. No overshoot/flow/marks yet.
+**Rationale:** Mechanism A is the foundation every later mark keys off; build + verify it alone first.
+**Tested (BTC 1h & 4h):** Compiles 0 errors. 1h: panel "Range (forming)", ER .07, vol 60.8% — red tint over down-legs. 4h: panel "Trend-down (forming)", ER .23, vol 95.2% — **all four tints render** (green Trend-up, red Trend-down, gray Range, orange Flush on violent bars). Regime matches Phase 1 by construction (verbatim port).
+**Result:** PASS. **Status:** v0.1 accepted; proceed to v0.2 (overshoot + taxonomy marks + liq-flush suppression).

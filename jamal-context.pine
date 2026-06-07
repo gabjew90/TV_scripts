@@ -1,0 +1,84 @@
+//@version=6
+// JAMAL CONTEXT — discretionary regime + pullback + flow context tool.
+// DISCRETIONARY CONTEXT, UNVALIDATED, NOT A BACKTESTED EDGE. Displays market STATE; the trader decides.
+// Brightness (later increments) = untuned co-occurrence COUNT, never a score; more aligned != higher odds.
+// v0.1 = Mechanism A only: Structure/Regime (tint + glanceable label). Regime engine reused verbatim
+// from overshoot-regime-os-core-v1.pine (ER Schmitt + signed-slope ATR deadband + cascade + dwell).
+indicator("Jamal Context v0.1 (regime)", "JmlCtx", overlay=true)
+
+// ===== Inputs =====
+er_len           = input.int(20,    "Efficiency Ratio length", minval=5, group="Regime")
+er_trend         = input.float(0.30, "ER trend ENTER", minval=0.05, maxval=0.95, step=0.01, group="Regime")
+er_exit          = input.float(0.18, "ER trend EXIT",  minval=0.01, maxval=0.95, step=0.01, group="Regime")
+regime_min_dwell = input.int(3,     "Regime min dwell (bars)", minval=1, group="Regime")
+vol_pct_len      = input.int(250,   "Vol percentile lookback", minval=50, group="Regime")
+vol_hi           = input.float(80,  "Vol-hot percentile (cascade)", minval=50, maxval=99, step=1, group="Regime")
+er_cascade       = input.float(0.45, "ER cascade threshold", minval=0.3, maxval=0.99, step=0.01, group="Regime")
+vsma_len         = input.int(20,    "Volume MA length (surge)", minval=5, group="Regime")
+vsurge_mult      = input.float(1.8, "Volume surge multiple", minval=1.0, step=0.1, group="Regime")
+slope_dead_atr   = input.float(0.05, "Trend slope deadband (ATR/bar)", minval=0.0, step=0.01, group="Regime")
+reg_len          = input.int(50,    "Anchor length (slope)", minval=5, group="Regime")
+k_decontam       = input.int(3,     "Decontaminate recent (bars)", minval=0, group="Regime")
+atr_len          = input.int(20,    "ATR length", minval=2, group="Regime")
+show_tint        = input.bool(true, "Tint background by regime", group="Display")
+show_panel       = input.bool(true, "Show state panel", group="Display")
+
+// ===== Mechanism A: Structure / Regime =====
+atr      = ta.atr(atr_len)
+safe_atr = atr > 0 ? atr : na
+atr_os   = safe_atr[k_decontam]
+
+reg_lr_end  = ta.linreg(close[k_decontam], reg_len, 0)
+reg_lr_prev = ta.linreg(close[k_decontam], reg_len, 1)
+slope_pb    = reg_lr_end - reg_lr_prev
+slope_atr   = (na(atr_os) or atr_os == 0) ? na : slope_pb / atr_os
+dir_up      = not na(slope_atr) and slope_atr >  slope_dead_atr
+dir_dn      = not na(slope_atr) and slope_atr < -slope_dead_atr
+
+er_den = math.sum(math.abs(close - close[1]), er_len)
+er     = er_den > 0 ? math.abs(close - close[er_len]) / er_den : na
+
+atr_pct   = ta.percentrank(atr, vol_pct_len)
+vol_ma    = ta.sma(volume, vsma_len)
+vol_surge = not na(vol_ma) and vol_ma > 0 and volume > vol_ma * vsurge_mult
+
+float er_exit_use = math.min(er_exit, er_trend)
+var bool trend_on = false
+trend_on := na(er) ? trend_on : (trend_on ? er >= er_exit_use : er >= er_trend)
+
+cascade = not na(er) and er >= er_cascade and not na(atr_pct) and atr_pct >= vol_hi and vol_surge
+int desired = cascade ? (dir_dn ? -2 : 2) : (trend_on and dir_up) ? 1 : (trend_on and dir_dn) ? -1 : 0
+
+var int regime = 0
+var int regime_dwell = 0
+regime_dwell += 1
+if cascade
+    regime := desired
+    regime_dwell := 0
+else if desired != regime and regime_dwell >= regime_min_dwell
+    regime := desired
+    regime_dwell := 0
+
+// ===== Render: tint + label =====
+color reg_bg = na
+if show_tint
+    reg_bg := regime == 1 ? color.new(#00C853, 92) : regime == -1 ? color.new(#FF1744, 92) : (math.abs(regime) == 2 ? color.new(#FF6D00, 88) : color.new(color.gray, 96))
+bgcolor(reg_bg, title="Regime tint")
+
+string reg_label = regime == 1 ? "Trend-up" : regime == -1 ? "Trend-down" : math.abs(regime) == 2 ? "Flush" : "Range"
+color  reg_bgc   = regime == 1 ? color.new(#00C853, 0) : regime == -1 ? color.new(#FF1744, 0) : math.abs(regime) == 2 ? color.new(#FF6D00, 0) : color.new(color.gray, 40)
+
+var table panel = table.new(position.top_right, 2, 3, border_color=color.new(color.gray,50), border_width=1, frame_color=color.new(color.gray,50), frame_width=1)
+if show_panel and barstate.islast
+    string forming = barstate.isconfirmed ? " (confirmed)" : " (forming)"
+    table.cell(panel, 0, 0, "Regime", text_color=color.silver, text_size=size.tiny)
+    table.cell(panel, 1, 0, reg_label + forming, text_color=color.white, bgcolor=reg_bgc, text_size=size.tiny)
+    table.cell(panel, 0, 1, "ER", text_color=color.silver, text_size=size.tiny)
+    table.cell(panel, 1, 1, str.tostring(er, "#.00"), text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 0, 2, "Vol pctile", text_color=color.silver, text_size=size.tiny)
+    table.cell(panel, 1, 2, str.tostring(atr_pct, "#.0") + " %", text_color=color.white, text_size=size.tiny)
+
+// data-window readouts for cross-check vs Phase 1
+plot(regime,  "regime",  display=display.data_window)
+plot(er,      "ER",      display=display.data_window)
+plot(atr_pct, "atr_pct", display=display.data_window)
