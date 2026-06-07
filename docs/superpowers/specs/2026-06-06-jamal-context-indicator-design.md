@@ -22,9 +22,13 @@ The indicator is organised as three independent, well-bounded mechanism modules 
 
 > **Composition principle (advisor):** overshoot = the **trigger** (whether/where a mark appears), regime = the **type** (what it means), flow = the **conviction** (how strong).
 
-### Mechanism A — Structure / Regime *(reuse Phase 1 verbatim)*
-ER Schmitt trigger (enter `er_trend`=0.30 / exit `er_exit`=0.18, `regime_min_dwell`=3) + signed linreg slope with ATR deadband (`slope_dead_atr`=0.05) + cascade (`er_cascade`=0.45 AND vol-hot `atr_pct`≥`vol_hi`=80 AND volume surge) → signed state machine `regime ∈ {0 Range, ±1 Trend, ±2 Cascade}`.
-**Output:** background tint + one glanceable label → **Trend-up / Trend-down / Range / Flush** (Flush = cascade, `|regime|`==2).
+### Mechanism A — Structure / Regime *(FORK + MODIFY of Phase 1 — slope-led)*
+**Forked from, NOT identical to, the Phase 1 engine** (research scripts keep their ER-gated definition; their results are recorded against it and must not move). Change: trend is **slope-led**, not ER-gated. ER measures *efficiency*, not *direction-persistence* — it tanks on every normal pullback and trips the trend-exit, so an ER gate can't hold a multi-week trend through its own dips (empirically verified: the Apr–May rally flickered Trend↔Range on pullbacks, which would suppress with-trend Pullback arrows at the exact entry moment).
+- **Trend = persistent signed slope** of a `slope_len`=50-bar linreg (ATR/bar), via a **signed Schmitt** (enter ±`slope_enter`=0.05, hold while ≥±`slope_exit`=0.02) + `regime_min_dwell`=3. A 50-bar slope sign survives 2–3 bar pullbacks → trends hold through dips; brief range bursts never clear the enter band long enough → stay gray.
+- **ER is DEMOTED to a strength/cascade filter + display only.** Cascade (Flush) unchanged: `er_cascade`=0.45 AND `atr_pct`≥`vol_hi`=80 AND volume surge.
+- Signed state machine `regime ∈ {0 Range, ±1 Trend, ±2 Cascade}`; **regime-slope horizon is decoupled** from the overshoot anchor length (persistent backbone vs responsive anchor) — lengthen `slope_len` if a rally still wobbles, without touching the anchor.
+- **Trade-off (accepted):** slope-led is laggier at reversals than the ER gate (~1–2 weeks at a top). Mitigated by the Blowoff exhaustion mark (fast, fires at climaxes) and the Flush cascade (independent of the slope gate; caught the June drop). Verified: late-May→June still flips to Trend-down acceptably.
+**Output:** own-pane regime ribbon (state step-line + tint) + one glanceable label → **Trend-up / Trend-down / Range / Flush** (Flush = cascade, `|regime|`==2).
 
 ### Mechanism B — Overshoot *(reuse Phase 1 verbatim)*
 Decontaminated trend anchor (Regression/SMA/EMA, `reg_len`=50, `k_decontam`=3) + lagged-ATR-normalised `os = (close − anchor)/atr_os` + extremity = percentile-tail (`pct_thresh`=90 over `pct_len`=250) **AND** ATR-floor (`os_min_atr`=1.0) → `os_ext_up` / `os_ext_dn`.

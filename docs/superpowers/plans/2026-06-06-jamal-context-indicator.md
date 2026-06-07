@@ -36,6 +36,8 @@ There is no unit-test runner. Each task's verification IS the chart-acceptance g
 
 ## Task 1 — v0.1: Regime + tint + label (Mechanism A)
 
+> **REVISED to v0.1.1 (slope-led) after empirical review.** Mechanism A is a **fork + modify** of Phase 1, NOT a verbatim port: trend = persistent signed 50-bar slope (signed Schmitt enter ±0.05 / hold ±0.02 + dwell 3); **ER demoted to cascade-filter only**. ER-gated trend under-shaded real rallies (flickered on pullbacks → would suppress with-trend Pullback arrows). The authoritative engine is in `jamal-context.pine` and §2A of the spec; the code block below is the original ER-gated draft, kept for history. Acceptance now: rally holds solid green + chop stays gray + reversal still flips (all PASS on BTC 4h Feb–Jun).
+
 **Files:** Create `jamal-context.pine`; Modify `CHANGELOG.md`.
 
 - [ ] **Step 1: Write the full v0.1 source** to `jamal-context.pine`:
