@@ -5,14 +5,15 @@
 // v0.1.2 = Mechanism A (regime) only: SLOPE-LED backbone + CHANDELIER one-way trend-INVALIDATION overlay.
 //   * Backbone (entry): persistent signed 50-bar linreg slope, signed Schmitt + dwell. ER demoted to
 //     cascade/display filter only. Slope decides WHEN to ENTER a trend (slow, chop-resistant, clean Range).
-//   * Chandelier (exit only): a standard latching chandelier `dir` (close through the long/short stop,
-//     highest/lowest CLOSE, ATR(20)x3) gates the slope trend. While regime==+1, chand_dir==-1 forces
-//     regime->Range immediately (bypassing the slope dwell) — the fast reversal fix; mirror for -1.
-//     chand_dir self-clears on price RECLAIM of the opposite stop (no slope-lockout). Chandelier may
-//     ONLY invalidate (+-1 -> 0), NEVER promote (0 -> +-1): regime = slope_dir AND chand_dir agreeing.
+//   * Chandelier (exit only): chand_dir is a STRUCTURAL direction — bullish only on a FRESH HIGH;
+//     bearish on a long-stop break OR a fresh low (highest/lowest CLOSE, ATR(20)x3). While regime==+1,
+//     chand_dir==-1 forces regime->Range immediately (bypassing slope dwell); mirror for -1. Re-green
+//     requires a NEW HIGH, so a bounce to a LOWER high during a dump CANNOT turn the regime green again
+//     (kills "green while dumping"), yet a rally that makes new highs after a pullback resumes green.
+//     Chandelier may ONLY invalidate (+-1 -> 0), NEVER promote: regime = slope_dir AND chand_dir agree.
 // overlay=false (own pane); the chandelier stop is the only price-pane element (force_overlay), for review.
 // VERSION: bump title + shorttitle + panel row together each increment.
-indicator("Jamal Context v0.1.2 (regime - slope + chandelier-exit)", "JC v0.1.2", overlay=false)
+indicator("Jamal Context v0.1.3 (regime - slope + chandelier new-high)", "JC v0.1.3", overlay=false)
 
 // ===== Inputs =====
 slope_len        = input.int(50,    "Regime slope length (persistent backbone)", minval=10, group="Regime")
@@ -69,11 +70,17 @@ vol_ma    = ta.sma(volume, vsma_len)
 vol_surge = not na(vol_ma) and vol_ma > 0 and volume > vol_ma * vsurge_mult
 cascade   = not na(er) and er >= er_cascade and not na(atr_pct) and atr_pct >= vol_hi and vol_surge
 
-// --- Chandelier dir: STANDARD latching state (close-through hysteresis) = the invalidation gate ---
-// +1 once close clears the short stop, -1 once close breaks the long stop, else hold. Self-clears on
-// price RECLAIM of the opposite stop (no slope-lockout). This is the canonical chandelier `dir`.
+// --- Chandelier dir: STRUCTURAL direction (the invalidation gate) ---
+// Bullish (+1) ONLY on a fresh ce_len-bar high close; bearish (-1) on a long-stop break OR a fresh low.
+// Re-green needs a NEW HIGH, so a bounce to a LOWER high in a dump can't turn it green; a rally making
+// new highs after a pullback resumes. Else hold.
+hi_ref = ta.highest(close, ce_len)
+lo_ref = ta.lowest(close, ce_len)
+new_hi = not na(hi_ref[1]) and close > hi_ref[1]
+new_lo = not na(lo_ref[1]) and close < lo_ref[1]
+brk_long = not na(longStop[1]) and close < longStop[1]
 var int chand_dir = 1
-chand_dir := (not na(shortStop[1]) and close > shortStop[1]) ? 1 : (not na(longStop[1]) and close < longStop[1]) ? -1 : nz(chand_dir[1], 1)
+chand_dir := (brk_long or new_lo) ? -1 : new_hi ? 1 : nz(chand_dir[1], 1)
 
 // --- Regime state machine: slope+dwell decides ENTRY; chandelier can only INVALIDATE (force Range) ---
 var int regime = 0
@@ -131,7 +138,7 @@ var table panel = table.new(position.top_right, 2, 7, border_color=color.new(col
 if show_panel and barstate.islast
     string forming = barstate.isconfirmed ? " (confirmed)" : " (forming)"
     table.cell(panel, 0, 0, "Jamal Context", text_color=color.white, bgcolor=color.new(#5E35B1, 0), text_size=size.tiny)
-    table.cell(panel, 1, 0, "v0.1.2", text_color=color.white, bgcolor=color.new(#5E35B1, 0), text_size=size.tiny)
+    table.cell(panel, 1, 0, "v0.1.3", text_color=color.white, bgcolor=color.new(#5E35B1, 0), text_size=size.tiny)
     table.cell(panel, 0, 1, "Regime", text_color=color.silver, text_size=size.tiny)
     table.cell(panel, 1, 1, reg_label + forming, text_color=color.white, bgcolor=reg_bgc, text_size=size.tiny)
     table.cell(panel, 0, 2, "Slope ATR/bar", text_color=color.silver, text_size=size.tiny)
