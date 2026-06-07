@@ -313,6 +313,26 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 - **Framing (advisor):** M1 is a *precondition* — a pass means "there is momentum to amplify," NOT "edge found"; bare signed-momentum autocorrelation has no moat (most-competed signal in existence). Do not over-spend the replication budget defending it. **Center of gravity is M2+** (does a derivatives STATE tell you *when* momentum is real). The momentum base rate ideally lives *inside* M2 as the control arm (baseline-vs-conditioned = the Phase 1 scout structure); running M1 standalone as a cheap gate is acceptable only because of the freshness argument.
 - **Anti-HARK:** a-priori windows not swept; ONE conditioner; locked bar does not move; aggregate not a rescue for a near-miss; a decisive flat/wrong-signed/cost-failing anchor kills. Honesty: BTC 1h is EXPECTED to pass given the continuation theme → the anchor alone is uninformative; the hurdles are replication breadth, monotonicity, and the net-edge floor.
 
+### v12 — M1 RESULT (file `jamal-phase3.pine`) — KILLED, 0/6
+**Date:** 2026-06-06. Instrument: conditioner = signed normalized formation move, O1 = signed fwd return (pass), O2 = signed dominant peak excursion; net-edge verdict computed in-dashboard per the locked bar. Run across the full grid (BTC/TAO/HYPE × 1h/4h), cost_bps = 18 BTC / 28 alts as committed.
+
+| cell | O1 r | O1 boot CI95 | terciles lo/mid/hi | mono | gross spread | cost 2RT | **NET** | verdict |
+|---|---|---|---|---|---|---|---|---|
+| BTC 1h  | +.06 | [−.05, +.15] | −.32 / +.03 / −.11 | no  | +.21 | +.59 | **−.38** | FAIL |
+| BTC 4h  | +.02 | [−.12, +.09] | −.26 / −.15 / −.17 | no  | +.09 | +.28 | **−.18** | FAIL |
+| TAO 1h  | +.04 | [−.10, +.14] | −.08 / −.11 / +.16 | no  | +.24 | +.35 | **−.11** | FAIL |
+| TAO 4h  | +.03 | [−.12, +.12] | −.07 / +.12 / −.09 | no  | −.02 | +.17 | **−.19** | FAIL |
+| HYPE 1h | +.09 | [−.03, +.17] | +.02 / +.17 / +.40 | **yes** | +.38 | +.41 | **−.03** | FAIL |
+| HYPE 4h | +.04 | [−.07, +.12] | −.04 / +.06 / +.21 | **yes** | +.25 | +.17 | **+.08** | FAIL |
+
+**M1 VERDICT: KILLED — 0/6 (need ≥5/6).** Two independent reasons, either sufficient:
+1. **Significance/monotonicity alone kills it, cost-independent:** the O1 bootstrap CI **spans 0 in all six cells**, and terciles are monotone in only 2 (both HYPE). So even at *zero cost* the locked sign+CI+mono bar is met by **0/6**. The cost floor is not what's doing the killing on the significance axis — bare 12-bar momentum simply isn't there on BTC/TAO and is only borderline on HYPE.
+2. **Net edge confirms why:** best net = HYPE 4h **+.08 ATR** (still < +.15 floor); every other cell net-negative; BTC 1h net −.38 (cost 0.59 ATR ≈ 3× the gross spread). Gross momentum spreads (0.1–0.4 ATR / 12 bars) are too small to clear realistic costs.
+
+**Structure observed (descriptive, not a pass):** the *only* clean monotone-increasing momentum is **HYPE** (youngest / most-retail / highest-vol name), gross-positive but ≈breakeven after cost. BTC/TAO show no monotone 12-bar momentum. ADJ-1 validated on first contact: BTC 1h's O2 r=+.12 (CI excl 0) would have read as "momentum confirmed" on an r-only gate, while its net edge is −.38 ATR.
+
+**Implication for the program:** M1's premise — "there is bare momentum to amplify" — is **false at the 12h/48h horizon.** This does not *logically* kill M2 (conditional momentum could exist where unconditional momentum averages to ~0), but it raises M2's bar: conditioning must now *manufacture* a tradeable-after-cost edge from a zero/negative base, not merely amplify a positive one. Per the advisor's a-priori horizon lock (1h/4h only; no horizon variants = no multiple-comparisons creep), a longer-horizon momentum test would require its own separate cold pre-registration. **Strategic fork (advisor): close the momentum program on M1's failure, or run M2 as a long-shot baseline-vs-conditioned test focused on whether a funding state carves a cost-clearing subset (HYPE-like high-vol names its best hope).**
+
 **M2 — funding as a momentum AMPLIFIER (QUEUED, separate cold pre-reg — do NOT run with M1):** does continuation strengthen when funding confirms the move? Structured baseline-vs-conditioned (Phase 1 scout). Opens by re-running the funding leak gate. **Cell accounting caveat (lock when drafting M2):** funding on BTC 1h is already peeked by H1 → NOT a fresh confirming cell for M2.
 
 ---

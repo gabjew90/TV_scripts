@@ -1,0 +1,285 @@
+//@version=6
+// JAMAL PHASE 3 — momentum. v12 = M1 (price-momentum continuation), COLD pre-registration.
+// Phase 1 (overshoot fade) and Phase 2 (derivatives->reversion) both KILL. The recurring signal across
+// all of them was continuation (the wrong-signed shadow of three reversion hypotheses). M1 tests it
+// cold: predicted sign POSITIVE a-priori. See CHANGELOG "PHASE 3".
+//
+// M1: signed normalized formation move predicts the signed forward move (momentum, not reversion).
+//   conditioner C = mom = (entry - close[entry+form_bars]) / atr_entry   (signed; sampled lagged at entry)
+//   O1 = (close - entry)/atr_entry                 signed forward return  (PASS metric)
+//   O2 = upx>=dnx ? upx : -dnx                      signed dominant peak excursion (exit-blind safeguard)
+//   PREDICTED SIGN: POSITIVE; terciles of mom monotone INCREASING through 0.
+// Leak: OHLC-only (no settlement vector); formation entirely pre-entry, forward entirely post, C lagged
+//   -> no overlap BY CONSTRUCTION.
+// Pass bar (LOCKED): predicted sign + bootstrap CI excludes 0 + monotone terciles + NET-EDGE FLOOR, in
+//   >=5 of 6 cells BTC/TAO/HYPE x 1h/4h.
+//   ADJ-1 effect-size floor: net_spread = (O1.hi - O1.lo) - 2*c_ATR >= +0.15 ATR, where c_ATR =
+//     (cost_bps/1e4)/mean(ATR/price) per round trip. cost_bps committed a-priori: 18 BTC / 28 TAO·HYPE.
+//   ADJ-2 bootstrap block = 4*fwd_bars = 48 bars per TF (a multiple of the horizon, not wall-clock).
+// M1 is a PRECONDITION gate ("there is momentum to amplify"), not an edge claim; the moat lives in M2+
+//   (derivatives state telling you WHEN momentum is real). NOT a backtest; descriptive, overlapping.
+indicator("Jamal Phase 3 v12 (M1 MOM)", "JmlP3v12", overlay=false)
+
+// ===== Inputs =====
+atr_len         = input.int(20,  "ATR length", minval=2, group="Core")
+fwd_bars        = input.int(12,  "Forward window (bars)", minval=2, group="Scout")
+form_bars       = input.int(12,  "Formation window (bars, a-priori - do NOT sweep)", minval=2, group="Scout")
+cost_bps        = input.float(18, "Round-trip cost (bps of notional): 18 BTC / 28 TAO·HYPE", minval=0, group="Cost")
+min_net_edge    = input.float(0.15, "Net-edge floor (ATR, a-priori)", group="Cost")
+boot_block_mult = input.int(4,   "Bootstrap block = mult x fwd_bars", minval=1, group="Scout")
+boot_iters      = input.int(150, "Bootstrap iterations", minval=50, maxval=1000, group="Scout")
+min_samples     = input.int(20,  "Min samples", minval=1, group="Scout")
+min_eff         = input.int(8,   "Min effective-n (parametric t gate; indicative)", minval=1, group="Scout")
+lookback_bars   = input.int(2000, "Lookback (bars)", minval=50, maxval=10000, group="Scout")
+cal_len         = input.int(250, "Calibration burn-in (bars)", minval=30, group="Scout")
+show_scout      = input.bool(true, "Show dashboard", group="Display")
+show_mom        = input.bool(true, "Plot signed momentum", group="Display")
+
+// ===== helpers (harness, unchanged from v9-v11) =====
+f_pctile(arr, p) =>
+    n = array.size(arr)
+    float res = na
+    if n >= 1
+        s = array.copy(arr)
+        array.sort(s, order.ascending)
+        rank = (p / 100.0) * (n - 1)
+        lo = int(math.floor(rank))
+        hi = int(math.ceil(rank))
+        frac = rank - lo
+        res := array.get(s, lo) + frac * (array.get(s, hi) - array.get(s, lo))
+    res
+
+f_clip(v, lo, hi) => math.max(lo, math.min(hi, v))
+
+f_amean(arr) =>
+    n = array.size(arr)
+    float s = 0.0
+    if n > 0
+        for i = 0 to n - 1
+            s += array.get(arr, i)
+    n > 0 ? s / n : na
+
+f_effn(barr) =>
+    n = array.size(barr)
+    cnt = 0
+    int last = na
+    if n > 0
+        for i = 0 to n - 1
+            b = array.get(barr, i)
+            if na(last) or b - last >= fwd_bars
+                cnt += 1
+                last := b
+    cnt
+
+f_randi(maxv) =>
+    var int rng = 987654321
+    rng := math.abs((rng * 1103515 + 12345) % 2147483647)
+    maxv <= 0 ? 0 : int((rng / 2147483647.0) * maxv)
+
+f_wcorr(x, y) =>
+    n = array.size(x)
+    float rr = na
+    if n >= min_samples
+        xl = f_pctile(x, 5)
+        xh = f_pctile(x, 95)
+        yl = f_pctile(y, 5)
+        yh = f_pctile(y, 95)
+        float sx = 0.0
+        float sy = 0.0
+        for i = 0 to n - 1
+            sx += f_clip(array.get(x, i), xl, xh)
+            sy += f_clip(array.get(y, i), yl, yh)
+        mx = sx / n
+        my = sy / n
+        float num = 0.0
+        float dx = 0.0
+        float dy = 0.0
+        for i = 0 to n - 1
+            a = f_clip(array.get(x, i), xl, xh) - mx
+            b = f_clip(array.get(y, i), yl, yh) - my
+            num += a * b
+            dx += a * a
+            dy += b * b
+        rr := (dx > 0 and dy > 0) ? num / math.sqrt(dx * dy) : na
+    rr
+
+f_corr_t(rr, neff) => (na(rr) or neff < 3) ? na : rr * math.sqrt(math.max(neff - 2, 0) / math.max(1 - rr * rr, 0.000001))
+
+f_boot_ci(x, y, blockLen, iters) =>
+    n = array.size(x)
+    float lo = na
+    float hi = na
+    if n >= min_samples and blockLen >= 1 and n > blockLen
+        xl = f_pctile(x, 5)
+        xh = f_pctile(x, 95)
+        yl = f_pctile(y, 5)
+        yh = f_pctile(y, 95)
+        nb = int(math.ceil(n / blockLen))
+        rs = array.new<float>()
+        for b = 1 to iters
+            float sx = 0.0
+            float sy = 0.0
+            float sxy = 0.0
+            float sx2 = 0.0
+            float sy2 = 0.0
+            int m = 0
+            for bk = 1 to nb
+                st = f_randi(n - blockLen + 1)
+                for j = 0 to blockLen - 1
+                    idx = st + j
+                    if idx < n
+                        xv = f_clip(array.get(x, idx), xl, xh)
+                        yv = f_clip(array.get(y, idx), yl, yh)
+                        sx  += xv
+                        sy  += yv
+                        sxy += xv * yv
+                        sx2 += xv * xv
+                        sy2 += yv * yv
+                        m   += 1
+            den = math.sqrt(math.max(m * sx2 - sx * sx, 0.0) * math.max(m * sy2 - sy * sy, 0.0))
+            rb = den > 0 ? (m * sxy - sx * sy) / den : na
+            if not na(rb)
+                array.push(rs, rb)
+        if array.size(rs) >= 10
+            lo := f_pctile(rs, 2.5)
+            hi := f_pctile(rs, 97.5)
+    [lo, hi]
+
+f_bins(x, y) =>
+    n = array.size(x)
+    float m0 = na
+    float m1 = na
+    float m2 = na
+    if n >= min_samples
+        e1 = f_pctile(x, 33.33333)
+        e2 = f_pctile(x, 66.66667)
+        yl = f_pctile(y, 5)
+        yh = f_pctile(y, 95)
+        float s0 = 0.0
+        float s1 = 0.0
+        float s2 = 0.0
+        int k0 = 0
+        int k1 = 0
+        int k2 = 0
+        for i = 0 to n - 1
+            xi = array.get(x, i)
+            yi = f_clip(array.get(y, i), yl, yh)
+            if xi < e1
+                s0 += yi
+                k0 += 1
+            else if xi < e2
+                s1 += yi
+                k1 += 1
+            else
+                s2 += yi
+                k2 += 1
+        m0 := k0 > 0 ? s0 / k0 : na
+        m1 := k1 > 0 ? s1 / k1 : na
+        m2 := k2 > 0 ? s2 / k2 : na
+    [m0, m1, m2]
+
+f_num(v) => na(v) ? "n/a" : (v > 0 ? "+" : "") + str.tostring(v, "#.00")
+f_t(v)   => na(v) ? "n/a" : str.tostring(v, "#.0")
+// predicted POSITIVE: whole CI > 0 = confirmed (green); whole CI < 0 = wrong-sign (red); spans 0 = gray
+f_ci_col(lo, hi) => (na(lo) or na(hi)) ? color.new(color.gray, 30) : lo > 0 ? color.new(#00C853, 0) : hi < 0 ? color.new(#FF1744, 0) : color.new(color.gray, 30)
+
+// ===== data =====
+atr = ta.atr(atr_len)
+safe_atr = atr > 0 ? atr : na
+hh = ta.highest(high, fwd_bars)
+ll = ta.lowest(low, fwd_bars)
+
+// ===== sample every post-cal bar: signed momentum conditioner + signed outcomes (lagged to entry) =====
+var array<int>   cb  = array.new<int>()
+var array<float> cC  = array.new<float>()   // signed normalized formation momentum
+var array<float> cO1 = array.new<float>()   // signed forward return (pass metric)
+var array<float> cO2 = array.new<float>()   // signed dominant peak excursion (safeguard)
+var array<float> cAP = array.new<float>()   // atr/price at entry (for cost->ATR conversion)
+
+post_cal = bar_index - fwd_bars - form_bars >= cal_len
+if post_cal
+    entry     = close[fwd_bars]
+    atr_sig   = safe_atr[fwd_bars]
+    formStart = close[fwd_bars + form_bars]
+    if not na(atr_sig) and atr_sig > 0 and not na(entry) and not na(formStart) and entry > 0
+        mom = (entry - formStart) / atr_sig     // signed momentum = the conditioner
+        if mom != 0
+            fret = (close - entry) / atr_sig
+            upx  = (hh - entry) / atr_sig
+            dnx  = (entry - ll) / atr_sig
+            o2s  = upx >= dnx ? upx : -dnx
+            array.push(cb, bar_index)
+            array.push(cC, mom)
+            array.push(cO1, fret)
+            array.push(cO2, o2s)
+            array.push(cAP, atr_sig / entry)
+            while array.size(cb) > 0 and bar_index - array.first(cb) > lookback_bars
+                array.shift(cb)
+                array.shift(cC)
+                array.shift(cO1)
+                array.shift(cO2)
+                array.shift(cAP)
+
+momNow = not na(safe_atr) ? (close - close[form_bars]) / safe_atr : na
+plot(show_mom ? momNow : na, "signed mom", color=color.new(#AB47BC, 0))
+hline(0, "0", color=color.new(color.gray, 0))
+
+// ===== dashboard (predicted POSITIVE = continuation; with net-edge verdict) =====
+var table sc = table.new(position.bottom_right, 9, 9, border_color=color.new(color.gray,50), border_width=1, frame_color=color.new(color.gray,50), frame_width=1)
+bg = color.new(color.black, 50)
+f_drow(rw, lbl, ocol, bl) =>
+    rr = f_wcorr(cC, ocol)
+    ne = f_effn(cb)
+    tt = ne >= min_eff ? f_corr_t(rr, ne) : na
+    [clo, chi] = f_boot_ci(cC, ocol, bl, boot_iters)
+    [a0, a1, a2] = f_bins(cC, ocol)
+    table.cell(sc, 0, rw, lbl, text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    table.cell(sc, 1, rw, f_num(rr), text_color=color.white, bgcolor=f_ci_col(clo, chi), text_size=size.tiny)
+    table.cell(sc, 2, rw, f_t(tt), text_color=color.silver, text_size=size.tiny)
+    table.cell(sc, 3, rw, f_num(clo), text_color=color.white, text_size=size.tiny)
+    table.cell(sc, 4, rw, f_num(chi), text_color=color.white, text_size=size.tiny)
+    table.cell(sc, 5, rw, f_num(a0), text_color=color.silver, text_size=size.tiny)
+    table.cell(sc, 6, rw, f_num(a1), text_color=color.silver, text_size=size.tiny)
+    table.cell(sc, 7, rw, f_num(a2), text_color=color.silver, text_size=size.tiny)
+    table.cell(sc, 8, rw, str.tostring(ne), text_color=color.white, text_size=size.tiny)
+
+if show_scout and barstate.islast
+    bl = boot_block_mult * fwd_bars
+    table.cell(sc, 0, 0, "M1 mom  n=" + str.tostring(array.size(cC)), text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    table.cell(sc, 1, 0, "r", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    table.cell(sc, 2, 0, "t~", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    table.cell(sc, 3, 0, "CIlo", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    table.cell(sc, 4, 0, "CIhi", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    table.cell(sc, 5, 0, "O.lo", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    table.cell(sc, 6, 0, "O.mid", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    table.cell(sc, 7, 0, "O.hi", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    table.cell(sc, 8, 0, "nEff", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    f_drow(1, "O1 fwdRet", cO1, bl)
+    f_drow(2, "O2 peak", cO2, bl)
+
+    // ----- net-edge verdict (on O1, the pass metric) -----
+    rr1 = f_wcorr(cC, cO1)
+    [clo1, chi1] = f_boot_ci(cC, cO1, bl, boot_iters)
+    [b0, b1, b2] = f_bins(cC, cO1)
+    spread  = (na(b0) or na(b2)) ? na : b2 - b0
+    meanAP  = f_amean(cAP)
+    cATR    = (na(meanAP) or meanAP <= 0) ? na : (cost_bps / 10000.0) / meanAP   // per round trip, in ATR
+    net     = (na(spread) or na(cATR)) ? na : spread - 2.0 * cATR
+    signOK  = not na(rr1) and rr1 > 0
+    ciOK    = not na(clo1) and clo1 > 0
+    monoOK  = not na(b0) and not na(b1) and not na(b2) and b0 < b1 and b1 < b2
+    edgeOK  = not na(net) and net >= min_net_edge
+    pass    = signOK and ciOK and monoOK and edgeOK
+
+    table.cell(sc, 0, 3, "spread hi-lo (ATR)", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    table.cell(sc, 1, 3, f_num(spread), text_color=color.white, text_size=size.tiny)
+    table.cell(sc, 0, 4, "mean ATR/price %", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    table.cell(sc, 1, 4, na(meanAP) ? "n/a" : str.tostring(meanAP * 100.0, "#.###") + "%", text_color=color.white, text_size=size.tiny)
+    table.cell(sc, 0, 5, "cost 2RT (ATR)", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    table.cell(sc, 1, 5, na(cATR) ? "n/a" : f_num(2.0 * cATR), text_color=color.white, text_size=size.tiny)
+    table.cell(sc, 0, 6, "NET edge (ATR)", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    table.cell(sc, 1, 6, f_num(net), text_color=color.white, bgcolor=(edgeOK ? color.new(#00C853,0) : color.new(#FF1744,0)), text_size=size.tiny)
+    table.cell(sc, 0, 7, "sign/CI/mono/edge", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    table.cell(sc, 1, 7, (signOK?"S":"-") + (ciOK?"C":"-") + (monoOK?"M":"-") + (edgeOK?"E":"-"), text_color=color.white, text_size=size.tiny)
+    table.cell(sc, 0, 8, "VERDICT (floor +" + str.tostring(min_net_edge, "#.00") + ")", text_color=color.silver, bgcolor=bg, text_size=size.tiny)
+    table.cell(sc, 1, 8, pass ? "PASS" : "FAIL", text_color=color.white, bgcolor=(pass ? color.new(#00C853,0) : color.new(#FF1744,0)), text_size=size.tiny)
