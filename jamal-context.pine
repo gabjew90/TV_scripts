@@ -2,15 +2,17 @@
 // JAMAL CONTEXT — discretionary regime + pullback + flow context tool.
 // DISCRETIONARY CONTEXT, UNVALIDATED, NOT A BACKTESTED EDGE. Displays market STATE; the trader decides.
 // Brightness (later increments) = untuned co-occurrence COUNT, never a score; more aligned != higher odds.
-// v0.1.1 = Mechanism A only: Structure/Regime (own-pane regime ribbon + label).
-// REGIME IS SLOPE-LED (forked from the ER-gated Phase 1 engine): trend = persistent signed 50-bar slope
-// with Schmitt hysteresis + dwell. ER is DEMOTED to a strength/cascade filter only — ER measures
-// efficiency, not direction-persistence, so it tanks on every normal pullback and can't hold a trend
-// through its own dips (the exact failure that breaks a with-trend pullback tool). Slope sign survives
-// 2-3 bar pullbacks, so trends hold green through dips and range bursts stay gray.
-// overlay=false (own pane); later increments push price-pane marks/anchor via force_overlay.
-// VERSION: bump all three together each increment -> title, shorttitle, and the panel title row below.
-indicator("Jamal Context v0.1.1 (regime - slope-led)", "JC v0.1.1", overlay=false)
+// v0.1.2 = Mechanism A (regime) only: SLOPE-LED backbone + CHANDELIER one-way trend-INVALIDATION overlay.
+//   * Backbone (entry): persistent signed 50-bar linreg slope, signed Schmitt + dwell. ER demoted to
+//     cascade/display filter only. Slope decides WHEN to ENTER a trend (slow, chop-resistant, clean Range).
+//   * Chandelier (exit only): a standard latching chandelier `dir` (close through the long/short stop,
+//     highest/lowest CLOSE, ATR(20)x3) gates the slope trend. While regime==+1, chand_dir==-1 forces
+//     regime->Range immediately (bypassing the slope dwell) — the fast reversal fix; mirror for -1.
+//     chand_dir self-clears on price RECLAIM of the opposite stop (no slope-lockout). Chandelier may
+//     ONLY invalidate (+-1 -> 0), NEVER promote (0 -> +-1): regime = slope_dir AND chand_dir agreeing.
+// overlay=false (own pane); the chandelier stop is the only price-pane element (force_overlay), for review.
+// VERSION: bump title + shorttitle + panel row together each increment.
+indicator("Jamal Context v0.1.2 (regime - slope + chandelier-exit)", "JC v0.1.2", overlay=false)
 
 // ===== Inputs =====
 slope_len        = input.int(50,    "Regime slope length (persistent backbone)", minval=10, group="Regime")
@@ -19,6 +21,9 @@ slope_exit       = input.float(0.02, "Slope trend EXIT (ATR/bar)",  minval=0.0, 
 regime_min_dwell = input.int(3,     "Regime min dwell (bars)", minval=1, group="Regime")
 k_decontam       = input.int(3,     "Decontaminate recent (bars)", minval=0, group="Regime")
 atr_len          = input.int(20,    "ATR length", minval=2, group="Regime")
+use_ce           = input.bool(true, "Chandelier trend-invalidation (fast exit)", group="Chandelier")
+ce_len           = input.int(22,    "Chandelier lookback (close)", minval=5, group="Chandelier")
+ce_mult          = input.float(3.0, "Chandelier ATR mult", minval=1.0, step=0.5, group="Chandelier")
 er_len           = input.int(20,    "Efficiency Ratio length (cascade/display only)", minval=5, group="Regime")
 vol_pct_len      = input.int(250,   "Vol percentile lookback (cascade)", minval=50, group="Regime")
 vol_hi           = input.float(80,  "Vol-hot percentile (cascade)", minval=50, maxval=99, step=1, group="Regime")
@@ -27,39 +32,53 @@ vsma_len         = input.int(20,    "Volume MA length (surge)", minval=5, group=
 vsurge_mult      = input.float(1.8, "Volume surge multiple", minval=1.0, step=0.1, group="Regime")
 show_tint        = input.bool(true, "Tint pane by regime", group="Display")
 show_panel       = input.bool(true, "Show state panel", group="Display")
+show_ce          = input.bool(true, "Plot active chandelier stop (price pane)", group="Display")
 
-// ===== Mechanism A: Structure / Regime (SLOPE-LED) =====
+// ===== Mechanism A: Structure / Regime =====
 atr      = ta.atr(atr_len)
 safe_atr = atr > 0 ? atr : na
 atr_os   = safe_atr[k_decontam]
 
-// Regime backbone = persistent signed slope of a 50-bar linreg, in ATR/bar.
+// --- Backbone: persistent signed slope of a 50-bar linreg, in ATR/bar ---
 reg_lr_end  = ta.linreg(close[k_decontam], slope_len, 0)
 reg_lr_prev = ta.linreg(close[k_decontam], slope_len, 1)
 slope_pb    = reg_lr_end - reg_lr_prev
 slope_atr   = (na(atr_os) or atr_os == 0) ? na : slope_pb / atr_os
 
-// Signed Schmitt on the slope: hold current direction while |slope| >= EXIT; only (re)enter when
-// |slope| clears the larger ENTER band; otherwise flat. Survives short pullbacks; ignores range bursts.
 var int slope_dir = 0
 if not na(slope_atr)
     hold_up = slope_dir == 1  and slope_atr >=  slope_exit
     hold_dn = slope_dir == -1 and slope_atr <= -slope_exit
     slope_dir := hold_up ? 1 : hold_dn ? -1 : (slope_atr > slope_enter ? 1 : slope_atr < -slope_enter ? -1 : 0)
 
-// ER demoted: strength/cascade filter + display only (NOT the trend gate).
+// --- Chandelier stops (ratcheting; highest/lowest CLOSE) ---
+hhc = ta.highest(close, ce_len)
+llc = ta.lowest(close, ce_len)
+var float longStop = na
+ls_raw = hhc - ce_mult * atr
+longStop := (not na(longStop[1]) and close[1] > longStop[1]) ? math.max(ls_raw, longStop[1]) : ls_raw
+var float shortStop = na
+ss_raw = llc + ce_mult * atr
+shortStop := (not na(shortStop[1]) and close[1] < shortStop[1]) ? math.min(ss_raw, shortStop[1]) : ss_raw
+
+// --- ER demoted: cascade filter + display only ---
 er_den = math.sum(math.abs(close - close[1]), er_len)
 er     = er_den > 0 ? math.abs(close - close[er_len]) / er_den : na
-
 atr_pct   = ta.percentrank(atr, vol_pct_len)
 vol_ma    = ta.sma(volume, vsma_len)
 vol_surge = not na(vol_ma) and vol_ma > 0 and volume > vol_ma * vsurge_mult
 cascade   = not na(er) and er >= er_cascade and not na(atr_pct) and atr_pct >= vol_hi and vol_surge
 
-int desired = cascade ? (slope_atr < 0 ? -2 : 2) : slope_dir
+// --- Chandelier dir: STANDARD latching state (close-through hysteresis) = the invalidation gate ---
+// +1 once close clears the short stop, -1 once close breaks the long stop, else hold. Self-clears on
+// price RECLAIM of the opposite stop (no slope-lockout). This is the canonical chandelier `dir`.
+var int chand_dir = 1
+chand_dir := (not na(shortStop[1]) and close > shortStop[1]) ? 1 : (not na(longStop[1]) and close < longStop[1]) ? -1 : nz(chand_dir[1], 1)
 
+// --- Regime state machine: slope+dwell decides ENTRY; chandelier can only INVALIDATE (force Range) ---
 var int regime = 0
 var int regime_dwell = 0
+int desired = cascade ? (slope_atr < 0 ? -2 : 2) : slope_dir
 regime_dwell += 1
 if cascade
     regime := desired
@@ -68,7 +87,30 @@ else if desired != regime and regime_dwell >= regime_min_dwell
     regime := desired
     regime_dwell := 0
 
-// ===== Render: own-pane regime ribbon (tint + state line) + label =====
+// Chandelier ONE-WAY invalidation (immediate, bypasses dwell): force Range when it disagrees with the
+// active trend. NEVER promotes (only +-1 -> 0). Re-validates automatically when chand_dir reclaims.
+if use_ce and regime == 1 and chand_dir == -1
+    regime := 0
+if use_ce and regime == -1 and chand_dir == 1
+    regime := 0
+
+// --- reg-mix counters (acceptance test #4: Range should stay dominant, ~70%) ---
+var int nTrend = 0
+var int nRange = 0
+var int nFlush = 0
+if barstate.isconfirmed
+    if math.abs(regime) == 2
+        nFlush += 1
+    else if regime != 0
+        nTrend += 1
+    else
+        nRange += 1
+int nTot = nTrend + nRange + nFlush
+float pRange = nTot > 0 ? 100.0 * nRange / nTot : na
+float pTrend = nTot > 0 ? 100.0 * nTrend / nTot : na
+float pFlush = nTot > 0 ? 100.0 * nFlush / nTot : na
+
+// ===== Render: own-pane regime ribbon + chandelier stop on price =====
 color reg_col = regime == 1 ? #00C853 : regime == -1 ? #FF1744 : math.abs(regime) == 2 ? #FF6D00 : color.gray
 color reg_bg = na
 if show_tint
@@ -79,24 +121,32 @@ hline(0,  "0",  color=color.new(color.gray, 70))
 hline(2,  "Flush+",  color=color.new(color.gray, 85))
 hline(-2, "Flush-",  color=color.new(color.gray, 85))
 
+ce_active = regime == 1 ? longStop : regime == -1 ? shortStop : na
+plot(show_ce and use_ce ? ce_active : na, "Chandelier stop", color=color.new(#FFD54F, 10), style=plot.style_stepline, linewidth=1, force_overlay=true)
+
 string reg_label = regime == 1 ? "Trend-up" : regime == -1 ? "Trend-down" : math.abs(regime) == 2 ? "Flush" : "Range"
 color  reg_bgc   = regime == 1 ? color.new(#00C853, 0) : regime == -1 ? color.new(#FF1744, 0) : math.abs(regime) == 2 ? color.new(#FF6D00, 0) : color.new(color.gray, 40)
 
-var table panel = table.new(position.top_right, 2, 5, border_color=color.new(color.gray,50), border_width=1, frame_color=color.new(color.gray,50), frame_width=1)
+var table panel = table.new(position.top_right, 2, 7, border_color=color.new(color.gray,50), border_width=1, frame_color=color.new(color.gray,50), frame_width=1)
 if show_panel and barstate.islast
     string forming = barstate.isconfirmed ? " (confirmed)" : " (forming)"
     table.cell(panel, 0, 0, "Jamal Context", text_color=color.white, bgcolor=color.new(#5E35B1, 0), text_size=size.tiny)
-    table.cell(panel, 1, 0, "v0.1.1", text_color=color.white, bgcolor=color.new(#5E35B1, 0), text_size=size.tiny)
+    table.cell(panel, 1, 0, "v0.1.2", text_color=color.white, bgcolor=color.new(#5E35B1, 0), text_size=size.tiny)
     table.cell(panel, 0, 1, "Regime", text_color=color.silver, text_size=size.tiny)
     table.cell(panel, 1, 1, reg_label + forming, text_color=color.white, bgcolor=reg_bgc, text_size=size.tiny)
     table.cell(panel, 0, 2, "Slope ATR/bar", text_color=color.silver, text_size=size.tiny)
     table.cell(panel, 1, 2, str.tostring(slope_atr, "#.000"), text_color=color.white, text_size=size.tiny)
-    table.cell(panel, 0, 3, "ER (filter)", text_color=color.silver, text_size=size.tiny)
-    table.cell(panel, 1, 3, str.tostring(er, "#.00"), text_color=color.white, text_size=size.tiny)
-    table.cell(panel, 0, 4, "Vol pctile", text_color=color.silver, text_size=size.tiny)
-    table.cell(panel, 1, 4, str.tostring(atr_pct, "#.0") + " %", text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 0, 3, "Chand stop", text_color=color.silver, text_size=size.tiny)
+    table.cell(panel, 1, 3, na(ce_active) ? "—" : str.tostring(ce_active, "#"), text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 0, 4, "Mix R/T/F %", text_color=color.silver, text_size=size.tiny)
+    table.cell(panel, 1, 4, str.tostring(pRange, "#") + "/" + str.tostring(pTrend, "#") + "/" + str.tostring(pFlush, "#"), text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 0, 5, "ER (filter)", text_color=color.silver, text_size=size.tiny)
+    table.cell(panel, 1, 5, str.tostring(er, "#.00"), text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 0, 6, "Vol pctile", text_color=color.silver, text_size=size.tiny)
+    table.cell(panel, 1, 6, str.tostring(atr_pct, "#.0") + " %", text_color=color.white, text_size=size.tiny)
 
 // data-window readouts
 plot(slope_atr, "slope_atr", display=display.data_window)
+plot(longStop,  "longStop",  display=display.data_window)
+plot(shortStop, "shortStop", display=display.data_window)
 plot(er,        "ER",        display=display.data_window)
-plot(atr_pct,   "atr_pct",   display=display.data_window)
