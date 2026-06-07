@@ -9,7 +9,8 @@
 // through its own dips (the exact failure that breaks a with-trend pullback tool). Slope sign survives
 // 2-3 bar pullbacks, so trends hold green through dips and range bursts stay gray.
 // overlay=false (own pane); later increments push price-pane marks/anchor via force_overlay.
-indicator("Jamal Context v0.1.1 (regime - slope-led)", "JmlCtx", overlay=false)
+// VERSION: bump all three together each increment -> title, shorttitle, and the panel title row below.
+indicator("Jamal Context v0.1.1 (regime - slope-led)", "JC v0.1.1", overlay=false)
 
 // ===== Inputs =====
 slope_len        = input.int(50,    "Regime slope length (persistent backbone)", minval=10, group="Regime")
@@ -81,17 +82,19 @@ hline(-2, "Flush-",  color=color.new(color.gray, 85))
 string reg_label = regime == 1 ? "Trend-up" : regime == -1 ? "Trend-down" : math.abs(regime) == 2 ? "Flush" : "Range"
 color  reg_bgc   = regime == 1 ? color.new(#00C853, 0) : regime == -1 ? color.new(#FF1744, 0) : math.abs(regime) == 2 ? color.new(#FF6D00, 0) : color.new(color.gray, 40)
 
-var table panel = table.new(position.top_right, 2, 4, border_color=color.new(color.gray,50), border_width=1, frame_color=color.new(color.gray,50), frame_width=1)
+var table panel = table.new(position.top_right, 2, 5, border_color=color.new(color.gray,50), border_width=1, frame_color=color.new(color.gray,50), frame_width=1)
 if show_panel and barstate.islast
     string forming = barstate.isconfirmed ? " (confirmed)" : " (forming)"
-    table.cell(panel, 0, 0, "Regime", text_color=color.silver, text_size=size.tiny)
-    table.cell(panel, 1, 0, reg_label + forming, text_color=color.white, bgcolor=reg_bgc, text_size=size.tiny)
-    table.cell(panel, 0, 1, "Slope ATR/bar", text_color=color.silver, text_size=size.tiny)
-    table.cell(panel, 1, 1, str.tostring(slope_atr, "#.000"), text_color=color.white, text_size=size.tiny)
-    table.cell(panel, 0, 2, "ER (filter)", text_color=color.silver, text_size=size.tiny)
-    table.cell(panel, 1, 2, str.tostring(er, "#.00"), text_color=color.white, text_size=size.tiny)
-    table.cell(panel, 0, 3, "Vol pctile", text_color=color.silver, text_size=size.tiny)
-    table.cell(panel, 1, 3, str.tostring(atr_pct, "#.0") + " %", text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 0, 0, "Jamal Context", text_color=color.white, bgcolor=color.new(#5E35B1, 0), text_size=size.tiny)
+    table.cell(panel, 1, 0, "v0.1.1", text_color=color.white, bgcolor=color.new(#5E35B1, 0), text_size=size.tiny)
+    table.cell(panel, 0, 1, "Regime", text_color=color.silver, text_size=size.tiny)
+    table.cell(panel, 1, 1, reg_label + forming, text_color=color.white, bgcolor=reg_bgc, text_size=size.tiny)
+    table.cell(panel, 0, 2, "Slope ATR/bar", text_color=color.silver, text_size=size.tiny)
+    table.cell(panel, 1, 2, str.tostring(slope_atr, "#.000"), text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 0, 3, "ER (filter)", text_color=color.silver, text_size=size.tiny)
+    table.cell(panel, 1, 3, str.tostring(er, "#.00"), text_color=color.white, text_size=size.tiny)
+    table.cell(panel, 0, 4, "Vol pctile", text_color=color.silver, text_size=size.tiny)
+    table.cell(panel, 1, 4, str.tostring(atr_pct, "#.0") + " %", text_color=color.white, text_size=size.tiny)
 
 // data-window readouts
 plot(slope_atr, "slope_atr", display=display.data_window)
