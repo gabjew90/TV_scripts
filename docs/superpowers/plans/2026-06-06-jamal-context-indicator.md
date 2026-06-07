@@ -47,7 +47,7 @@ There is no unit-test runner. Each task's verification IS the chart-acceptance g
 // Brightness (later increments) = untuned co-occurrence COUNT, never a score; more aligned != higher odds.
 // v0.1 = Mechanism A only: Structure/Regime (tint + glanceable label). Regime engine reused verbatim
 // from overshoot-regime-os-core-v1.pine (ER Schmitt + signed-slope ATR deadband + cascade + dwell).
-indicator("Jamal Context v0.1 (regime)", "JmlCtx", overlay=true)
+indicator("Jamal Context v0.1 (regime)", "JmlCtx", overlay=false)  // own pane (regime ribbon); price-pane marks/anchor via force_overlay in later increments
 
 // ===== Inputs =====
 er_len           = input.int(20,    "Efficiency Ratio length", minval=5, group="Regime")
@@ -102,11 +102,16 @@ else if desired != regime and regime_dwell >= regime_min_dwell
     regime := desired
     regime_dwell := 0
 
-// ===== Render: tint + label =====
+// ===== Render: own-pane regime ribbon (tint + state line) + label =====
+color reg_col = regime == 1 ? #00C853 : regime == -1 ? #FF1744 : math.abs(regime) == 2 ? #FF6D00 : color.gray
 color reg_bg = na
 if show_tint
-    reg_bg := regime == 1 ? color.new(#00C853, 92) : regime == -1 ? color.new(#FF1744, 92) : (math.abs(regime) == 2 ? color.new(#FF6D00, 88) : color.new(color.gray, 96))
+    reg_bg := regime == 1 ? color.new(#00C853, 86) : regime == -1 ? color.new(#FF1744, 86) : (math.abs(regime) == 2 ? color.new(#FF6D00, 78) : color.new(color.gray, 92))
 bgcolor(reg_bg, title="Regime tint")
+plot(regime, "Regime state", color=reg_col, style=plot.style_stepline, linewidth=2)
+hline(0,  "0",  color=color.new(color.gray, 70))
+hline(2,  "Flush+",  color=color.new(color.gray, 85))
+hline(-2, "Flush-",  color=color.new(color.gray, 85))
 
 string reg_label = regime == 1 ? "Trend-up" : regime == -1 ? "Trend-down" : math.abs(regime) == 2 ? "Flush" : "Range"
 color  reg_bgc   = regime == 1 ? color.new(#00C853, 0) : regime == -1 ? color.new(#FF1744, 0) : math.abs(regime) == 2 ? color.new(#FF6D00, 0) : color.new(color.gray, 40)
@@ -122,10 +127,10 @@ if show_panel and barstate.islast
     table.cell(panel, 1, 2, str.tostring(atr_pct, "#.0") + " %", text_color=color.white, text_size=size.tiny)
 
 // data-window readouts for cross-check vs Phase 1
-plot(regime,  "regime",  display=display.data_window)
 plot(er,      "ER",      display=display.data_window)
 plot(atr_pct, "atr_pct", display=display.data_window)
 ```
+**Note:** `overlay=false` → own pane. Keep `force_overlay=true` on the v0.2 marks and the v0.3 anchor `plot` so they land on the price candles; everything else (regime ribbon, tint, panel) stays in the indicator's own pane.
 
 - [ ] **Step 2: Compile.** `pine_set_source` (paste the above) → `pine_smart_compile`. **Expect:** `has_errors: false`. On error, `pine_get_errors` → fix → recompile.
 
