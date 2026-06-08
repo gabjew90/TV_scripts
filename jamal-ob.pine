@@ -1,0 +1,44 @@
+//@version=6
+// JAMAL OB — pivot-driven order-block detector. Discretionary structure/detection tool, NOT a strategy,
+// backtest, or validated edge. Faithful port of the pivot-OB spec (pivot -> sweep -> reference candle R
+// -> CHoCH/BOS break -> OB zone = full pivot range, regime tracker). Built one render at a time.
+// v0.1 = Increment 1: PIVOT ENGINE ONLY. Confirmed Pivot Highs/Lows (B left / A right), drawn at the
+// pivot bar with the A-bar confirmation lag (non-repainting). Boxes/labels/regime come in later increments.
+indicator("Jamal OB v0.1 (pivots)", "JmlOB v0.1", overlay=true, max_boxes_count=500, max_labels_count=500)
+
+// ===== Inputs =====
+left_B      = input.int(3, "Pivot left strictness (B)",  minval=1, group="Pivots")
+right_A     = input.int(3, "Pivot right strictness (A)", minval=1, group="Pivots")
+show_pivots = input.bool(true,  "Show confirmed pivot dots", group="Display")
+show_ver    = input.bool(true,  "Show version tag", group="Display")
+
+// ===== Pivot engine =====
+// ta.pivothigh/low(B, A): a pivot is the extreme of a (B+A+1) window, REPORTED A bars after it forms
+// (the confirmation bar). The actual pivot bar is `bar_index - right_A`. Matches the spec's "confirmed at i+A".
+ph = ta.pivothigh(high, left_B, right_A)
+pl = ta.pivotlow(low,  left_B, right_A)
+
+// track most-recent confirmed pivots (value + bar index of the pivot itself)
+var float ph_val = na
+var int   ph_idx = na
+var float pl_val = na
+var int   pl_idx = na
+if not na(ph)
+    ph_val := ph
+    ph_idx := bar_index - right_A
+if not na(pl)
+    pl_val := pl
+    pl_idx := bar_index - right_A
+
+// ===== Render: confirmed pivot dots (drawn at the pivot bar via -A offset; non-repaint) =====
+plotshape(show_pivots and not na(ph) ? high[right_A] : na, "Pivot High", style=shape.triangledown, location=location.absolute, color=color.new(#FF1744, 0), size=size.tiny, offset=-right_A)
+plotshape(show_pivots and not na(pl) ? low[right_A]  : na, "Pivot Low",  style=shape.triangleup,   location=location.absolute, color=color.new(#00C853, 0), size=size.tiny, offset=-right_A)
+
+// ===== Version tag =====
+var table ver = table.new(position.top_right, 1, 1, border_color=color.new(color.gray,50), border_width=1)
+if show_ver and barstate.islast
+    table.cell(ver, 0, 0, "Jamal OB v0.1 (pivots)", text_color=color.white, bgcolor=color.new(#5E35B1, 0), text_size=size.tiny)
+
+// data-window readouts (engine verification)
+plot(ph_val, "last PH value", display=display.data_window)
+plot(pl_val, "last PL value", display=display.data_window)
