@@ -154,6 +154,9 @@ One candle, one owner, no overlap. The table governs **setup ownership only** �
 | `r_to_t1` | entry-to-T1 distance in R at signal time |
 | `choch_while_open` | CHoCH fired during open episode (outcome-side join key) |
 | `t1_coincident` | 2A entry bar also satisfied Trade #1's trigger (§4 coincidence rule) |
+| `gvb` | giveback from the level in ATRs at fill (`|close − lvl|/ATR14`) — the measurable form of the v0.3 "that's not a snipe" eye-test; logged, never gates (added v0.4) |
+
+**v0.4 implementation notes:** `oi_d` = setup-window OI %change for T1 (snapshot `oi0` at pullback start) and the sweep bar's own %change for 2A/2B; `oi_t` is T1-only. `fp` uses the Binance `_PREMIUM` derivative-metrics feed when present, else the perp-vs-spot premium — rank-invariant either way. OI auto-ticker `<prefix>:<ticker>_OI` resolves on Binance AND Bybit; ccxt cross-check confirmed sign agreement on all sampled windows (magnitude slack ±2% from feed sampling). **Caution:** the OI override `input.symbol` must hold a REAL symbol — TV validates it before `ignore_invalid_symbol` applies; a garbage override kills the study. T1's 1D block now emits `ARM rsn=1d` (visible, was silent — closes the v0.3 recall-audit observability gap).
 
 **Annotated mechanical correlations** (the evaluator must carry these as analysis annotations so the tape measure can't masquerade as edge): deeper pullbacks mechanically have larger R-to-T1 under the trend-high T1 definition; flush entries are mechanically deeper than pullback entries. Discovering these in backfill is not a finding.
 
@@ -239,7 +242,7 @@ Per increment: on-chart version bump (title + shorttitle + version cell), CHANGE
 
 ## 14. Backlog (explicitly out of scope for v1)
 
-- Sweeps of levels other than `HL_ref` (arbitrary support/resistance, prior-day levels, OB zones).
+- **Sweeps of levels other than `HL_ref` — PROMOTED to the v0.5 slot ("2A-general") after the v0.3 recall audit:** on BTC 4H Apr–Jun, ~312 sweep-and-reclaim bars existed against the last-5 confirmed pivots vs 8 considered at the kill line — scope, not thresholds, is the quantity constraint. v0.5 ships sweeps of the last-N confirmed pivots (both sides, stacked-level dedup rules), **filtered by whatever the backfill campaign's factor report proves** (`wkp`/`gvb`/`oi_d` selection). The campaign's evaluator additionally computes **MFE (max favorable excursion)** per episode, since the conservative prior-extreme T1 was shown to cap measured R well below realized moves (June waterfall skips at 0.5–1.0R to the prior low preceded far larger extensions).
 - CHoCH promoted to forced exit (pending `choch_while_open` evidence).
 - Any factor promoted to gate (pending backfill evidence).
 - `strategy()` cross-check of the evaluator.

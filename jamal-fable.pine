@@ -1,10 +1,10 @@
 //@version=6
-indicator("Jamal Fable v0.3.0", shorttitle = "JFbl0.3.0", overlay = true,
+indicator("Jamal Fable v0.4.0", shorttitle = "JFbl0.4.0", overlay = true,
      max_labels_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity (spec §9 provenance) ════════════════
 SCHEMA_V = "1"
-SCRIPT_V = "0.3.0"
+SCRIPT_V = "0.4.0"
 
 // ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
 pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
@@ -146,6 +146,35 @@ f_engine_reg() =>
 int reg_1d = request.security(syminfo.tickerid, "D", f_engine_reg()[1],
      lookahead = barmerge.lookahead_on)
 
+// ════════════════ Derivatives + price-context factors (spec §8; all logged, none gate) ════════════════
+// Data-plumbing input — EXCLUDED from settings_hash (selects a feed, not semantics).
+oi_symbol_in = input.symbol("", "OI symbol override (blank = auto <ticker>_OI)")
+string oi_tkr = oi_symbol_in != "" ? oi_symbol_in : syminfo.prefix + ":" + syminfo.ticker + "_OI"
+float oi = request.security(oi_tkr, timeframe.period, close, ignore_invalid_symbol = true)
+
+// Funding proxy: Binance _PREMIUM derivative-metrics feed when available (the
+// premium index that drives funding); else perp-vs-spot premium. Units don't
+// matter — fp is a percentrank, which is rank-invariant.
+float prem_feed = request.security(syminfo.prefix + ":" + syminfo.ticker + "_PREMIUM",
+     timeframe.period, close, ignore_invalid_symbol = true)
+string spot_tkr = syminfo.prefix + ":" + str.replace(syminfo.ticker, ".P", "")
+float spot_px = request.security(spot_tkr, timeframe.period, close, ignore_invalid_symbol = true)
+float prem = not na(prem_feed) ? prem_feed : na(spot_px) or spot_px == 0 ? na : 100.0 * (close - spot_px) / spot_px
+float prem_rank = ta.percentrank(prem, funding_pctile_window)   // called every bar (consistency)
+float fp = na(prem) ? na : prem_rank
+
+// Quadrant: sign(dPrice) x sign(dOI) over quadrant_window (crude by design).
+float q_dpx = close - close[quadrant_window]
+float q_doi = na(oi) or na(oi[quadrant_window]) ? na : oi - oi[quadrant_window]
+string quad = na(q_doi) ? "na" : (q_dpx >= 0 ? "PU" : "PD") + "." + (q_doi >= 0 ? "OU" : "OD")
+
+// Per-bar OI change (%): the sweep-bar delta for 2A/2B and the trigger direction for T1.
+float oi_chg = na(oi) or na(oi[1]) or oi[1] == 0 ? na : 100.0 * (oi - oi[1]) / oi[1]
+string oi_t_dir = na(oi_chg) ? "na" : oi_chg >= 0 ? "up" : "dn"
+
+f_oi_d_from(float oi0) => na(oi) or na(oi0) or oi0 == 0 ? na : 100.0 * (oi - oi0) / oi0
+f_gvb(float lvl) => na(lvl) or na(atr) or atr == 0 ? na : math.abs(close - lvl) / atr
+
 // ════════════════ Emission ════════════════
 if ph_new
     f_emit("SYS", "PIV", "N", math.round(time[pivot_right] / 1000), ph_val, "typ=H")
@@ -164,6 +193,7 @@ type T1S
     int   mlhn  = 0       // chain length
     float pblow = na      // running pullback low (S2; survives SKP)
     float th    = na      // trend high this pullback keyed off (dissolve detector)
+    float oi0   = na      // OI snapshot at pullback start (oi_d reference)
 
 var T1S t1l = T1S.new()
 
@@ -174,6 +204,7 @@ f_t1_reset(T1S s, bool full) =>
     if full
         s.pblow := na
         s.th    := na
+        s.oi0   := na
 
 f_fstr(float x) => na(x) ? "na" : str.tostring(x, "#.########")
 
@@ -183,6 +214,8 @@ f_t1_tail(T1S s, float lvl, float stp, float t1px, string rsn, float rt1) =>
     float d_pct = na(s.pblow) or na(s.th) or na(lvl) or s.th == lvl ? na :
          100.0 * (s.th - s.pblow) / (s.th - lvl)
     string bz = na(bos_level) or na(s.pblow) ? "na" : s.pblow <= bos_level ? "1" : "0"
+    float od = f_oi_d_from(s.oi0)
+    float g  = f_gvb(lvl)
     "lvl=" + f_fstr(lvl) + "|stop=" + f_fstr(stp) + "|t1=" + f_fstr(t1px) + "|rsn=" + rsn
      + "|reg=" + f_reg_str(regime) + "|reg1d=" + f_reg_str(reg_1d)
      + "|age=" + str.tostring(regime_age)
@@ -190,6 +223,9 @@ f_t1_tail(T1S s, float lvl, float stp, float t1px, string rsn, float rt1) =>
      + "|d_pct=" + (na(d_pct) ? "na" : str.tostring(d_pct, "#.#"))
      + "|bz=" + bz + "|mlh=" + str.tostring(s.mlhn)
      + "|rt1=" + (na(rt1) ? "na" : str.tostring(rt1, "#.##"))
+     + "|oi_d=" + (na(od) ? "na" : str.tostring(od, "#.##")) + "|oi_t=" + oi_t_dir
+     + "|q=" + quad + "|fp=" + (na(fp) ? "na" : str.tostring(fp, "#.#"))
+     + "|gvb=" + (na(g) ? "na" : str.tostring(g, "#.##"))
 
 // (T1 short-side declarations hoisted here — the Trade #2 coincidence captures
 // below must read BOTH t1l and t1s state before either detector resets it.)
@@ -199,6 +235,7 @@ type T1SS
     int   mhln   = 0
     float pbhigh = na     // running pullback high (survives SKP)
     float tl     = na     // trend low this pullback keyed off (dissolve detector)
+    float oi0    = na     // OI snapshot at pullback start (oi_d reference)
 
 var T1SS t1s = T1SS.new()
 
@@ -209,12 +246,15 @@ f_t1s_reset(T1SS s, bool full) =>
     if full
         s.pbhigh := na
         s.tl     := na
+        s.oi0    := na
 
 f_t1s_tail(T1SS s, float lvl, float stp, float t1px, string rsn, float rt1) =>
     float d_atr = na(s.pbhigh) or na(s.tl) ? na : (s.pbhigh - s.tl) / atr
     float d_pct = na(s.pbhigh) or na(s.tl) or na(lvl) or lvl == s.tl ? na :
          100.0 * (s.pbhigh - s.tl) / (lvl - s.tl)
     string bz = na(bos_level) or na(s.pbhigh) ? "na" : s.pbhigh >= bos_level ? "1" : "0"
+    float od = f_oi_d_from(s.oi0)
+    float g  = f_gvb(lvl)
     "lvl=" + f_fstr(lvl) + "|stop=" + f_fstr(stp) + "|t1=" + f_fstr(t1px) + "|rsn=" + rsn
      + "|reg=" + f_reg_str(regime) + "|reg1d=" + f_reg_str(reg_1d)
      + "|age=" + str.tostring(regime_age)
@@ -222,6 +262,9 @@ f_t1s_tail(T1SS s, float lvl, float stp, float t1px, string rsn, float rt1) =>
      + "|d_pct=" + (na(d_pct) ? "na" : str.tostring(d_pct, "#.#"))
      + "|bz=" + bz + "|mlh=" + str.tostring(s.mhln)
      + "|rt1=" + (na(rt1) ? "na" : str.tostring(rt1, "#.##"))
+     + "|oi_d=" + (na(od) ? "na" : str.tostring(od, "#.##")) + "|oi_t=" + oi_t_dir
+     + "|q=" + quad + "|fp=" + (na(fp) ? "na" : str.tostring(fp, "#.#"))
+     + "|gvb=" + (na(g) ? "na" : str.tostring(g, "#.##"))
 
 // ════════════════ Trade #2 shared (spec §6) ════════════════
 // Sweep conditions (§4, one-bar definition) — evaluated once per bar.
@@ -239,12 +282,16 @@ float wkp_hi = ta.percentrank(wick_hi_atr, wick_pctile_window)
 
 // fixed tail key order: lvl|stop|t1|rsn|reg|reg1d|age|wkp|t1co|rt1
 f_t2_tail(float lvl, float stp, float t1px, string rsn, float wkp, bool t1co, float rt1) =>
+    float g = f_gvb(lvl)
     "lvl=" + f_fstr(lvl) + "|stop=" + f_fstr(stp) + "|t1=" + f_fstr(t1px) + "|rsn=" + rsn
      + "|reg=" + f_reg_str(regime) + "|reg1d=" + f_reg_str(reg_1d)
      + "|age=" + str.tostring(regime_age)
      + "|wkp=" + (na(wkp) ? "na" : str.tostring(wkp, "#.#"))
      + "|t1co=" + (t1co ? "1" : "0")
      + "|rt1=" + (na(rt1) ? "na" : str.tostring(rt1, "#.##"))
+     + "|oi_d=" + (na(oi_chg) ? "na" : str.tostring(oi_chg, "#.##"))
+     + "|q=" + quad + "|fp=" + (na(fp) ? "na" : str.tostring(fp, "#.#"))
+     + "|gvb=" + (na(g) ? "na" : str.tostring(g, "#.##"))
 
 bool t1l_ent_mark = false
 if barstate.isconfirmed and regime == 1 and not na(hl_ref) and not na(trend_high)
@@ -254,16 +301,22 @@ if barstate.isconfirmed and regime == 1 and not na(hl_ref) and not na(trend_high
             f_emit("T1", "CXL", "L", math.round(time / 1000), close,
                  f_t1_tail(t1l, hl_ref, na, t1l.th, "newhigh", na))
         f_t1_reset(t1l, true)
-    t1l.th    := na(t1l.th) ? trend_high : t1l.th
+    if na(t1l.th)
+        t1l.th  := trend_high
+        t1l.oi0 := oi                               // OI snapshot at pullback start
     t1l.pblow := na(t1l.pblow) ? low : math.min(t1l.pblow, low)
     // chain growth (S3): a lower low vs prior bar makes prior bar's high the micro-LH
     if low < low[1]
         t1l.mlh  := high[1]
         t1l.mlhn := t1l.mlhn + 1
-        if not t1l.armed and reg_1d != -1          // S1: 1D gate blocks ARMING only (decision #1)
-            t1l.armed := true
-            f_emit("T1", "ARM", "L", math.round(time / 1000), close,
-                 f_t1_tail(t1l, hl_ref, na, t1l.th, "na", na))
+        if not t1l.armed
+            if reg_1d != -1                         // S1: 1D gate blocks ARMING only (decision #1)
+                t1l.armed := true
+                f_emit("T1", "ARM", "L", math.round(time / 1000), close,
+                     f_t1_tail(t1l, hl_ref, na, t1l.th, "na", na))
+            else                                    // v0.4: blocked watch is VISIBLE (rsn=1d), not silent
+                f_emit("T1", "ARM", "L", math.round(time / 1000), close,
+                     f_t1_tail(t1l, hl_ref, na, t1l.th, "1d", na))
     // NOTE: the in-regime "close < hl_ref" branch is unreachable — the engine's
     // FSM (inside f_engine, before this block) flips regime to CHOP on that same
     // bar. Thesis death is emitted from the regime-exit reset below instead.
@@ -300,16 +353,22 @@ if barstate.isconfirmed and regime == -1 and not na(lh_ref) and not na(trend_low
             f_emit("T1", "CXL", "S", math.round(time / 1000), close,
                  f_t1s_tail(t1s, lh_ref, na, t1s.tl, "newlow", na))
         f_t1s_reset(t1s, true)
-    t1s.tl     := na(t1s.tl) ? trend_low : t1s.tl
+    if na(t1s.tl)
+        t1s.tl  := trend_low
+        t1s.oi0 := oi                               // OI snapshot at pullback start
     t1s.pbhigh := na(t1s.pbhigh) ? high : math.max(t1s.pbhigh, high)
     // chain growth: a higher high vs prior bar makes prior bar's low the micro-HL
     if high > high[1]
         t1s.mhl  := low[1]
         t1s.mhln := t1s.mhln + 1
-        if not t1s.armed and reg_1d != 1           // S1 mirror: opposing 1D blocks ARMING only
-            t1s.armed := true
-            f_emit("T1", "ARM", "S", math.round(time / 1000), close,
-                 f_t1s_tail(t1s, lh_ref, na, t1s.tl, "na", na))
+        if not t1s.armed
+            if reg_1d != 1                          // S1 mirror: opposing 1D blocks ARMING only
+                t1s.armed := true
+                f_emit("T1", "ARM", "S", math.round(time / 1000), close,
+                     f_t1s_tail(t1s, lh_ref, na, t1s.tl, "na", na))
+            else                                    // v0.4: blocked watch is VISIBLE (rsn=1d), not silent
+                f_emit("T1", "ARM", "S", math.round(time / 1000), close,
+                     f_t1s_tail(t1s, lh_ref, na, t1s.tl, "1d", na))
     // NOTE: in-regime "close > lh_ref" is unreachable (engine flips first);
     // thesis death emitted from the regime-exit reset below.
     if t1s.armed

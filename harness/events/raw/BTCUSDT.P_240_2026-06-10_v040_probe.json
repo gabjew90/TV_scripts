@@ -1,0 +1,6 @@
+{"note": "2026-06-10 s0.4.0 first factor-bearing events (BTC 4H tail probe) - oi_d/oi_t/q/fp/gvb live; full sweep lands with the backfill campaign.", "texts": [
+"JF|1|0.4.0|509208|B|T1|ENT|S|240|1780963200|62841|lvl=64179.5|stop=64809.66785714|t1=59080|rsn=na|reg=D|reg1d=D|age=104|d_atr=4.62|d_pct=101.4|bz=1|mlh=3|rt1=1.91|oi_d=-4.24|oi_t=dn|q=PU.OD|fp=10.5|gvb=1.2",
+"JF|1|0.4.0|509208|B|T1|ARM|S|240|1780977600|63170.8|lvl=64179.5|stop=na|t1=59080|rsn=na|reg=D|reg1d=D|age=105|d_atr=4.56|d_pct=101.4|bz=1|mlh=1|rt1=na|oi_d=-4.5|oi_t=dn|q=PU.OD|fp=72.5|gvb=0.89",
+"JF|1|0.4.0|509208|B|T1|SKP|S|240|1781006400|61100.7|lvl=64179.5|stop=64838.57142857|t1=59080|rsn=rr|reg=D|reg1d=D|age=107|d_atr=4.39|d_pct=101.4|bz=1|mlh=1|rt1=0.54|oi_d=-2.45|oi_t=up|q=PD.OD|fp=22.5|gvb=2.62",
+"JF|1|0.4.0|509208|B|T1|ARM|S|240|1781035200|61695|lvl=64179.5|stop=na|t1=59080|rsn=na|reg=D|reg1d=D|age=109|d_atr=4.33|d_pct=101.4|bz=1|mlh=1|rt1=na|oi_d=-2.92|oi_t=dn|q=PD.OD|fp=49.5|gvb=2.08"
+]}
