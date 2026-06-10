@@ -209,12 +209,11 @@ if barstate.isconfirmed and regime == 1 and not na(hl_ref) and not na(trend_high
             t1l.armed := true
             f_emit("T1", "ARM", "L", math.round(time / 1000), close,
                  f_t1_tail(t1l, hl_ref, na, t1l.th, "na", na))
+    // NOTE: the in-regime "close < hl_ref" branch is unreachable — the engine's
+    // FSM (inside f_engine, before this block) flips regime to CHOP on that same
+    // bar. Thesis death is emitted from the regime-exit reset below instead.
     if t1l.armed
-        if close < hl_ref                           // S4 pre-entry thesis death
-            f_emit("T1", "CXL", "L", math.round(time / 1000), close,
-                 f_t1_tail(t1l, hl_ref, na, t1l.th, "choch", na))
-            f_t1_reset(t1l, true)
-        else if close > t1l.mlh                     // S3 trigger: body close above micro-LH
+        if close > t1l.mlh                          // S3 trigger: body close above micro-LH
             if low < hl_ref and close >= hl_ref     // §4 coincidence: SWEEP bar → 2A owns
                 f_emit("T1", "CXL", "L", math.round(time / 1000), close,
                      f_t1_tail(t1l, hl_ref, na, t1l.th, "handoff", na))
@@ -231,7 +230,84 @@ if barstate.isconfirmed and regime == 1 and not na(hl_ref) and not na(trend_high
                     t1l_ent_mark := true
                 f_t1_reset(t1l, false)              // chain resets, pullback continues (decision #2)
 if barstate.isconfirmed and regime != 1
+    if t1l.armed                                    // S4 thesis death: UP only dies via CHoCH
+        f_emit("T1", "CXL", "L", math.round(time / 1000), close,
+             f_t1_tail(t1l, hl_ref, na, t1l.th, "choch", na))
     f_t1_reset(t1l, true)
+
+// ════════════════ Trade #1: pullback-continuation — SHORT (strict mirror) ════════════════
+type T1SS
+    bool  armed  = false
+    float mhl    = na     // micro higher-low (chain tip)
+    int   mhln   = 0
+    float pbhigh = na     // running pullback high (survives SKP)
+    float tl     = na     // trend low this pullback keyed off (dissolve detector)
+
+var T1SS t1s = T1SS.new()
+
+f_t1s_reset(T1SS s, bool full) =>
+    s.armed := false
+    s.mhl   := na
+    s.mhln  := 0
+    if full
+        s.pbhigh := na
+        s.tl     := na
+
+f_t1s_tail(T1SS s, float lvl, float stp, float t1px, string rsn, float rt1) =>
+    float d_atr = na(s.pbhigh) or na(s.tl) ? na : (s.pbhigh - s.tl) / atr
+    float d_pct = na(s.pbhigh) or na(s.tl) or na(lvl) or lvl == s.tl ? na :
+         100.0 * (s.pbhigh - s.tl) / (lvl - s.tl)
+    string bz = na(bos_level) or na(s.pbhigh) ? "na" : s.pbhigh >= bos_level ? "1" : "0"
+    "lvl=" + f_fstr(lvl) + "|stop=" + f_fstr(stp) + "|t1=" + f_fstr(t1px) + "|rsn=" + rsn
+     + "|reg=" + f_reg_str(regime) + "|reg1d=" + f_reg_str(reg_1d)
+     + "|age=" + str.tostring(regime_age)
+     + "|d_atr=" + (na(d_atr) ? "na" : str.tostring(d_atr, "#.##"))
+     + "|d_pct=" + (na(d_pct) ? "na" : str.tostring(d_pct, "#.#"))
+     + "|bz=" + bz + "|mlh=" + str.tostring(s.mhln)
+     + "|rt1=" + (na(rt1) ? "na" : str.tostring(rt1, "#.##"))
+
+bool t1s_ent_mark = false
+if barstate.isconfirmed and regime == -1 and not na(lh_ref) and not na(trend_low)
+    // dissolve: a NEW trend low while armed = pullback over without trigger
+    if not na(t1s.tl) and trend_low < t1s.tl
+        if t1s.armed
+            f_emit("T1", "CXL", "S", math.round(time / 1000), close,
+                 f_t1s_tail(t1s, lh_ref, na, t1s.tl, "newlow", na))
+        f_t1s_reset(t1s, true)
+    t1s.tl     := na(t1s.tl) ? trend_low : t1s.tl
+    t1s.pbhigh := na(t1s.pbhigh) ? high : math.max(t1s.pbhigh, high)
+    // chain growth: a higher high vs prior bar makes prior bar's low the micro-HL
+    if high > high[1]
+        t1s.mhl  := low[1]
+        t1s.mhln := t1s.mhln + 1
+        if not t1s.armed and reg_1d != 1           // S1 mirror: opposing 1D blocks ARMING only
+            t1s.armed := true
+            f_emit("T1", "ARM", "S", math.round(time / 1000), close,
+                 f_t1s_tail(t1s, lh_ref, na, t1s.tl, "na", na))
+    // NOTE: in-regime "close > lh_ref" is unreachable (engine flips first);
+    // thesis death emitted from the regime-exit reset below.
+    if t1s.armed
+        if close < t1s.mhl                          // S3 mirror trigger
+            if high > lh_ref and close <= lh_ref    // §4 coincidence: SWEEP of lh_ref → 2A owns
+                f_emit("T1", "CXL", "S", math.round(time / 1000), close,
+                     f_t1s_tail(t1s, lh_ref, na, t1s.tl, "handoff", na))
+                f_t1s_reset(t1s, false)
+            else
+                float stp = t1s.pbhigh + stop_buffer_atr * atr
+                float rt1 = stp > close ? (close - t1s.tl) / (stp - close) : na
+                if na(rt1) or rt1 < rr_min          // S5 skip gate
+                    f_emit("T1", "SKP", "S", math.round(time / 1000), close,
+                         f_t1s_tail(t1s, lh_ref, stp, t1s.tl, "rr", rt1))
+                else
+                    f_emit("T1", "ENT", "S", math.round(time / 1000), close,
+                         f_t1s_tail(t1s, lh_ref, stp, t1s.tl, "na", rt1))
+                    t1s_ent_mark := true
+                f_t1s_reset(t1s, false)
+if barstate.isconfirmed and regime != -1
+    if t1s.armed                                    // S4 mirror: DOWN only dies via CHoCH
+        f_emit("T1", "CXL", "S", math.round(time / 1000), close,
+             f_t1s_tail(t1s, lh_ref, na, t1s.tl, "choch", na))
+    f_t1s_reset(t1s, true)
 
 // ════════════════ Rendering (§11 — minimal by design) ════════════════
 // Two always-on structure lines with seeded continuity across transitions:
@@ -249,6 +325,8 @@ plot(lower_lvl, "Structure: lower", lower_col, 2, plot.style_stepline)
 bgcolor(regime == 1 ? color.new(color.green, 88) : regime == -1 ? color.new(color.red, 88) : na)
 plotshape(t1l_ent_mark, "T1 long entry", shape.triangleup, location.belowbar,
      color.new(color.lime, 0), size = size.small)
+plotshape(t1s_ent_mark, "T1 short entry", shape.triangledown, location.abovebar,
+     color.new(color.red, 0), size = size.small)
 
 var table vt = table.new(position.top_right, 1, 1)
 if barstate.islast
