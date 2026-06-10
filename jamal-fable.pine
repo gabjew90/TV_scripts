@@ -1,0 +1,153 @@
+//@version=6
+indicator("Jamal Fable v0.1", shorttitle = "JFable0.1", overlay = true,
+     max_labels_count = 500, max_lines_count = 500)
+
+// ════════════════ Identity (spec §9 provenance) ════════════════
+SCHEMA_V = "1"
+SCRIPT_V = "0.1"
+
+// ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
+pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
+pivot_right           = input.int(3,    "Pivot right bars",         minval = 1)
+atr_period            = input.int(14,   "ATR period",               minval = 1)
+stop_buffer_atr       = input.float(0.5, "Stop buffer (ATR mult)",  step = 0.1)
+rr_min                = input.float(1.5, "Min R to T1 (skip gate)", step = 0.1)
+quadrant_window       = input.int(14,   "Quadrant window")
+funding_pctile_window = input.int(200,  "Funding pctile window")
+wick_pctile_window    = input.int(200,  "Wick pctile window")
+
+// Transport-layer inputs — EXCLUDED from settings_hash (they chunk the label
+// budget; they change which events are emitted, never what an event means).
+emit_from = input.time(timestamp("2026-04-01T00:00:00+00:00"), "Emit events from (UTC)")
+emit_to   = input.time(timestamp("2027-01-01T00:00:00+00:00"), "Emit events to (UTC)")
+
+// ════════════════ settings_hash (deterministic over semantic knobs) ════════════════
+f_mix(int acc, int v) => (acc * 31 + v) % 1000003
+
+var int cfg_i = 0
+if barstate.isfirst
+    int h = 17
+    h := f_mix(h, pivot_left)
+    h := f_mix(h, pivot_right)
+    h := f_mix(h, atr_period)
+    h := f_mix(h, math.round(stop_buffer_atr * 1000))
+    h := f_mix(h, math.round(rr_min * 1000))
+    h := f_mix(h, quadrant_window)
+    h := f_mix(h, funding_pctile_window)
+    h := f_mix(h, wick_pctile_window)
+    cfg_i := h
+
+// ════════════════ ATR (SMA of TR — cross-language reproducible) ════════════════
+atr = ta.sma(ta.tr(true), atr_period)
+
+// ════════════════ Pivots ════════════════
+ph = ta.pivothigh(high, pivot_left, pivot_right)
+pl = ta.pivotlow(low,  pivot_left, pivot_right)
+ph_new = not na(ph)
+pl_new = not na(pl)
+
+// ════════════════ Engine state (ONE var PER LINE — Pine multi-declare bug) ════════════════
+var int   regime     = 0      // 0=CHOP, 1=UP, -1=DOWN
+var int   regime_age = 0
+var float hl_ref     = na     // UP: most recent confirmed pivot low while live
+var float lh_ref     = na     // DOWN: most recent confirmed pivot high while live
+var float trend_high = na     // UP: most recent confirmed pivot high
+var float trend_low  = na     // DOWN: most recent confirmed pivot low
+var float range_hi   = na     // CHOP boundaries (na = undefined side, §3 seeding)
+var float range_lo   = na
+var float bos_level  = na     // last broken level (touched_bz reference, v0.2)
+var float last_ph    = na     // most recent confirmed pivot high, any regime
+var float last_pl    = na     // most recent confirmed pivot low, any regime
+
+// ════════════════ Event emission (§9 label transport) ════════════════
+// Half-open window [emit_from, emit_to): adjacent chunks can't double-emit the boundary bar.
+in_window = time >= emit_from and time < emit_to
+
+f_emit(string trade, string event, string dir, int ts_sec, float px, string tail) =>
+    if in_window and barstate.isconfirmed
+        string txt = "JF|" + SCHEMA_V + "|" + SCRIPT_V + "|" + str.tostring(cfg_i)
+             + "|B|" + trade + "|" + event + "|" + dir + "|" + timeframe.period
+             + "|" + str.tostring(ts_sec) + "|" + str.tostring(px, "#.########")
+             + (tail == "" ? "" : "|" + tail)
+        label.new(bar_index, high, txt, style = label.style_label_down,
+             color = color.new(color.gray, 85), textcolor = color.new(color.black, 30),
+             size = size.tiny)
+
+f_reg_str(int r) => r == 1 ? "U" : r == -1 ? "D" : "C"
+
+// ════════════════ Pivot bookkeeping + SYS|PIV events ════════════════
+// CONFIRMED-BAR GATED (engine detail #7): on a realtime bar ta.pivothigh/low
+// can flicker intra-bar — the candidate appears, then retracts on a new
+// extreme. Ungated `var` mutation would persist state from a pivot that never
+// confirmed: invisible in backfill, divergent live. Historical bars are always
+// confirmed, so backfill behavior is identical.
+// ORDERING (engine detail #6): pivot bookkeeping runs BEFORE the FSM on the
+// same confirmed bar — a pivot low confirming alongside a potential CHoCH
+// re-anchors hl_ref first; the FSM then evaluates against the NEW line.
+if ph_new and barstate.isconfirmed
+    last_ph := ph
+    if regime == 1
+        trend_high := ph
+    else if regime == -1
+        lh_ref := ph                      // re-anchor included by definition (§3)
+    else
+        range_hi := na(range_hi) ? ph : math.max(range_hi, ph)
+    f_emit("SYS", "PIV", "N", math.round(time[pivot_right] / 1000), ph, "typ=H")
+
+if pl_new and barstate.isconfirmed
+    last_pl := pl
+    if regime == -1
+        trend_low := pl
+    else if regime == 1
+        hl_ref := pl                      // re-anchor included by definition (§3)
+    else
+        range_lo := na(range_lo) ? pl : math.min(range_lo, pl)
+    f_emit("SYS", "PIV", "N", math.round(time[pivot_right] / 1000), pl, "typ=L")
+
+// ════════════════ State machine (§3, explicit FSM) — confirmed body closes only ════════════════
+int prev_regime = regime
+if barstate.isconfirmed
+    if regime == 0
+        if not na(range_hi) and close > range_hi          // CHOP→UP = BOS(up)
+            regime     := 1
+            bos_level  := range_hi
+            hl_ref     := last_pl       // seed: most recent confirmed pivot low (engine detail #1)
+            trend_high := range_hi      // seed: broken boundary (avoids instant-BOS artifact)
+        else if not na(range_lo) and close < range_lo     // CHOP→DOWN
+            regime    := -1
+            bos_level := range_lo
+            lh_ref    := last_ph
+            trend_low := range_lo
+    else if regime == 1
+        if not na(hl_ref) and close < hl_ref              // CHoCH: UP→CHOP (never UP→DOWN)
+            regime   := 0
+            range_hi := trend_high      // seed opposite boundary w/ dead trend's extreme
+            range_lo := na              // broken side undefined until first post-death pivot
+        else if not na(trend_high) and close > trend_high
+            bos_level := trend_high     // continuation BOS — no state change
+    else  // regime == -1
+        if not na(lh_ref) and close > lh_ref              // CHoCH: DOWN→CHOP
+            regime   := 0
+            range_lo := trend_low
+            range_hi := na
+        else if not na(trend_low) and close < trend_low
+            bos_level := trend_low
+
+    if regime != prev_regime
+        regime_age := 0
+        f_emit("SYS", "PING", "N", math.round(time / 1000), close,
+             "reg=" + f_reg_str(regime) + "|age=0")
+    else
+        regime_age += 1
+
+// ════════════════ Rendering (§11 — minimal by design) ════════════════
+bgcolor(regime == 1 ? color.new(color.green, 88) : regime == -1 ? color.new(color.red, 88) : na)
+plot(regime == 1  ? hl_ref   : na, "HL_ref",    color.new(color.green,  0), 2, plot.style_linebr)
+plot(regime == -1 ? lh_ref   : na, "LH_ref",    color.new(color.red,    0), 2, plot.style_linebr)
+plot(regime == 0  ? range_hi : na, "Range high", color.new(color.orange, 0), 1, plot.style_linebr)
+plot(regime == 0  ? range_lo : na, "Range low",  color.new(color.orange, 0), 1, plot.style_linebr)
+
+var table vt = table.new(position.top_right, 1, 1)
+if barstate.islast
+    table.cell(vt, 0, 0, "Jamal Fable v" + SCRIPT_V + " · schema " + SCHEMA_V + " · cfg " + str.tostring(cfg_i),
+         text_color = color.white, bgcolor = color.new(color.black, 20), text_size = size.small)
