@@ -155,6 +155,84 @@ if reg_changed
     f_emit("SYS", "PING", "N", math.round(time / 1000), close,
          "reg=" + f_reg_str(regime) + "|age=0|reg1d=" + f_reg_str(reg_1d))
 
+// ════════════════ Trade #1: pullback-continuation — LONG (spec §5) ════════════════
+// Pine constraint: functions cannot reassign global vars → detector state lives
+// in a UDT object (field mutation through a reference is allowed).
+type T1S
+    bool  armed = false
+    float mlh   = na      // micro lower-high (chain tip; S3)
+    int   mlhn  = 0       // chain length
+    float pblow = na      // running pullback low (S2; survives SKP)
+    float th    = na      // trend high this pullback keyed off (dissolve detector)
+
+var T1S t1l = T1S.new()
+
+f_t1_reset(T1S s, bool full) =>
+    s.armed := false
+    s.mlh   := na
+    s.mlhn  := 0
+    if full
+        s.pblow := na
+        s.th    := na
+
+f_fstr(float x) => na(x) ? "na" : str.tostring(x, "#.########")
+
+// fixed tail key order (schema stability): lvl|stop|t1|rsn|reg|reg1d|age|d_atr|d_pct|bz|mlh|rt1
+f_t1_tail(T1S s, float lvl, float stp, float t1px, string rsn, float rt1) =>
+    float d_atr = na(s.pblow) or na(s.th) ? na : (s.th - s.pblow) / atr
+    float d_pct = na(s.pblow) or na(s.th) or na(lvl) or s.th == lvl ? na :
+         100.0 * (s.th - s.pblow) / (s.th - lvl)
+    string bz = na(bos_level) or na(s.pblow) ? "na" : s.pblow <= bos_level ? "1" : "0"
+    "lvl=" + f_fstr(lvl) + "|stop=" + f_fstr(stp) + "|t1=" + f_fstr(t1px) + "|rsn=" + rsn
+     + "|reg=" + f_reg_str(regime) + "|reg1d=" + f_reg_str(reg_1d)
+     + "|age=" + str.tostring(regime_age)
+     + "|d_atr=" + (na(d_atr) ? "na" : str.tostring(d_atr, "#.##"))
+     + "|d_pct=" + (na(d_pct) ? "na" : str.tostring(d_pct, "#.#"))
+     + "|bz=" + bz + "|mlh=" + str.tostring(s.mlhn)
+     + "|rt1=" + (na(rt1) ? "na" : str.tostring(rt1, "#.##"))
+
+bool t1l_ent_mark = false
+if barstate.isconfirmed and regime == 1 and not na(hl_ref) and not na(trend_high)
+    // dissolve: a NEW trend high while armed = pullback over without trigger (decision #3)
+    if not na(t1l.th) and trend_high > t1l.th
+        if t1l.armed
+            f_emit("T1", "CXL", "L", math.round(time / 1000), close,
+                 f_t1_tail(t1l, hl_ref, na, t1l.th, "newhigh", na))
+        f_t1_reset(t1l, true)
+    t1l.th    := na(t1l.th) ? trend_high : t1l.th
+    t1l.pblow := na(t1l.pblow) ? low : math.min(t1l.pblow, low)
+    // chain growth (S3): a lower low vs prior bar makes prior bar's high the micro-LH
+    if low < low[1]
+        t1l.mlh  := high[1]
+        t1l.mlhn := t1l.mlhn + 1
+        if not t1l.armed and reg_1d != -1          // S1: 1D gate blocks ARMING only (decision #1)
+            t1l.armed := true
+            f_emit("T1", "ARM", "L", math.round(time / 1000), close,
+                 f_t1_tail(t1l, hl_ref, na, t1l.th, "na", na))
+    if t1l.armed
+        if close < hl_ref                           // S4 pre-entry thesis death
+            f_emit("T1", "CXL", "L", math.round(time / 1000), close,
+                 f_t1_tail(t1l, hl_ref, na, t1l.th, "choch", na))
+            f_t1_reset(t1l, true)
+        else if close > t1l.mlh                     // S3 trigger: body close above micro-LH
+            if low < hl_ref and close >= hl_ref     // §4 coincidence: SWEEP bar → 2A owns
+                f_emit("T1", "CXL", "L", math.round(time / 1000), close,
+                     f_t1_tail(t1l, hl_ref, na, t1l.th, "handoff", na))
+                f_t1_reset(t1l, false)
+            else
+                float stp = t1l.pblow - stop_buffer_atr * atr
+                float rt1 = close > stp ? (t1l.th - close) / (close - stp) : na
+                if na(rt1) or rt1 < rr_min          // S5 skip gate
+                    f_emit("T1", "SKP", "L", math.round(time / 1000), close,
+                         f_t1_tail(t1l, hl_ref, stp, t1l.th, "rr", rt1))
+                else
+                    f_emit("T1", "ENT", "L", math.round(time / 1000), close,
+                         f_t1_tail(t1l, hl_ref, stp, t1l.th, "na", rt1))
+                    t1l_ent_mark := true
+                f_t1_reset(t1l, false)              // chain resets, pullback continues (decision #2)
+if barstate.isconfirmed and regime != 1
+    f_t1_reset(t1l, true)
+
 // ════════════════ Rendering (§11 — minimal by design) ════════════════
 // Two always-on structure lines with seeded continuity across transitions:
 // UP→CHOP hands trend_high to range_hi; CHOP→UP hands range_hi to trend_high;
@@ -166,9 +244,11 @@ upper_lvl = regime == 1 ? trend_high : regime == -1 ? lh_ref : range_hi
 lower_lvl = regime == 1 ? hl_ref : regime == -1 ? trend_low : range_lo
 upper_col = regime == 1 ? color.new(color.teal, 65) : regime == -1 ? color.new(color.red, 0) : color.new(color.orange, 25)
 lower_col = regime == 1 ? color.new(color.green, 0) : regime == -1 ? color.new(color.teal, 65) : color.new(color.orange, 25)
-plot(upper_lvl, "Structure: upper", upper_col, 2, plot.style_line)
-plot(lower_lvl, "Structure: lower", lower_col, 2, plot.style_line)
+plot(upper_lvl, "Structure: upper", upper_col, 2, plot.style_stepline)
+plot(lower_lvl, "Structure: lower", lower_col, 2, plot.style_stepline)
 bgcolor(regime == 1 ? color.new(color.green, 88) : regime == -1 ? color.new(color.red, 88) : na)
+plotshape(t1l_ent_mark, "T1 long entry", shape.triangleup, location.belowbar,
+     color.new(color.lime, 0), size = size.small)
 
 var table vt = table.new(position.top_right, 1, 1)
 if barstate.islast
