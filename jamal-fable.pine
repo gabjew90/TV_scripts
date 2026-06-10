@@ -1,10 +1,10 @@
 //@version=6
-indicator("Jamal Fable v0.1.1", shorttitle = "JFbl0.1.1", overlay = true,
+indicator("Jamal Fable v0.1.2", shorttitle = "JFbl0.1.2", overlay = true,
      max_labels_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity (spec §9 provenance) ════════════════
 SCHEMA_V = "1"
-SCRIPT_V = "0.1.1"
+SCRIPT_V = "0.1.2"
 
 // ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
 pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
@@ -148,11 +148,19 @@ if barstate.isconfirmed
         regime_age += 1
 
 // ════════════════ Rendering (§11 — minimal by design) ════════════════
+// Two always-on structure lines with seeded continuity across transitions:
+// UP→CHOP hands trend_high to range_hi; CHOP→UP hands range_hi to trend_high;
+// mirrors for DOWN. The OPAQUE line is the kill line (body close beyond it
+// changes the regime); the faded line is passive context (T1 reference in a
+// trend). A line only breaks where a level is genuinely undefined (fresh-chop
+// broken side, pre-history).
+upper_lvl = regime == 1 ? trend_high : regime == -1 ? lh_ref : range_hi
+lower_lvl = regime == 1 ? hl_ref : regime == -1 ? trend_low : range_lo
+upper_col = regime == 1 ? color.new(color.teal, 65) : regime == -1 ? color.new(color.red, 0) : color.new(color.orange, 25)
+lower_col = regime == 1 ? color.new(color.green, 0) : regime == -1 ? color.new(color.teal, 65) : color.new(color.orange, 25)
+plot(upper_lvl, "Structure: upper", upper_col, 2, plot.style_line)
+plot(lower_lvl, "Structure: lower", lower_col, 2, plot.style_line)
 bgcolor(regime == 1 ? color.new(color.green, 88) : regime == -1 ? color.new(color.red, 88) : na)
-plot(regime == 1  ? hl_ref   : na, "HL_ref",    color.new(color.green,  0), 2, plot.style_linebr)
-plot(regime == -1 ? lh_ref   : na, "LH_ref",    color.new(color.red,    0), 2, plot.style_linebr)
-plot(regime == 0  ? range_hi : na, "Range high", color.new(color.orange, 0), 1, plot.style_linebr)
-plot(regime == 0  ? range_lo : na, "Range low",  color.new(color.orange, 0), 1, plot.style_linebr)
 
 var table vt = table.new(position.top_right, 1, 1)
 if barstate.islast

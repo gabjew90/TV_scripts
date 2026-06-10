@@ -426,3 +426,9 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 5. (watch-item for v0.3) range boundaries only EXPAND during chop — a long chop can leave a stale far boundary for 2B targets/sweeps; spec'd intentionally, must be eyeballed in v0.3 chart validation.
 6. (edge, documented) at the very first CHOP→UP of a chart, `hl_ref` seeds from the last confirmed pivot low — if none exists yet, UP has no CHoCH line until the first pivot low confirms (guarded by `not na`).
 **Status:** chart now clean (tint + structural lines only). Checkpoint on regime behavior still open.
+
+## Fable v0.1.2 — continuous structure lines (visual continuity)
+**Date:** 2026-06-09 · **On-chart:** "Jamal Fable v0.1.2" (shorttitle "JFbl0.1.2").
+**Problem (user):** the regime lines looked like disconnected floating segments (each regime's line appeared/vanished with `style_linebr` + per-regime `na`).
+**Fix:** two ALWAYS-ON structure lines exploiting the FSM's seeded continuity (UP→CHOP hands `trend_high`→`range_hi`; CHOP→UP hands `range_hi`→`trend_high`; mirrors for DOWN): `upper_lvl` = trend_high (UP, faded teal = passive/T1 ref) / lh_ref (DOWN, opaque red = kill line) / range_hi (CHOP, orange); `lower_lvl` = hl_ref (UP, opaque green = kill line) / trend_low (DOWN, faded teal) / range_lo (CHOP, orange). Opaque = the body-close-beyond-it-changes-the-regime line; faded = context. Lines break only where a level is genuinely undefined (fresh-chop broken side). Verified on NEAR 4H: both lines flow unbroken across all regime transitions. Render-only → cfg unchanged (509208).
+**Checkpoint result:** user APPROVED the regime engine ("then approve", conditional on continuity — delivered). v0.1 checkpoint CLOSED → v0.2 (Trade #1 detector) plan unblocked.
