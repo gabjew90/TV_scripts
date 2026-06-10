@@ -1,0 +1,10 @@
+{"note": "2026-06-10 s0.3.0 first 2A events (BTC 4H tail probe; SYS/T1 events under s0.3.0 are identical to the verified s0.2.0 set modulo script_v and are not re-persisted here; full s0.3.0 sweep lands with the multi-symbol backfill campaign).", "texts": [
+"JF|1|0.3.0|509208|B|2A|ENT|S|240|1779278400|77423|lvl=77757.5|stop=78208.45714286|t1=76107.1|rsn=na|reg=D|reg1d=C|age=26|wkp=91.5|t1co=0|rt1=1.68",
+"JF|1|0.3.0|509208|B|2A|ENT|S|240|1779681600|77377|lvl=77600|stop=78083.42857143|t1=74203.6|rsn=na|reg=D|reg1d=D|age=15|wkp=80.5|t1co=0|rt1=4.49",
+"JF|1|0.3.0|509208|B|2A|ENT|S|240|1779696000|77318.2|lvl=77600|stop=78105.13214286|t1=76056|rsn=na|reg=D|reg1d=D|age=16|wkp=83.5|t1co=0|rt1=1.6",
+"JF|1|0.3.0|509208|B|2A|ENT|S|240|1779710400|77587.2|lvl=77600|stop=78266.41428571|t1=76056|rsn=na|reg=D|reg1d=D|age=17|wkp=83.5|t1co=0|rt1=2.25",
+"JF|1|0.3.0|509208|B|2A|ENT|S|240|1779724800|77403.3|lvl=77600|stop=78161.26428571|t1=76056|rsn=na|reg=D|reg1d=D|age=18|wkp=66.5|t1co=0|rt1=1.78",
+"JF|1|0.3.0|509208|B|2A|SKP|S|240|1779796800|76478.2|lvl=77887.9|stop=78478.06428571|t1=76056|rsn=rr|reg=D|reg1d=D|age=23|wkp=99.5|t1co=1|rt1=0.21",
+"JF|1|0.3.0|509208|B|2A|SKP|S|240|1780056000|73775.4|lvl=73932.2|stop=74639.83571429|t1=72556|rsn=rr|reg=D|reg1d=D|age=41|wkp=84.5|t1co=0|rt1=1.41",
+"JF|1|0.3.0|509208|B|2A|SKP|S|240|1780070400|73489|lvl=73932.2|stop=74786.76785714|t1=72556|rsn=rr|reg=D|reg1d=D|age=42|wkp=89.5|t1co=0|rt1=0.72"
+]}

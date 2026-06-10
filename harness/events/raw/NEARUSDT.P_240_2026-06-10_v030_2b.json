@@ -1,0 +1,8 @@
+{"note": "2026-06-10 s0.3.0 NEAR 4H slice - first 2B events (chop-boundary fades around the May-31 low + the 1d-blocked Jun-3 sweep-high) + the notable T1 ENT L of May 22.", "texts": [
+"JF|1|0.3.0|509208|B|T1|ENT|L|240|1779883200|2.578|lvl=2.332|stop=2.37332143|t1=2.978|rsn=na|reg=U|reg1d=U|age=41|d_atr=3.44|d_pct=81.7|bz=1|mlh=3|rt1=1.95",
+"JF|1|0.3.0|509208|B|2B|SKP|L|240|1780113600|2.398|lvl=2.269|stop=2.18292857|t1=2.6235|rsn=rr|reg=C|reg1d=U|age=13|wkp=98.5|t1co=0|rt1=1.05",
+"JF|1|0.3.0|509208|B|2B|ENT|L|240|1780171200|2.248|lvl=2.245|stop=2.16246429|t1=2.6115|rsn=na|reg=C|reg1d=U|age=17|wkp=47.5|t1co=0|rt1=4.25",
+"JF|1|0.3.0|509208|B|2B|ENT|L|240|1780185600|2.276|lvl=2.245|stop=2.16946429|t1=2.6115|rsn=na|reg=C|reg1d=U|age=18|wkp=45|t1co=0|rt1=3.15",
+"JF|1|0.3.0|509208|B|2B|ENT|L|240|1780243200|2.245|lvl=2.223|stop=2.15592857|t1=2.6005|rsn=na|reg=C|reg1d=U|age=22|wkp=73.5|t1co=0|rt1=3.99",
+"JF|1|0.3.0|509208|B|2B|SKP|S|240|1780488000|2.94|lvl=2.978|stop=na|t1=2.5935|rsn=1d|reg=C|reg1d=U|age=39|wkp=93.5|t1co=0|rt1=na"
+]}
