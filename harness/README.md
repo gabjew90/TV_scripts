@@ -14,6 +14,12 @@ every analysis run; violating them invalidates the run.
    The label budget is never spent exporting OHLC through the chart. The
    in-progress candle is always dropped — a committed CSV never contains a
    non-final bar.
+   FETCH-RANGE RULES (foot-guns): `--until` is a date at 00:00 UTC — to cover
+   events from earlier today, pass TOMORROW's date (the incomplete-bar drop
+   makes over-fetching safe). And fetch `--since` at least `pivot_right` bars
+   BEFORE the emit window start: a PIV event's bar_ts is the pivot bar, which
+   precedes its in-window confirmation bar. align_check reports violations of
+   either as "missing bar".
 5. `evaluator/align_check.py` -> HARD PRECONDITION: every event's bar must exist
    in the fetched series with matching price (PIV-H vs high, PIV-L vs low, else
    close; tolerance 0.1%; a PIV without typ is malformed and quarantines).

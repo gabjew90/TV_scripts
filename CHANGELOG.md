@@ -413,3 +413,16 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **FSM eyeball (BTC 4H, Apr 30–Jun 10):** UP segment early-May with stepped HL_ref; CHOP gaps with orange range lines; DOWN through the June waterfall with LH_ref re-anchoring at each confirmed pivot high; PING sequence U→C→U→C→D→C→U→C→D→C→D→C→D — never a direct U↔D.
 **Engine details surfaced for checkpoint:** (a) regime-entry seeding (hl_ref←last pivot low; trend_high←broken boundary); (b) within-bar ordering (pivots before FSM — parity-relevant); (c) confirmed-bar gating everywhere. Spec amended (§3/§9/§12).
 **Status:** v0.1 pins ALL GREEN — **awaiting user checkpoint on regime behavior** before the v0.2 (Trade #1 detector) plan is written. Known cosmetic: 91 gray machine labels clutter the chart; a display toggle is a v0.2 candidate if wanted.
+
+## Fable v0.1.1 — hide the machine labels (display toggle); spec/plan re-review
+**Date:** 2026-06-09 · **On-chart:** "Jamal Fable v0.1.1" (shorttitle "JFbl0.1.1") · entity re-added (remove+re-add after compile).
+**Problem (user):** the chart was covered in gray boxes — those are the event labels (the machine transport the MCP harvests), never meant for human eyes.
+**Fix:** `show_labels` input (default OFF) renders labels **fully transparent instead of suppressing creation** — label objects still exist, so harvest is unchanged. Verified both halves: clean screenshot (no gray boxes) AND `data_get_pine_labels` still returns all events (98 on NEAR 4H, script_v stamped 0.1.1). cfg unchanged (509208) — the toggle is display-layer, excluded from settings_hash like the emit window. Spec §9/§12 amended.
+**Re-review findings (spec + plan, fresh pass after v0.1):**
+1. (fixed) **Bar-fetch range foot-guns** documented in harness/README: `--until` is 00:00 UTC of that date → pass tomorrow's date to cover today's events; `--since` must extend ≥ pivot_right bars before the emit window (PIV bar_ts = pivot bar, precedes its confirmation bar). Task-6 run was correct by luck of timing; now it's a written rule.
+2. (verified in real data) same-bar PIV H+L occurs (3×on BTC 4H); dedup key's `typ` component handles it — the rev-2 fix was load-bearing, not theoretical.
+3. (verified, self-healing) blowoff-top edge: if CHoCH fires before the top pivot confirms, range_hi seeds low but the late-confirming pivot extends it in CHOP (monotone max) — corrects with honest lag.
+4. (noted, accepted) settings_hash is mod-1e6 — a hash collision pooling two configs is ~1-in-a-million; accepted residual risk.
+5. (watch-item for v0.3) range boundaries only EXPAND during chop — a long chop can leave a stale far boundary for 2B targets/sweeps; spec'd intentionally, must be eyeballed in v0.3 chart validation.
+6. (edge, documented) at the very first CHOP→UP of a chart, `hl_ref` seeds from the last confirmed pivot low — if none exists yet, UP has no CHoCH line until the first pivot low confirms (guarded by `not na`).
+**Status:** chart now clean (tint + structural lines only). Checkpoint on regime behavior still open.

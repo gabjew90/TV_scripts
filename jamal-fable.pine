@@ -1,10 +1,10 @@
 //@version=6
-indicator("Jamal Fable v0.1", shorttitle = "JFable0.1", overlay = true,
+indicator("Jamal Fable v0.1.1", shorttitle = "JFbl0.1.1", overlay = true,
      max_labels_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity (spec §9 provenance) ════════════════
 SCHEMA_V = "1"
-SCRIPT_V = "0.1"
+SCRIPT_V = "0.1.1"
 
 // ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
 pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
@@ -20,6 +20,12 @@ wick_pctile_window    = input.int(200,  "Wick pctile window")
 // budget; they change which events are emitted, never what an event means).
 emit_from = input.time(timestamp("2026-04-01T00:00:00+00:00"), "Emit events from (UTC)")
 emit_to   = input.time(timestamp("2027-01-01T00:00:00+00:00"), "Emit events to (UTC)")
+
+// Display-layer input — EXCLUDED from settings_hash (rendering only). OFF by
+// default: the event labels are the machine transport, not chart annotations.
+// They are still CREATED when hidden (fully transparent) so the MCP harvest
+// can read them — suppressing creation would leave nothing to harvest.
+show_labels = input.bool(false, "Show event labels (machine transport)")
 
 // ════════════════ settings_hash (deterministic over semantic knobs) ════════════════
 f_mix(int acc, int v) => (acc * 31 + v) % 1000003
@@ -70,7 +76,8 @@ f_emit(string trade, string event, string dir, int ts_sec, float px, string tail
              + "|" + str.tostring(ts_sec) + "|" + str.tostring(px, "#.########")
              + (tail == "" ? "" : "|" + tail)
         label.new(bar_index, high, txt, style = label.style_label_down,
-             color = color.new(color.gray, 85), textcolor = color.new(color.black, 30),
+             color = color.new(color.gray, show_labels ? 85 : 100),
+             textcolor = color.new(color.black, show_labels ? 30 : 100),
              size = size.tiny)
 
 f_reg_str(int r) => r == 1 ? "U" : r == -1 ? "D" : "C"

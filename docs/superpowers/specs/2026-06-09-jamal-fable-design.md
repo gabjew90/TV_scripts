@@ -180,6 +180,7 @@ e.g. JF|1|0.2|a3f2|B|T1|ENT|L|240|1780444800|2.627|lvl=2.540|stop=2.528|t1=2.978
 
 - `max_labels_count = 500`. **Dedup key = bar time + trade type + event type + direction** (ARM and CXL of the same setup must not collide; PIV additionally keys on `typ`) → repeated MCP harvests are idempotent.
 - **Harvest-window inputs (`emit_from`/`emit_to`) are transport-layer, half-open `[from, to)`, and excluded from `settings_hash`:** they change which events are *emitted*, never what an event *means*. Chunked harvests of one config pool freely. (Added at v0.1 implementation; Pine keeps only the most recent `max_labels_count` labels, so deep backfill = slide the window chunk by chunk and merge.)
+- **`show_labels` (display-layer, default OFF, also hash-excluded):** event labels are the machine transport, not chart annotations. Hidden = rendered fully transparent — the label objects still exist, so MCP harvest reads them unchanged; suppressing creation would leave nothing to harvest. (Added at v0.1.1.)
 - A `PIV` event's `bar_ts` is the **pivot bar** (confirmation bar − `pivot_right`), which can precede `emit_from` — the *emission* bar is what the window gates. Bar fetches must extend ≥ `pivot_right` bars before the window start.
 - If a backfill window exceeds 500 events, that is not a label problem: **harvest in chart-range chunks** (`chart_set_visible_range` / `chart_scroll_to_date` per chunk) — never invent a compression format.
 
@@ -222,6 +223,7 @@ e.g. JF|1|0.2|a3f2|B|T1|ENT|L|240|1780444800|2.627|lvl=2.540|stop=2.528|t1=2.978
 | `wick_pctile_window` | 200 |
 | `oi_symbol` / `funding_source` | auto from chart symbol; `null` factors when absent |
 | `emit_from` / `emit_to` | transport-layer harvest window — half-open `[from, to)`, **excluded from `settings_hash`** (see §9) |
+| `show_labels` | false — display-layer; hidden labels stay harvestable (transparent, not suppressed); **excluded from `settings_hash`** |
 | `max_labels_count` | 500 |
 
 ## 13. Build order & acceptance criteria
