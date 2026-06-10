@@ -59,6 +59,7 @@ DOWN → CHOP   mirror (CHoCH = body close above LH_ref)
 - **States:** `UP` (≥1 BOS up, no CHoCH since) · `DOWN` (mirror) · `CHOP` (no live regime).
 - **Range (CHOP) — definition + seeding:** at trend death, the side price just broke is left **undefined**; it fills with the first pivot confirmed after death (range low, for an UP death). The opposite boundary seeds with the dead trend's extreme (range high = trend high, for an UP death). Boundaries then extend monotonically: range high = max(seed, confirmed pivot highs since death); range low = min(seed, confirmed pivot lows since death). While a boundary is undefined: **no 2B setups on that side and no regime entry through that side.** Consequences (intentional): 2B-short at the old trend high can exist immediately after an UP death; 2B-long needs one post-death confirmed pivot low first; and no instant CHoCH→opposite-BOS flip is possible, because the broken side has no boundary to close beyond. **No minimum-width parameter** — the ≥1.5R skip gate (§5/§6) is the width gate; a second one would be v8-style stacking.
 - **1D filter:** the same engine evaluated on 1D via `request.security` (`lookahead_off`), reading only the **last confirmed 1D bar's** regime. No intra-bar 1D reads — confirmed-bar discipline holds across timeframes.
+- **Engine details decided at implementation (surfaced at the v0.1 checkpoint):** (a) **seeding at regime entry** — at CHOP→UP, `hl_ref` seeds with the most recent confirmed pivot low overall and `trend_high` seeds with the broken range high (avoids an instant continuation-BOS artifact); mirrors for CHOP→DOWN; (b) **within-bar ordering** — pivot bookkeeping runs BEFORE the FSM on the same confirmed bar, so a pivot confirming alongside a potential CHoCH re-anchors the reference first and the FSM evaluates against the NEW line (parity-relevant: the v0.2 Python reimplementation must replicate this tie-break bit-exact); (c) **all pivot bookkeeping is confirmed-bar gated** — realtime pivot flicker must never mutate `var` state (invisible in backfill, divergent live).
 - **Doctrine:** the engine is the measurement layer; trades are consumers. **Open positions never mutate the engine's structural reference** — otherwise regime labels become path-dependent on trade state and the harness's regime column stops being a measurement. The engine re-anchors to a flush low the honest way: pivot confirmation, with lag.
 - No ER gate anywhere. A dim, resting trend is valid context; structure alone decides.
 
@@ -177,7 +178,9 @@ JF|<schema_v>|<script_v>|<cfg_hash>|<src>|<trade>|<event>|<dir>|<tf>|<bar_ts>|<p
 e.g. JF|1|0.2|a3f2|B|T1|ENT|L|240|1780444800|2.627|lvl=2.540|stop=2.528|t1=2.978|reg=U|reg1d=C|age=37|oi_d=-1.8|q=PU.OD|fp=62|d_atr=1.4|d_pct=38|bz=1|mlh=2|rt1=2.3
 ```
 
-- `max_labels_count = 500`. **Dedup key = bar time + trade type + event type + direction** (ARM and CXL of the same setup must not collide) → repeated MCP harvests are idempotent.
+- `max_labels_count = 500`. **Dedup key = bar time + trade type + event type + direction** (ARM and CXL of the same setup must not collide; PIV additionally keys on `typ`) → repeated MCP harvests are idempotent.
+- **Harvest-window inputs (`emit_from`/`emit_to`) are transport-layer, half-open `[from, to)`, and excluded from `settings_hash`:** they change which events are *emitted*, never what an event *means*. Chunked harvests of one config pool freely. (Added at v0.1 implementation; Pine keeps only the most recent `max_labels_count` labels, so deep backfill = slide the window chunk by chunk and merge.)
+- A `PIV` event's `bar_ts` is the **pivot bar** (confirmation bar − `pivot_right`), which can precede `emit_from` — the *emission* bar is what the window gates. Bar fetches must extend ≥ `pivot_right` bars before the window start.
 - If a backfill window exceeds 500 events, that is not a label problem: **harvest in chart-range chunks** (`chart_set_visible_range` / `chart_scroll_to_date` per chunk) — never invent a compression format.
 
 **Alert format (transport 2, stage 2):** `alertcondition`/`alert()` carrying the **same event string** — the full checklist state at signal time, not just direction/price, so the analysis can ask which factors actually predicted outcomes. Two transports, one string: backfill and live logs cannot schema-drift.
@@ -218,6 +221,7 @@ e.g. JF|1|0.2|a3f2|B|T1|ENT|L|240|1780444800|2.627|lvl=2.540|stop=2.528|t1=2.978
 | `funding_pctile_window` | 200 |
 | `wick_pctile_window` | 200 |
 | `oi_symbol` / `funding_source` | auto from chart symbol; `null` factors when absent |
+| `emit_from` / `emit_to` | transport-layer harvest window — half-open `[from, to)`, **excluded from `settings_hash`** (see §9) |
 | `max_labels_count` | 500 |
 
 ## 13. Build order & acceptance criteria
