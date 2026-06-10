@@ -1,10 +1,10 @@
 //@version=6
-indicator("Jamal Fable v0.4.0", shorttitle = "JFbl0.4.0", overlay = true,
+indicator("Jamal Fable v0.4.1", shorttitle = "JFbl0.4.1", overlay = true,
      max_labels_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity (spec §9 provenance) ════════════════
 SCHEMA_V = "1"
-SCRIPT_V = "0.4.0"
+SCRIPT_V = "0.4.1"
 
 // ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
 pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
@@ -56,10 +56,13 @@ f_emit(string trade, string event, string dir, int ts_sec, float px, string tail
              + "|B|" + trade + "|" + event + "|" + dir + "|" + timeframe.period
              + "|" + str.tostring(ts_sec) + "|" + str.tostring(px, "#.########")
              + (tail == "" ? "" : "|" + tail)
+        // text = the machine transport (harvested); tooltip = the same event
+        // formatted vertically for HUMAN hover-inspection (readable regardless
+        // of overlap — zoom in and hover a box).
         label.new(bar_index, high, txt, style = label.style_label_down,
              color = color.new(color.gray, show_labels ? 85 : 100),
              textcolor = color.new(color.black, show_labels ? 30 : 100),
-             size = size.tiny)
+             size = size.tiny, tooltip = str.replace_all(txt, "|", "\n"))
 
 f_reg_str(int r) => r == 1 ? "U" : r == -1 ? "D" : "C"
 
