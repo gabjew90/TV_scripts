@@ -37,10 +37,12 @@ CHANGELOG.md                          # new "JAMAL FABLE" build-log section
 
 **Design decisions locked here (engine details the spec leaves to implementation — surface both at the chart checkpoint):**
 1. **Seeding at CHOP→UP:** `hl_ref` seeds with the most recent confirmed pivot low overall (`last_pl`); `trend_high` seeds with the broken range high (avoids an instant continuation-BOS artifact). Mirrors for CHOP→DOWN.
-2. **Harvest-window inputs are transport-layer** (`emit_from`/`emit_to` chunk the label budget) and are **excluded from `settings_hash`** — they change which events are *emitted*, never what any event *means*. Task 8 amends the spec to say so.
+2. **Harvest-window inputs are transport-layer** (`emit_from`/`emit_to` chunk the label budget) and are **excluded from `settings_hash`** — they change which events are *emitted*, never what any event *means*. The window is **half-open `[emit_from, emit_to)`** so adjacent chunks can't double-emit the boundary bar. Task 8 amends the spec to say so.
 3. **ATR = SMA of True Range** (not RMA) for trivial cross-language reproducibility later.
 4. **Label price-field convention for alignment:** `PIV typ=H` aligns against bar `high`, `PIV typ=L` against `low`, everything else against `close`.
 5. **TV→ccxt symbol mapping:** `BTCUSDT.P` (TV/Binance perp) ↔ `BTC/USDT:USDT` (ccxt `binanceusdm`). Mapping table lives in `harness/README.md`.
+6. **Within-bar ordering:** pivot bookkeeping runs BEFORE the FSM on the same confirmed bar — a pivot low confirming on the same bar as a potential CHoCH re-anchors `hl_ref` first, then the FSM evaluates against the NEW line (can pre-empt the CHoCH). Parity-relevant: the Python pivot reimplementation (v0.2) must replicate this tie-break bit-exact. Task 8 amends the spec.
+7. **All pivot bookkeeping is confirmed-bar gated.** On a realtime bar `ta.pivothigh/low` can flicker intra-bar (candidate appears, then retracts on a new extreme); ungated `var` mutation would persist state from a pivot that never confirmed — invisible in backfill (historical bars are all confirmed), divergent in live operation. Every state mutation sits under `barstate.isconfirmed`.
 
 ---
 
@@ -158,7 +160,7 @@ import csv
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from bars.fetch_bars import fetch_ohlcv_all, write_csv
+from bars.fetch_bars import fetch_ohlcv_all, write_csv, drop_incomplete
 
 
 class FakeExchange:
@@ -187,6 +189,15 @@ def test_write_csv_seconds_and_header(tmp_path):
     got = list(csv.DictReader(out.open()))
     assert got[0]["ts_sec"] == "1780000000"
     assert got[0]["close"] == "1.5"
+
+
+def test_drop_incomplete_excludes_inprogress_bar():
+    h = 4 * 3600 * 1000
+    rows = [[1780000000000, 1.0, 2.0, 0.5, 1.5, 100.0],
+            [1780000000000 + h, 1.0, 2.0, 0.5, 1.5, 100.0]]
+    # "now" is mid-second-bar -> second bar is in progress, must be dropped
+    kept = drop_incomplete(rows, tf_ms=h, now_ms=1780000000000 + h + 1000)
+    assert [r[0] for r in kept] == [1780000000000]
 ```
 
 - [ ] **Step 2: Run to verify it fails**
@@ -238,6 +249,13 @@ def fetch_ohlcv_all(ex, symbol, timeframe, since_ms, until_ms, limit=1500):
     return out
 
 
+def drop_incomplete(rows, tf_ms, now_ms):
+    """Exclude the in-progress candle: keep only bars whose close time has
+    passed. A committed CSV must never contain a non-final bar - the v0.2
+    evaluator (trail simulation) reads bars directly."""
+    return [r for r in rows if r[0] + tf_ms <= now_ms]
+
+
 def write_csv(rows, path):
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -263,6 +281,7 @@ def main():
     args = ap.parse_args()
     ex = ccxt.binanceusdm()
     rows = fetch_ohlcv_all(ex, args.symbol, args.tf, _parse_date(args.since), _parse_date(args.until))
+    rows = drop_incomplete(rows, ex.parse_timeframe(args.tf) * 1000, ex.milliseconds())
     write_csv(rows, args.out)
     print(f"wrote {len(rows)} bars -> {args.out}")
 
@@ -274,7 +293,7 @@ if __name__ == "__main__":
 - [ ] **Step 4: Run tests to verify pass**
 
 Run: `py -3 -m pytest harness/tests/test_fetch_bars.py -v`
-Expected: 2 passed.
+Expected: 3 passed.
 
 - [ ] **Step 5: Live smoke test (network)**
 
@@ -532,6 +551,13 @@ def test_missing_bar_and_price_mismatch_fail(tmp_path):
     assert ok == 1 and len(failures) == 2
     assert "missing bar" in failures[0]["reason"]
     assert "price mismatch" in failures[1]["reason"]
+
+
+def test_piv_without_typ_quarantines(tmp_path):
+    bars = load_bars(_bars_csv(tmp_path))
+    ok, failures = check([_ev(1780444800, 3.0, event="PIV")], bars)  # no typ -> malformed
+    assert ok == 0 and len(failures) == 1
+    assert "malformed PIV" in failures[0]["reason"]
 ```
 
 - [ ] **Step 2: Run to verify it fails**
@@ -569,8 +595,15 @@ def load_bars(csv_path):
 
 
 def _ref_field(ev):
+    """PIV typ=H -> high, typ=L -> low, anything else on a PIV is malformed
+    (quarantine, never silently align against an arbitrary field); else close."""
     if ev["event"] == "PIV":
-        return "high" if ev["factors"].get("typ") == "H" else "low"
+        typ = ev["factors"].get("typ")
+        if typ == "H":
+            return "high"
+        if typ == "L":
+            return "low"
+        return None
     return "close"
 
 
@@ -582,6 +615,9 @@ def check(events, bars, tol=TOL):
             failures.append({"event": ev, "reason": f"missing bar {ev['bar_ts']}"})
             continue
         field = _ref_field(ev)
+        if field is None:
+            failures.append({"event": ev, "reason": "malformed PIV: missing/bad typ"})
+            continue
         ref = bar[field]
         if abs(ev["px"] - ref) > tol * max(abs(ref), 1e-12):
             failures.append({"event": ev,
@@ -616,7 +652,7 @@ if __name__ == "__main__":
 - [ ] **Step 4: Run tests to verify pass**
 
 Run: `py -3 -m pytest harness/tests -v`
-Expected: all tests pass (fetch 2, parse 4, align 2).
+Expected: all tests pass (fetch 3, parse 4, align 3).
 
 - [ ] **Step 5: Commit**
 
@@ -698,7 +734,8 @@ var float last_ph    = na     // most recent confirmed pivot high, any regime
 var float last_pl    = na     // most recent confirmed pivot low, any regime
 
 // ════════════════ Event emission (§9 label transport) ════════════════
-in_window = time >= emit_from and time <= emit_to
+// Half-open window [emit_from, emit_to): adjacent chunks can't double-emit the boundary bar.
+in_window = time >= emit_from and time < emit_to
 
 f_emit(string trade, string event, string dir, int ts_sec, float px, string tail) =>
     if in_window and barstate.isconfirmed
@@ -713,7 +750,15 @@ f_emit(string trade, string event, string dir, int ts_sec, float px, string tail
 f_reg_str(int r) => r == 1 ? "U" : r == -1 ? "D" : "C"
 
 // ════════════════ Pivot bookkeeping + SYS|PIV events ════════════════
-if ph_new
+// CONFIRMED-BAR GATED (engine detail #7): on a realtime bar ta.pivothigh/low
+// can flicker intra-bar — the candidate appears, then retracts on a new
+// extreme. Ungated `var` mutation would persist state from a pivot that never
+// confirmed: invisible in backfill, divergent live. Historical bars are always
+// confirmed, so backfill behavior is identical.
+// ORDERING (engine detail #6): pivot bookkeeping runs BEFORE the FSM on the
+// same confirmed bar — a pivot low confirming alongside a potential CHoCH
+// re-anchors hl_ref first; the FSM then evaluates against the NEW line.
+if ph_new and barstate.isconfirmed
     last_ph := ph
     if regime == 1
         trend_high := ph
@@ -723,7 +768,7 @@ if ph_new
         range_hi := na(range_hi) ? ph : math.max(range_hi, ph)
     f_emit("SYS", "PIV", "N", math.round(time[pivot_right] / 1000), ph, "typ=H")
 
-if pl_new
+if pl_new and barstate.isconfirmed
     last_pl := pl
     if regime == -1
         trend_low := pl
@@ -841,7 +886,7 @@ git add harness/events; git commit -m "feat(fable): first end-to-end pipe run - 
 
 ### Task 7: Chunked-harvest path (pin 3 complete)
 
-- [ ] **Step 1: Shift the emit window one chunk older** — `mcp__tradingview__indicator_set_inputs` on "Jamal Fable": `Emit events from (UTC)` = 2026-02-01, `Emit events to (UTC)` = 2026-04-01. Remove + re-add is NOT needed for input changes (inputs apply live); confirm labels moved via screenshot.
+- [ ] **Step 1: Shift the emit window one chunk older** — `mcp__tradingview__indicator_set_inputs` on "Jamal Fable": `Emit events from (UTC)` = 2026-02-01, `Emit events to (UTC)` = 2026-04-01. The window is half-open `[from, to)`, so this chunk abuts the default Apr-01 start with no double-emitted boundary bar by construction (dedup would absorb one anyway — but correctness shouldn't need rescue). Remove + re-add is NOT needed for input changes (inputs apply live); confirm labels moved via screenshot.
 
 - [ ] **Step 2: Harvest chunk 2** → save raw to `harness/events/raw/BTCUSDT.P_240_2026-06-09_chunk2.json`, parse with the same `--symbol BTCUSDT.P`.
 Expected: `new events: M; malformed: 0`, events MERGED into the **same** provenance file (same cfg — transport window excluded from hash). This is the design's point: chunks of one config pool freely.
@@ -861,7 +906,7 @@ git add harness; git commit -m "feat(fable): chunked harvest exercised - same-cf
 
 ### Task 8: Spec amendment, CHANGELOG, checkpoint
 
-- [ ] **Step 1: Amend the spec** (`docs/superpowers/specs/2026-06-09-jamal-fable-design.md`): in §9 after the label-format block and in §12 under the knob table, add: *"Harvest-window inputs (`emit_from`/`emit_to`) are transport-layer and excluded from `settings_hash`: they change which events are emitted, never what an event means. Chunked harvests of one config pool freely."* Also append the two §3 engine-detail decisions (HL_ref/trend_high seeding at regime entry) to the spec's §3 with a "decided at implementation, surfaced at v0.1 checkpoint" note.
+- [ ] **Step 1: Amend the spec** (`docs/superpowers/specs/2026-06-09-jamal-fable-design.md`): in §9 after the label-format block and in §12 under the knob table, add: *"Harvest-window inputs (`emit_from`/`emit_to`) are transport-layer, half-open `[from, to)`, and excluded from `settings_hash`: they change which events are emitted, never what an event means. Chunked harvests of one config pool freely."* Also append the §3 engine-detail decisions to the spec's §3 with a "decided at implementation, surfaced at v0.1 checkpoint" note: (a) HL_ref/trend_high seeding at regime entry; (b) **within-bar ordering** — pivot bookkeeping before FSM, so a same-bar pivot confirmation re-anchors the reference before CHoCH evaluation (parity-relevant: the v0.2 Python reimplementation must replicate this tie-break bit-exact); (c) all pivot bookkeeping confirmed-bar gated (realtime pivot flicker must never mutate `var` state).
 
 - [ ] **Step 2: CHANGELOG** — add a `# ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================` section at the end of `CHANGELOG.md` with a v0.1 entry: what was built (engine FSM, SYS events, parser/fetcher/align), pin results with the actual aligned counts, the two seeding decisions, and the spec amendment.
 
