@@ -133,16 +133,27 @@ f_engine() =>
     bool reg_changed = barstate.isconfirmed and regime != prev_regime
     [regime, regime_age, hl_ref, lh_ref, trend_high, trend_low, range_hi, range_lo, bos_level, ph_new, ph, pl_new, pl, reg_changed]
 
-// ════════════════ Chart-context engine instance + emission ════════════════
+// ════════════════ Chart-context engine instance ════════════════
 [regime, regime_age, hl_ref, lh_ref, trend_high, trend_low, range_hi, range_lo, bos_level, ph_new, ph_val, pl_new, pl_val, reg_changed] = f_engine()
 
+// ════════════════ 1D regime filter (last CONFIRMED 1D bar; non-repainting) ════════════════
+// [1] + lookahead_on = the classic non-repaint HTF pattern: always the last
+// CLOSED D bar's regime. The security call gets its OWN f_engine state copy.
+f_engine_reg() =>
+    [r, _a, _hl, _lh, _th, _tl, _rh, _rl, _bl, _pn, _pv, _qn, _qv, _rc] = f_engine()
+    r
+
+int reg_1d = request.security(syminfo.tickerid, "D", f_engine_reg()[1],
+     lookahead = barmerge.lookahead_on)
+
+// ════════════════ Emission ════════════════
 if ph_new
     f_emit("SYS", "PIV", "N", math.round(time[pivot_right] / 1000), ph_val, "typ=H")
 if pl_new
     f_emit("SYS", "PIV", "N", math.round(time[pivot_right] / 1000), pl_val, "typ=L")
 if reg_changed
     f_emit("SYS", "PING", "N", math.round(time / 1000), close,
-         "reg=" + f_reg_str(regime) + "|age=0")
+         "reg=" + f_reg_str(regime) + "|age=0|reg1d=" + f_reg_str(reg_1d))
 
 // ════════════════ Rendering (§11 — minimal by design) ════════════════
 // Two always-on structure lines with seeded continuity across transitions:
@@ -161,5 +172,5 @@ bgcolor(regime == 1 ? color.new(color.green, 88) : regime == -1 ? color.new(colo
 
 var table vt = table.new(position.top_right, 1, 1)
 if barstate.islast
-    table.cell(vt, 0, 0, "Jamal Fable v" + SCRIPT_V + " · schema " + SCHEMA_V + " · cfg " + str.tostring(cfg_i),
+    table.cell(vt, 0, 0, "Jamal Fable v" + SCRIPT_V + " · schema " + SCHEMA_V + " · cfg " + str.tostring(cfg_i) + " · 1D " + f_reg_str(reg_1d),
          text_color = color.white, bgcolor = color.new(color.black, 20), text_size = size.small)
