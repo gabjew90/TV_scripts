@@ -1,10 +1,10 @@
 //@version=6
-indicator("Jamal Fable v0.2.0", shorttitle = "JFbl0.2.0", overlay = true,
+indicator("Jamal Fable v0.3.0", shorttitle = "JFbl0.3.0", overlay = true,
      max_labels_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity (spec §9 provenance) ════════════════
 SCHEMA_V = "1"
-SCRIPT_V = "0.2.0"
+SCRIPT_V = "0.3.0"
 
 // ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
 pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
@@ -191,6 +191,61 @@ f_t1_tail(T1S s, float lvl, float stp, float t1px, string rsn, float rt1) =>
      + "|bz=" + bz + "|mlh=" + str.tostring(s.mlhn)
      + "|rt1=" + (na(rt1) ? "na" : str.tostring(rt1, "#.##"))
 
+// (T1 short-side declarations hoisted here — the Trade #2 coincidence captures
+// below must read BOTH t1l and t1s state before either detector resets it.)
+type T1SS
+    bool  armed  = false
+    float mhl    = na     // micro higher-low (chain tip)
+    int   mhln   = 0
+    float pbhigh = na     // running pullback high (survives SKP)
+    float tl     = na     // trend low this pullback keyed off (dissolve detector)
+
+var T1SS t1s = T1SS.new()
+
+f_t1s_reset(T1SS s, bool full) =>
+    s.armed := false
+    s.mhl   := na
+    s.mhln  := 0
+    if full
+        s.pbhigh := na
+        s.tl     := na
+
+f_t1s_tail(T1SS s, float lvl, float stp, float t1px, string rsn, float rt1) =>
+    float d_atr = na(s.pbhigh) or na(s.tl) ? na : (s.pbhigh - s.tl) / atr
+    float d_pct = na(s.pbhigh) or na(s.tl) or na(lvl) or lvl == s.tl ? na :
+         100.0 * (s.pbhigh - s.tl) / (lvl - s.tl)
+    string bz = na(bos_level) or na(s.pbhigh) ? "na" : s.pbhigh >= bos_level ? "1" : "0"
+    "lvl=" + f_fstr(lvl) + "|stop=" + f_fstr(stp) + "|t1=" + f_fstr(t1px) + "|rsn=" + rsn
+     + "|reg=" + f_reg_str(regime) + "|reg1d=" + f_reg_str(reg_1d)
+     + "|age=" + str.tostring(regime_age)
+     + "|d_atr=" + (na(d_atr) ? "na" : str.tostring(d_atr, "#.##"))
+     + "|d_pct=" + (na(d_pct) ? "na" : str.tostring(d_pct, "#.#"))
+     + "|bz=" + bz + "|mlh=" + str.tostring(s.mhln)
+     + "|rt1=" + (na(rt1) ? "na" : str.tostring(rt1, "#.##"))
+
+// ════════════════ Trade #2 shared (spec §6) ════════════════
+// Sweep conditions (§4, one-bar definition) — evaluated once per bar.
+bool swp_l = barstate.isconfirmed and regime == 1 and not na(hl_ref) and low < hl_ref and close >= hl_ref
+bool swp_s = barstate.isconfirmed and regime == -1 and not na(lh_ref) and high > lh_ref and close <= lh_ref
+// §4 coincidence: the sweep bar ALSO satisfied T1's trigger (captured pre-reset).
+bool t2a_l_coin = swp_l and t1l.armed and not na(t1l.mlh) and close > t1l.mlh
+bool t2a_s_coin = swp_s and t1s.armed and not na(t1s.mhl) and close < t1s.mhl
+
+// Wick-size percentiles (decision #2): relevant wick in ATRs, ranked vs own history.
+float wick_lo_atr = (math.min(open, close) - low) / atr
+float wick_hi_atr = (high - math.max(open, close)) / atr
+float wkp_lo = ta.percentrank(wick_lo_atr, wick_pctile_window)
+float wkp_hi = ta.percentrank(wick_hi_atr, wick_pctile_window)
+
+// fixed tail key order: lvl|stop|t1|rsn|reg|reg1d|age|wkp|t1co|rt1
+f_t2_tail(float lvl, float stp, float t1px, string rsn, float wkp, bool t1co, float rt1) =>
+    "lvl=" + f_fstr(lvl) + "|stop=" + f_fstr(stp) + "|t1=" + f_fstr(t1px) + "|rsn=" + rsn
+     + "|reg=" + f_reg_str(regime) + "|reg1d=" + f_reg_str(reg_1d)
+     + "|age=" + str.tostring(regime_age)
+     + "|wkp=" + (na(wkp) ? "na" : str.tostring(wkp, "#.#"))
+     + "|t1co=" + (t1co ? "1" : "0")
+     + "|rt1=" + (na(rt1) ? "na" : str.tostring(rt1, "#.##"))
+
 bool t1l_ent_mark = false
 if barstate.isconfirmed and regime == 1 and not na(hl_ref) and not na(trend_high)
     // dissolve: a NEW trend high while armed = pullback over without trigger (decision #3)
@@ -236,36 +291,7 @@ if barstate.isconfirmed and regime != 1
     f_t1_reset(t1l, true)
 
 // ════════════════ Trade #1: pullback-continuation — SHORT (strict mirror) ════════════════
-type T1SS
-    bool  armed  = false
-    float mhl    = na     // micro higher-low (chain tip)
-    int   mhln   = 0
-    float pbhigh = na     // running pullback high (survives SKP)
-    float tl     = na     // trend low this pullback keyed off (dissolve detector)
-
-var T1SS t1s = T1SS.new()
-
-f_t1s_reset(T1SS s, bool full) =>
-    s.armed := false
-    s.mhl   := na
-    s.mhln  := 0
-    if full
-        s.pbhigh := na
-        s.tl     := na
-
-f_t1s_tail(T1SS s, float lvl, float stp, float t1px, string rsn, float rt1) =>
-    float d_atr = na(s.pbhigh) or na(s.tl) ? na : (s.pbhigh - s.tl) / atr
-    float d_pct = na(s.pbhigh) or na(s.tl) or na(lvl) or lvl == s.tl ? na :
-         100.0 * (s.pbhigh - s.tl) / (lvl - s.tl)
-    string bz = na(bos_level) or na(s.pbhigh) ? "na" : s.pbhigh >= bos_level ? "1" : "0"
-    "lvl=" + f_fstr(lvl) + "|stop=" + f_fstr(stp) + "|t1=" + f_fstr(t1px) + "|rsn=" + rsn
-     + "|reg=" + f_reg_str(regime) + "|reg1d=" + f_reg_str(reg_1d)
-     + "|age=" + str.tostring(regime_age)
-     + "|d_atr=" + (na(d_atr) ? "na" : str.tostring(d_atr, "#.##"))
-     + "|d_pct=" + (na(d_pct) ? "na" : str.tostring(d_pct, "#.#"))
-     + "|bz=" + bz + "|mlh=" + str.tostring(s.mhln)
-     + "|rt1=" + (na(rt1) ? "na" : str.tostring(rt1, "#.##"))
-
+// (declarations hoisted above the Trade #2 shared block)
 bool t1s_ent_mark = false
 if barstate.isconfirmed and regime == -1 and not na(lh_ref) and not na(trend_low)
     // dissolve: a NEW trend low while armed = pullback over without trigger
@@ -309,6 +335,76 @@ if barstate.isconfirmed and regime != -1
              f_t1s_tail(t1s, lh_ref, na, t1s.tl, "choch", na))
     f_t1s_reset(t1s, true)
 
+// ════════════════ Trade #2A: flush-and-reclaim at the kill line (spec §6A) ════════════════
+// Stateless one-bar setup: the sweep bar IS the entry bar (entry = its close).
+// The only doctrine: no entry without the reclaim close — swp_* encodes it.
+bool t2a_ent_long = false
+bool t2a_ent_short = false
+if swp_l and not na(trend_high)
+    if reg_1d == -1                                 // decision #1: 1D gate = logged SKP, not silence
+        f_emit("2A", "SKP", "L", math.round(time / 1000), close,
+             f_t2_tail(hl_ref, na, trend_high, "1d", wkp_lo, t2a_l_coin, na))
+    else
+        float stp = low - stop_buffer_atr * atr
+        float rt1 = close > stp ? (trend_high - close) / (close - stp) : na
+        if na(rt1) or rt1 < rr_min
+            f_emit("2A", "SKP", "L", math.round(time / 1000), close,
+                 f_t2_tail(hl_ref, stp, trend_high, "rr", wkp_lo, t2a_l_coin, rt1))
+        else
+            f_emit("2A", "ENT", "L", math.round(time / 1000), close,
+                 f_t2_tail(hl_ref, stp, trend_high, "na", wkp_lo, t2a_l_coin, rt1))
+            t2a_ent_long := true
+if swp_s and not na(trend_low)
+    if reg_1d == 1
+        f_emit("2A", "SKP", "S", math.round(time / 1000), close,
+             f_t2_tail(lh_ref, na, trend_low, "1d", wkp_hi, t2a_s_coin, na))
+    else
+        float stp = high + stop_buffer_atr * atr
+        float rt1 = stp > close ? (close - trend_low) / (stp - close) : na
+        if na(rt1) or rt1 < rr_min
+            f_emit("2A", "SKP", "S", math.round(time / 1000), close,
+                 f_t2_tail(lh_ref, stp, trend_low, "rr", wkp_hi, t2a_s_coin, rt1))
+        else
+            f_emit("2A", "ENT", "S", math.round(time / 1000), close,
+                 f_t2_tail(lh_ref, stp, trend_low, "na", wkp_hi, t2a_s_coin, rt1))
+            t2a_ent_short := true
+
+// ════════════════ Trade #2B: chop-boundary sweep → fade to midpoint (spec §6B) ════════════════
+// Requires BOTH walls (midpoint undefined otherwise — §3 seeding leaves the
+// broken side na after a trend death; absent setups there are structural).
+bool t2b_ent_long = false
+bool t2b_ent_short = false
+if barstate.isconfirmed and regime == 0 and not na(range_hi) and not na(range_lo)
+    float mid = (range_hi + range_lo) / 2.0
+    if low < range_lo and close >= range_lo         // §4 SWEEP of the low wall
+        if reg_1d == -1
+            f_emit("2B", "SKP", "L", math.round(time / 1000), close,
+                 f_t2_tail(range_lo, na, mid, "1d", wkp_lo, false, na))
+        else
+            float stp = low - stop_buffer_atr * atr
+            float rt1 = close > stp ? (mid - close) / (close - stp) : na
+            if na(rt1) or rt1 < rr_min               // the R gate IS the width gate (§3/§6B)
+                f_emit("2B", "SKP", "L", math.round(time / 1000), close,
+                     f_t2_tail(range_lo, stp, mid, "rr", wkp_lo, false, rt1))
+            else
+                f_emit("2B", "ENT", "L", math.round(time / 1000), close,
+                     f_t2_tail(range_lo, stp, mid, "na", wkp_lo, false, rt1))
+                t2b_ent_long := true
+    if high > range_hi and close <= range_hi        // §4 SWEEP of the high wall
+        if reg_1d == 1
+            f_emit("2B", "SKP", "S", math.round(time / 1000), close,
+                 f_t2_tail(range_hi, na, mid, "1d", wkp_hi, false, na))
+        else
+            float stp = high + stop_buffer_atr * atr
+            float rt1 = stp > close ? (close - mid) / (stp - close) : na
+            if na(rt1) or rt1 < rr_min
+                f_emit("2B", "SKP", "S", math.round(time / 1000), close,
+                     f_t2_tail(range_hi, stp, mid, "rr", wkp_hi, false, rt1))
+            else
+                f_emit("2B", "ENT", "S", math.round(time / 1000), close,
+                     f_t2_tail(range_hi, stp, mid, "na", wkp_hi, false, rt1))
+                t2b_ent_short := true
+
 // ════════════════ Rendering (§11 — minimal by design) ════════════════
 // Two always-on structure lines with seeded continuity across transitions:
 // UP→CHOP hands trend_high to range_hi; CHOP→UP hands range_hi to trend_high;
@@ -326,6 +422,10 @@ bgcolor(regime == 1 ? color.new(color.green, 88) : regime == -1 ? color.new(colo
 plotshape(t1l_ent_mark, "T1 long entry", shape.triangleup, location.belowbar,
      color.new(color.lime, 0), size = size.small)
 plotshape(t1s_ent_mark, "T1 short entry", shape.triangledown, location.abovebar,
+     color.new(color.red, 0), size = size.small)
+plotshape(t2a_ent_long or t2b_ent_long, "T2 long entry", shape.diamond, location.belowbar,
+     color.new(color.lime, 0), size = size.small)
+plotshape(t2a_ent_short or t2b_ent_short, "T2 short entry", shape.diamond, location.abovebar,
      color.new(color.red, 0), size = size.small)
 
 var table vt = table.new(position.top_right, 1, 1)
