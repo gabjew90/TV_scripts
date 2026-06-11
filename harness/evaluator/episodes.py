@@ -40,6 +40,7 @@ def walk_episode(ev, bars):
           "t1": t1, "rt1": rt1, "factors": factors, "exit_code": None,
           "exit_ts": None, "exit_px": None, "r": None, "mfe_r": None,
           "mfe30_r": None, "ambiguous": 0, "counterfactual": None,
+          "cf_r": None, "rule_delta_r": None,
           "pseudo": factors.get("rsn") if factors.get("rsn") in ("rr", "1d") else None}
     if lvl is None or stop is None or t1 is None:
         ep["exit_code"] = None
@@ -92,10 +93,17 @@ def walk_episode(ev, bars):
             stop_hit = (l <= stop) if is_long else (h >= stop)
             tgt_hit = (h >= t1) if is_long else (l <= t1)
             if stop_hit:
+                # thesis-exit v2 (2026-06-11): price-tag the third exit.
+                # cf_r = R the trade would have realized if HELD to stop/target;
+                # rule_delta_r = R actually saved (+) or cost (-) by exiting early.
                 ep["counterfactual"] = "stopped"
+                ep["cf_r"] = -1.0
+                ep["rule_delta_r"] = ep["r"] - ep["cf_r"]
                 return ep
             if tgt_hit:
                 ep["counterfactual"] = "recovered"
+                ep["cf_r"] = rt1 if rt1 is not None else abs(t1 - ent) / risk
+                ep["rule_delta_r"] = ep["r"] - ep["cf_r"]
                 return ep
     if ep["exit_code"] is None:
         ep.update(exit_code="open", mfe_r=(best - ent) / risk if is_long else (ent - best) / risk)

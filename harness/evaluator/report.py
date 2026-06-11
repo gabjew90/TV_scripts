@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from evaluator.episodes import build_episodes, walk_episode
 
 HARNESS = Path(__file__).resolve().parents[1]
-EVENT_GLOB = "*_s0.4.6_*.jsonl"
+EVENT_GLOB = "*_s0.5.0_*.jsonl"
 LQ_SPLIT = 3834.5  # lq_tot inner-band edge = harvested median over sweep ENTs (n=32).
                    # CAVEAT: lq units are feed-native and NOT comparable across symbols —
                    # a global split is a coarse v1; per-symbol normalization is the v2 fix.
@@ -42,6 +42,15 @@ PREREG = """## Pre-registered annotations (read FIRST — discovering these is n
   "what would this class of skipped signal have done", not "what would the book have done".
 - Liquidation totals correlate mechanically with sweep depth; lq is read WITHIN swd bands.
 - rt1 is conditioned per trade type; the pooled rt1 table from the 2026-06 campaign mixed geometries.
+- CAMPAIGN-2 HYPOTHESIS (pre-registered 2026-06-11, BEFORE any s0.5.0 data was seen):
+  quiet, shallow sweeps revert; violent ones don't - CONDITIONAL ON CHOP (er>0.45 had
+  ZERO events in campaign 1; the violence prior is untested in trends, not refuted).
+- Multiple-comparisons honesty: ~15 conditioning tables at n~30 GUARANTEE impressive
+  splits by chance (campaign 1's vz split was ~p0.1 unadjusted). Nothing promotes
+  without surviving this campaign's pre-registered test.
+- The 1D gate is OFF by user ruling (2026-06-11, AGAINST the n=9 campaign-1 evidence);
+  the blocked-cohort table below is that ruling's standing scoreboard.
+- OS roll-class rt1 correlates with os by construction (target = the stretch anchor).
 """
 
 
@@ -130,6 +139,35 @@ def bucket_rows(eps, key, edges, labels):
     return rows
 
 
+def oneD_blocked(e):
+    """Would the campaign-era 1D gate have blocked this? (dir vs 1D regime opposition)"""
+    r1d = (e.get("factors") or {}).get("reg1d")
+    return (e["dir"] == "L" and r1d == "D") or (e["dir"] == "S" and r1d == "U")
+
+
+def oriented(e, key):
+    """Signed covariate oriented to trade direction: positive = supportive of the trade.
+    os: stretched-down supports a long -> orient = -os for L, +os for S.
+    fr/fp: crowded-long (positive funding / high pctile) supports a SHORT fade ->
+           +for S, -for L (fp is centered at 50 before orienting)."""
+    v = fnum(e["factors"], key)
+    if v is None:
+        return None
+    if key == "fp":
+        v = v - 50.0
+    return -v if e["dir"] == "L" else v
+
+
+def oriented_q(e):
+    """Quadrant with the price leg made trade-relative: PW=price moved WITH trade dir pre-entry."""
+    q = e["factors"].get("q", "na")
+    if q == "na" or "." not in q:
+        return "na"
+    px, oi = q.split(".")
+    with_trade = (px == "PU") == (e["dir"] == "L")
+    return ("PW" if with_trade else "PA") + "." + oi
+
+
 def bucket_rows_nested(eps, okey, oedges, olabels, ikey, iedges, ilabels):
     """Two-level conditioning: outer factor bands, inner factor bands within each."""
     rows = []
@@ -164,7 +202,7 @@ def cat_rows(eps, key):
 FACTOR_HEADER = ["bucket", "n", "win%", "avg R", "med MFE"]
 
 
-def render_report(eps_all, pseudo_all, overlap_counts, file_list):
+def render_report(eps_all, pseudo_all, overlap_counts, file_list, indep_all=None):
     L = []
     L.append(f"# Jamal Fable — Backfill Campaign Report ({datetime.now(timezone.utc).strftime('%Y-%m-%d')})\n")
     L.append(PREREG)
@@ -183,6 +221,17 @@ def render_report(eps_all, pseudo_all, overlap_counts, file_list):
     L.append(f"\n**ALL (pooled, no significance claim):** n={s['n']} closed={s['closed']} "
              f"win%={fmt(s['win%'],0)} avgR={fmt(s['avg_r'])} medMFE={fmt(s['med_mfe'])} "
              f"open={s['open']} | skip_overlap dropped: {sum(overlap_counts.values())}\n")
+
+    # ── 1D ruling-watch (standing scoreboard for the 2026-06-11 gate-off ruling) ──
+    L.append("\n## Standing ruling-watch: 1D gate OFF (2026-06-11 user ruling, against n=9 evidence)\n")
+    blocked = [e for e in eps_all if oneD_blocked(e)]
+    passed_ = [e for e in eps_all if not oneD_blocked(e)]
+    rows = []
+    for lab, grp in (("would-have-been-BLOCKED", blocked), ("would-have-passed", passed_)):
+        s2 = stats_row(grp)
+        rows.append([lab, s2["n"], s2["closed"], fmt(s2["win%"], 0), fmt(s2["avg_r"]), fmt(s2["med_mfe"])])
+    L.append(table(["cohort", "n", "closed", "win%", "avg R", "med MFE"], rows))
+    L.append("\n_If the blocked cohort bleeds as n grows, flip `use_1d_gate` back on._\n")
 
     # ── Monthly windows ──
     L.append("\n## Monthly windows (not pooled for significance)\n")
@@ -228,6 +277,60 @@ def render_report(eps_all, pseudo_all, overlap_counts, file_list):
         eps_all, "swd", [(None, 0.3), (0.3, 0.8), (0.8, None)], ["swd<0.3", "swd 0.3-0.8", "swd>0.8"],
         "lq_tot", [(None, LQ_SPLIT), (LQ_SPLIT, None)], ["lq low", "lq high"])))
 
+    # ── Direction-oriented conditioning (s046 review: fixes the pooled-signed wash-out) ──
+    L.append("\n## Direction-ORIENTED conditioning (supportive = positive; fixes the pooled-signed-factor wash-out)\n")
+    for key in ("os", "fr", "fp"):
+        L.append(f"\n### by oriented `{key}`\n")
+        rows = []
+        for lab, lo, hi in (("against (<0)", None, 0.0), ("supportive (>=0)", 0.0, None)):
+            sub = []
+            for e in eps_all:
+                w = oriented(e, key)
+                if w is not None and (lo is None or w >= lo) and (hi is None or w < hi):
+                    sub.append(e)
+            s2 = stats_row(sub)
+            rows.append([lab, s2["n"], fmt(s2["win%"], 0), fmt(s2["avg_r"]), fmt(s2["med_mfe"])])
+        L.append(table(FACTOR_HEADER, rows))
+    L.append("\n### by oriented `q` (PW=price moved with trade pre-entry, PA=against)\n")
+    qgroups = defaultdict(list)
+    for e in eps_all:
+        qgroups[oriented_q(e)].append(e)
+    rows = []
+    for k in sorted(qgroups):
+        s2 = stats_row(qgroups[k])
+        rows.append([k, s2["n"], fmt(s2["win%"], 0), fmt(s2["avg_r"]), fmt(s2["med_mfe"])])
+    L.append(table(FACTOR_HEADER, rows))
+
+    # ── OS: the new population, judged separately ──
+    os_eps = [e for e in eps_all if e["trade"] == "OS"]
+    if os_eps:
+        L.append("\n## OS — generalized sweeps (NEW population, judge separately)\n")
+        for key in ("lvl_src", "align"):
+            L.append(f"\n### OS by `{key}`\n")
+            L.append(table(FACTOR_HEADER, cat_rows(os_eps, key)))
+        L.append("\n### OS by `osp` (rt1~os is MECHANICAL for roll class — pre-registered)\n")
+        L.append(table(FACTOR_HEADER, bucket_rows(os_eps, "osp", [(None, 50), (50, 85), (85, None)], ["<50", "50-85", ">85"])))
+        L.append("\n### OS by `vz` (the campaign-1 quiet-bar lead, tested out-of-population)\n")
+        L.append(table(FACTOR_HEADER, bucket_rows(os_eps, "vz", [(None, 0), (0, 1.5), (1.5, None)], ["<0", "0-1.5", ">1.5"])))
+
+    # ── Sensitivity appendices (s046 review) ──
+    L.append("\n## Sensitivity appendices\n")
+    L.append("\n### (i) rr_min sensitivity — offline counterfactual, no knob change\n")
+    rows = []
+    for lab, grp in (("book as-is (rr 1.5)", eps_all),
+                     ("book if rr_min were 2.0", [e for e in eps_all
+                      if (v := fnum(e["factors"], "rt1")) is not None and v >= 2.0])):
+        s2 = stats_row(grp)
+        rows.append([lab, s2["n"], s2["closed"], fmt(s2["win%"], 0), fmt(s2["avg_r"]), fmt(s2["med_mfe"])])
+    L.append(table(["book", "n", "closed", "win%", "avg R", "med MFE"], rows))
+    if indep_all is not None:
+        L.append("\n### (ii) skip_overlap sensitivity — every ENT walked independently (sequential rule OFF)\n")
+        s2 = stats_row(indep_all)
+        L.append(f"n={s2['n']} closed={s2['closed']} win%={fmt(s2['win%'],0)} "
+                 f"avgR={fmt(s2['avg_r'])} medMFE={fmt(s2['med_mfe'])} "
+                 f"(sequential book: n={len(eps_all)}) — if these stories diverge, "
+                 f"the sequential rule is shaping the dataset.\n")
+
     # ── Gate questions (pseudo-episodes) ──
     L.append("\n## Gate questions (pseudo-episodes, walked independently)\n")
     rr_ps = [e for e in pseudo_all if e["pseudo"] == "rr"]
@@ -240,12 +343,21 @@ def render_report(eps_all, pseudo_all, overlap_counts, file_list):
     L.append("\n### (b) 1D gate — blocked sweeps, graded as if taken\n")
     L.append(f"n={s['n']} closed={s['closed']} win%={fmt(s['win%'],0)} avgR={fmt(s['avg_r'])} "
              f"medMFE={fmt(s['med_mfe'])}\n")
-    cf = defaultdict(int)
-    for e in eps_all:
-        if e["exit_code"] == "thesis_exit":
-            cf[e["counterfactual"] or "open"] += 1
-    L.append("\n### (c) thesis-exit counterfactuals (hold-to-stop instead)\n")
-    L.append(table(["outcome if held", "n"], sorted(cf.items())))
+    L.append("\n### (c) thesis-exit v2 — net R saved by the third exit (per trade type)\n")
+    tx = [e for e in eps_all if e["exit_code"] == "thesis_exit"]
+    rows = []
+    groups = sorted(group_by(tx, lambda e: e["trade"]).items())
+    for tr, grp in groups:
+        deltas = [e["rule_delta_r"] for e in grp if e.get("rule_delta_r") is not None]
+        rec = sum(1 for e in grp if e["counterfactual"] == "recovered")
+        stp = sum(1 for e in grp if e["counterfactual"] == "stopped")
+        rows.append([tr, len(grp), rec, stp, fmt(sum(deltas)) if deltas else "—"])
+    all_d = [e["rule_delta_r"] for e in tx if e.get("rule_delta_r") is not None]
+    rows.append(["ALL", len(tx), sum(1 for e in tx if e["counterfactual"] == "recovered"),
+                 sum(1 for e in tx if e["counterfactual"] == "stopped"),
+                 fmt(sum(all_d)) if all_d else "—"])
+    L.append(table(["trade", "n", "recovered (exit cost us)", "stopped (exit saved us)",
+                    "NET R saved by rule"], rows))
     return "\n".join(L)
 
 
@@ -262,7 +374,7 @@ def main():
     ap.add_argument("--allow-mixed", action="store_true")
     args = ap.parse_args()
     by_symbol, files = load_events(args.allow_mixed)
-    eps_all, pseudo_all, overlap_counts = [], [], {}
+    eps_all, pseudo_all, overlap_counts, indep_all = [], [], {}, []
     for sym, evs in sorted(by_symbol.items()):
         bars_file = HARNESS / "bars" / BARS_MAP.get(sym, "")
         if not bars_file.exists():
@@ -273,13 +385,17 @@ def main():
         overlap_counts[sym] = len(overlapped)
         eps_all.extend(eps)
         for ev in evs:
+            if ev["event"] == "ENT":          # sensitivity appendix: no sequential rule
+                p = walk_episode(ev, bars)
+                if not p.get("drop_reason"):
+                    indep_all.append(p)
             if ev["event"] == "SKP" and ev["factors"].get("rsn") in ("rr", "1d"):
                 p = walk_episode(ev, bars)
                 if not p.get("drop_reason"):
                     pseudo_all.append(p)
     out = Path(args.out)
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(render_report(eps_all, pseudo_all, overlap_counts, files), encoding="utf-8")
+    out.write_text(render_report(eps_all, pseudo_all, overlap_counts, files, indep_all), encoding="utf-8")
     print(f"report: {out}  (episodes={len(eps_all)}, pseudo={len(pseudo_all)}, "
           f"overlap_dropped={sum(overlap_counts.values())})")
 

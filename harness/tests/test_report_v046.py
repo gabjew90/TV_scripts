@@ -10,8 +10,9 @@ def _ep(trade, swd, lq, r, code="t1_hit"):
             "ambiguous": 0, "factors": {"swd": str(swd), "lq_tot": str(lq)}}
 
 
-def test_event_glob_is_s046():
-    assert "s0.4.6" in EVENT_GLOB
+def test_event_glob_pins_one_script_version():
+    # no-pool: the glob must pin exactly one script version (current pin tested in test_v05_eval)
+    assert EVENT_GLOB.startswith("*_s0.") and EVENT_GLOB.endswith("_*.jsonl")
 
 
 def test_nested_buckets_split_outer_then_inner():
