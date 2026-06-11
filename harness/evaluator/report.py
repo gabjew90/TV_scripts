@@ -20,6 +20,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from evaluator.episodes import build_episodes, walk_episode
 
 HARNESS = Path(__file__).resolve().parents[1]
+EVENT_GLOB = "*_s0.4.6_*.jsonl"
+LQ_SPLIT = 1.0   # lq_tot inner-band edge — placeholder; set to the harvested median after first render
 BARS_MAP = {
     "BTCUSDT.P": "binanceusdm_BTCUSDT_4h.csv",
     "ETHUSDT.P": "binanceusdm_ETHUSDT_4h.csv",
@@ -36,6 +38,8 @@ PREREG = """## Pre-registered annotations (read FIRST — discovering these is n
 - Monthly windows are reported separately; pooled rows carry no significance claims.
 - Pseudo-episodes are walked independently (no portfolio sequencing) — they answer
   "what would this class of skipped signal have done", not "what would the book have done".
+- Liquidation totals correlate mechanically with sweep depth; lq is read WITHIN swd bands.
+- rt1 is conditioned per trade type; the pooled rt1 table from the 2026-06 campaign mixed geometries.
 """
 
 
@@ -46,13 +50,21 @@ def load_bars(path):
 
 
 def load_events(allow_mixed=False):
-    files = sorted(glob.glob(str(HARNESS / "events" / "*_s0.4.5_*.jsonl")))
+    files = sorted(glob.glob(str(HARNESS / "events" / EVENT_GLOB)))
     by_symbol = defaultdict(list)
     provenance = set()
     for f in files:
         for line in open(f):
             e = json.loads(line)
             provenance.add((e["schema_v"], e["cfg"]))
+            # lq_tot synthesized at load: a missing SIDE legitimately means 0
+            # liquidations on that side (unlike OI, where nz fabricates state);
+            # BOTH sides missing -> key absent -> "na" bucket.
+            fct = e.get("factors", {})
+            b, s = fct.get("lqb"), fct.get("lqs")
+            if (b not in (None, "na")) or (s not in (None, "na")):
+                fct["lq_tot"] = str((0 if b in (None, "na") else float(b)) +
+                                    (0 if s in (None, "na") else float(s)))
             by_symbol[e["symbol"]].append(e)
     if len(provenance) > 1 and not allow_mixed:
         raise SystemExit(f"NO-POOL VIOLATION: mixed provenance {provenance}; rerun with --allow-mixed to override")
@@ -116,6 +128,26 @@ def bucket_rows(eps, key, edges, labels):
     return rows
 
 
+def bucket_rows_nested(eps, okey, oedges, olabels, ikey, iedges, ilabels):
+    """Two-level conditioning: outer factor bands, inner factor bands within each."""
+    rows = []
+    for olab, (olo, ohi) in zip(olabels, oedges):
+        outer = []
+        for e in eps:
+            v = fnum(e["factors"], okey)
+            if v is not None and (olo is None or v >= olo) and (ohi is None or v < ohi):
+                outer.append(e)
+        for ilab, (ilo, ihi) in zip(ilabels, iedges):
+            sub = []
+            for e in outer:
+                w = fnum(e["factors"], ikey)
+                if w is not None and (ilo is None or w >= ilo) and (ihi is None or w < ihi):
+                    sub.append(e)
+            s = stats_row(sub)
+            rows.append([f"{olab} | {ilab}", s["n"], fmt(s["win%"], 0), fmt(s["avg_r"]), fmt(s["med_mfe"])])
+    return rows
+
+
 def cat_rows(eps, key):
     groups = defaultdict(list)
     for e in eps:
@@ -134,7 +166,7 @@ def render_report(eps_all, pseudo_all, overlap_counts, file_list):
     L = []
     L.append(f"# Jamal Fable — Backfill Campaign Report ({datetime.now(timezone.utc).strftime('%Y-%m-%d')})\n")
     L.append(PREREG)
-    L.append(f"\nSources ({len(file_list)} provenance files, s0.4.5 only):\n" +
+    L.append(f"\nSources ({len(file_list)} provenance files, glob `{EVENT_GLOB}`):\n" +
              "\n".join(f"- {Path(f).name}" for f in file_list) + "\n")
 
     # ── Headline ──
@@ -168,6 +200,13 @@ def render_report(eps_all, pseudo_all, overlap_counts, file_list):
         ("d_pct", [(None, 60), (60, 100), (100, None)], ["<60", "60-100", ">100 (wick-swept)"]),
         ("age", [(None, 10), (10, 50), (50, None)], ["<10", "10-50", ">50"]),
         ("rt1", [(None, 2.0), (2.0, 3.0), (3.0, None)], ["1.5-2", "2-3", ">3"]),
+        ("os",  [(None, -1.0), (-1.0, 1.0), (1.0, None)], ["<-1 (stretched dn)", "-1..1", ">1 (stretched up)"]),
+        ("osp", [(None, 50), (50, 85), (85, None)], ["<50", "50-85", ">85"]),
+        ("er",  [(None, 0.2), (0.2, 0.45), (0.45, None)], ["<0.2 (chop)", "0.2-0.45", ">0.45 (trendy)"]),
+        ("vz",  [(None, 0), (0, 1.5), (1.5, None)], ["<0", "0-1.5", ">1.5 (heavy)"]),
+        ("fr",  [(None, 0), (0, None)], ["<0 (shorts pay)", ">=0 (longs pay)"]),
+        ("swd", [(None, 0.3), (0.3, 0.8), (0.8, None)], ["<0.3", "0.3-0.8", ">0.8 (deep)"]),
+        ("age_t", [(None, 10), (10, 40), (40, None)], ["<10", "10-40", ">40"]),
     ]
     for key, edges, labels in specs:
         L.append(f"\n### by `{key}`\n")
@@ -175,6 +214,17 @@ def render_report(eps_all, pseudo_all, overlap_counts, file_list):
     for key in ("q", "t1co", "reg1d"):
         L.append(f"\n### by `{key}`\n")
         L.append(table(FACTOR_HEADER, cat_rows(eps_all, key)))
+
+    L.append("\n### by `rt1` PER TRADE TYPE (pooled rt1 mixes trade geometries — pre-registered)\n")
+    for tr, teps in sorted(group_by(eps_all, lambda e: e["trade"]).items()):
+        L.append(f"\n**{tr}:**\n")
+        L.append(table(FACTOR_HEADER, bucket_rows(teps, "rt1",
+                 [(None, 2.0), (2.0, 3.0), (3.0, None)], ["1.5-2", "2-3", ">3"])))
+
+    L.append("\n### by `lq_tot` WITHIN `swd` bands (mechanical correlation pre-registered in §8)\n")
+    L.append(table(FACTOR_HEADER, bucket_rows_nested(
+        eps_all, "swd", [(None, 0.3), (0.3, 0.8), (0.8, None)], ["swd<0.3", "swd 0.3-0.8", "swd>0.8"],
+        "lq_tot", [(None, LQ_SPLIT), (LQ_SPLIT, None)], ["lq low", "lq high"])))
 
     # ── Gate questions (pseudo-episodes) ──
     L.append("\n## Gate questions (pseudo-episodes, walked independently)\n")
