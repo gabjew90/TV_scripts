@@ -1,10 +1,10 @@
 //@version=6
-indicator("Jamal Fable v0.4.1", shorttitle = "JFbl0.4.1", overlay = true,
+indicator("Jamal Fable v0.4.2", shorttitle = "JFbl0.4.2", overlay = true,
      max_labels_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity (spec §9 provenance) ════════════════
 SCHEMA_V = "1"
-SCRIPT_V = "0.4.1"
+SCRIPT_V = "0.4.2"
 
 // ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
 pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
@@ -25,7 +25,7 @@ emit_to   = input.time(timestamp("2027-01-01T00:00:00+00:00"), "Emit events to (
 // default: the event labels are the machine transport, not chart annotations.
 // They are still CREATED when hidden (fully transparent) so the MCP harvest
 // can read them — suppressing creation would leave nothing to harvest.
-show_labels = input.bool(false, "Show event labels (machine transport)")
+show_labels = input.bool(false, "Show transport labels (DEBUG only — unreadable by design)")
 
 // ════════════════ settings_hash (deterministic over semantic knobs) ════════════════
 f_mix(int acc, int v) => (acc * 31 + v) % 1000003
@@ -65,6 +65,23 @@ f_emit(string trade, string event, string dir, int ts_sec, float px, string tail
              size = size.tiny, tooltip = str.replace_all(txt, "|", "\n"))
 
 f_reg_str(int r) => r == 1 ? "U" : r == -1 ? "D" : "C"
+
+// ════════════════ Human entry marks (the readable layer) ════════════════
+// Every ENTRY gets a small colored tag (T1/2A/2B) whose hover-tooltip is the
+// full event card. Entries are rare → no overlap. Everything else (ARM/SKP/
+// CXL/SYS) lives only in the invisible transport layer + the harvest.
+f_mark(string trade, string dir, float px, string tail) =>
+    if barstate.isconfirmed
+        string card = trade + (dir == "L" ? " LONG @ " : " SHORT @ ")
+             + str.tostring(px, "#.########") + "\n" + str.replace_all(tail, "|", "\n")
+        if dir == "L"
+            label.new(bar_index, low, trade, style = label.style_label_up,
+                 color = color.new(color.lime, 0), textcolor = color.black,
+                 size = size.small, tooltip = card)
+        else
+            label.new(bar_index, high, trade, style = label.style_label_down,
+                 color = color.new(color.red, 0), textcolor = color.white,
+                 size = size.small, tooltip = card)
 
 // ════════════════ Engine as a pure function (no emission side-effects) ════════════════
 // var locals = one independent state copy PER CALLING CONTEXT (chart, 1D security).
@@ -336,8 +353,9 @@ if barstate.isconfirmed and regime == 1 and not na(hl_ref) and not na(trend_high
                     f_emit("T1", "SKP", "L", math.round(time / 1000), close,
                          f_t1_tail(t1l, hl_ref, stp, t1l.th, "rr", rt1))
                 else
-                    f_emit("T1", "ENT", "L", math.round(time / 1000), close,
-                         f_t1_tail(t1l, hl_ref, stp, t1l.th, "na", rt1))
+                    string tl_ent = f_t1_tail(t1l, hl_ref, stp, t1l.th, "na", rt1)
+                    f_emit("T1", "ENT", "L", math.round(time / 1000), close, tl_ent)
+                    f_mark("T1", "L", close, tl_ent)
                     t1l_ent_mark := true
                 f_t1_reset(t1l, false)              // chain resets, pullback continues (decision #2)
 if barstate.isconfirmed and regime != 1
@@ -387,8 +405,9 @@ if barstate.isconfirmed and regime == -1 and not na(lh_ref) and not na(trend_low
                     f_emit("T1", "SKP", "S", math.round(time / 1000), close,
                          f_t1s_tail(t1s, lh_ref, stp, t1s.tl, "rr", rt1))
                 else
-                    f_emit("T1", "ENT", "S", math.round(time / 1000), close,
-                         f_t1s_tail(t1s, lh_ref, stp, t1s.tl, "na", rt1))
+                    string ts_ent = f_t1s_tail(t1s, lh_ref, stp, t1s.tl, "na", rt1)
+                    f_emit("T1", "ENT", "S", math.round(time / 1000), close, ts_ent)
+                    f_mark("T1", "S", close, ts_ent)
                     t1s_ent_mark := true
                 f_t1s_reset(t1s, false)
 if barstate.isconfirmed and regime != -1
@@ -413,8 +432,9 @@ if swp_l and not na(trend_high)
             f_emit("2A", "SKP", "L", math.round(time / 1000), close,
                  f_t2_tail(hl_ref, stp, trend_high, "rr", wkp_lo, t2a_l_coin, rt1))
         else
-            f_emit("2A", "ENT", "L", math.round(time / 1000), close,
-                 f_t2_tail(hl_ref, stp, trend_high, "na", wkp_lo, t2a_l_coin, rt1))
+            string a_ent = f_t2_tail(hl_ref, stp, trend_high, "na", wkp_lo, t2a_l_coin, rt1)
+            f_emit("2A", "ENT", "L", math.round(time / 1000), close, a_ent)
+            f_mark("2A", "L", close, a_ent)
             t2a_ent_long := true
 if swp_s and not na(trend_low)
     if reg_1d == 1
@@ -427,8 +447,9 @@ if swp_s and not na(trend_low)
             f_emit("2A", "SKP", "S", math.round(time / 1000), close,
                  f_t2_tail(lh_ref, stp, trend_low, "rr", wkp_hi, t2a_s_coin, rt1))
         else
-            f_emit("2A", "ENT", "S", math.round(time / 1000), close,
-                 f_t2_tail(lh_ref, stp, trend_low, "na", wkp_hi, t2a_s_coin, rt1))
+            string a_ent_s = f_t2_tail(lh_ref, stp, trend_low, "na", wkp_hi, t2a_s_coin, rt1)
+            f_emit("2A", "ENT", "S", math.round(time / 1000), close, a_ent_s)
+            f_mark("2A", "S", close, a_ent_s)
             t2a_ent_short := true
 
 // ════════════════ Trade #2B: chop-boundary sweep → fade to midpoint (spec §6B) ════════════════
@@ -449,8 +470,9 @@ if barstate.isconfirmed and regime == 0 and not na(range_hi) and not na(range_lo
                 f_emit("2B", "SKP", "L", math.round(time / 1000), close,
                      f_t2_tail(range_lo, stp, mid, "rr", wkp_lo, false, rt1))
             else
-                f_emit("2B", "ENT", "L", math.round(time / 1000), close,
-                     f_t2_tail(range_lo, stp, mid, "na", wkp_lo, false, rt1))
+                string b_ent = f_t2_tail(range_lo, stp, mid, "na", wkp_lo, false, rt1)
+                f_emit("2B", "ENT", "L", math.round(time / 1000), close, b_ent)
+                f_mark("2B", "L", close, b_ent)
                 t2b_ent_long := true
     if high > range_hi and close <= range_hi        // §4 SWEEP of the high wall
         if reg_1d == 1
@@ -463,8 +485,9 @@ if barstate.isconfirmed and regime == 0 and not na(range_hi) and not na(range_lo
                 f_emit("2B", "SKP", "S", math.round(time / 1000), close,
                      f_t2_tail(range_hi, stp, mid, "rr", wkp_hi, false, rt1))
             else
-                f_emit("2B", "ENT", "S", math.round(time / 1000), close,
-                     f_t2_tail(range_hi, stp, mid, "na", wkp_hi, false, rt1))
+                string b_ent_s = f_t2_tail(range_hi, stp, mid, "na", wkp_hi, false, rt1)
+                f_emit("2B", "ENT", "S", math.round(time / 1000), close, b_ent_s)
+                f_mark("2B", "S", close, b_ent_s)
                 t2b_ent_short := true
 
 // ════════════════ Rendering (§11 — minimal by design) ════════════════
@@ -481,14 +504,8 @@ lower_col = regime == 1 ? color.new(color.green, 0) : regime == -1 ? color.new(c
 plot(upper_lvl, "Structure: upper", upper_col, 2, plot.style_stepline)
 plot(lower_lvl, "Structure: lower", lower_col, 2, plot.style_stepline)
 bgcolor(regime == 1 ? color.new(color.green, 88) : regime == -1 ? color.new(color.red, 88) : na)
-plotshape(t1l_ent_mark, "T1 long entry", shape.triangleup, location.belowbar,
-     color.new(color.lime, 0), size = size.small)
-plotshape(t1s_ent_mark, "T1 short entry", shape.triangledown, location.abovebar,
-     color.new(color.red, 0), size = size.small)
-plotshape(t2a_ent_long or t2b_ent_long, "T2 long entry", shape.diamond, location.belowbar,
-     color.new(color.lime, 0), size = size.small)
-plotshape(t2a_ent_short or t2b_ent_short, "T2 short entry", shape.diamond, location.abovebar,
-     color.new(color.red, 0), size = size.small)
+// Entry marks are now f_mark labels (T1/2A/2B tags with hover cards) — the
+// plotshape triangles/diamonds were replaced in v0.4.2.
 
 var table vt = table.new(position.top_right, 1, 1)
 if barstate.islast
