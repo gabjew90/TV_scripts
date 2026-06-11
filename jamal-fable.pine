@@ -1,12 +1,12 @@
 //@version=6
-indicator("Jamal Fable v0.4.6", shorttitle = "JFbl0.4.6", overlay = true,
+indicator("Jamal Fable v0.5.0", shorttitle = "JFbl0.5.0", overlay = true,
      max_labels_count = 500, max_lines_count = 500)
 import TradingView/Request/3 as r
 import TradingView/ta/9 as tvta
 
 // ════════════════ Identity (spec §9 provenance) ════════════════
 SCHEMA_V = "1"
-SCRIPT_V = "0.4.6"
+SCRIPT_V = "0.5.0"
 
 // ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
 pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
@@ -21,6 +21,11 @@ os_linreg_window      = input.int(50,   "Overshoot linreg window",  minval = 5)
 os_pctile_window      = input.int(200,  "Overshoot pctile window")
 er_window             = input.int(20,   "Efficiency ratio window",  minval = 2)
 vz_window             = input.int(100,  "Volume z-score window",    minval = 10)
+piv_n                 = input.int(5,    "OS: last-N pivots per side", minval = 1)
+roll_k                = input.int(20,   "OS: rolling extreme window", minval = 5)
+os_m                  = input.int(5,    "OS: stretch lookback (bars)", minval = 1)
+os_gate_atr           = input.float(1.5, "OS: roll-class stretch gate (ATR)", step = 0.1)
+use_1d_gate           = input.bool(false, "Use 1D regime gate (campaign-era behavior)")
 
 // Transport-layer inputs — EXCLUDED from settings_hash (they chunk the label
 // budget; they change which events are emitted, never what an event means).
@@ -51,6 +56,11 @@ if barstate.isfirst
     h := f_mix(h, os_pctile_window)
     h := f_mix(h, er_window)
     h := f_mix(h, vz_window)
+    h := f_mix(h, piv_n)
+    h := f_mix(h, roll_k)
+    h := f_mix(h, os_m)
+    h := f_mix(h, math.round(os_gate_atr * 1000))
+    h := f_mix(h, use_1d_gate ? 1 : 0)
     cfg_i := h
 
 // ════════════════ ATR (SMA of TR — cross-language reproducible) ════════════════
@@ -253,6 +263,31 @@ f_cov_tail() =>
      + "|fr=" + (na(fr) ? "na" : str.tostring(fr, "#.######"))
      + "|lqb=" + f_fstr(lqb) + "|lqs=" + f_fstr(lqs)
 
+// ════════════════ v0.5 OS level set (spec §14) ════════════════
+var array<float> piv_lows  = array.new<float>()
+var array<float> piv_highs = array.new<float>()
+if pl_new
+    array.push(piv_lows, pl_val)
+    if array.size(piv_lows) > piv_n
+        array.shift(piv_lows)
+if ph_new
+    array.push(piv_highs, ph_val)
+    if array.size(piv_highs) > piv_n
+        array.shift(piv_highs)
+// Prior day/week extremes: [1] + lookahead_on = last CLOSED candle (zero lag, non-repainting)
+float pdl = request.security(syminfo.tickerid, "D", low[1],  lookahead = barmerge.lookahead_on)
+float pdh = request.security(syminfo.tickerid, "D", high[1], lookahead = barmerge.lookahead_on)
+float pwl = request.security(syminfo.tickerid, "W", low[1],  lookahead = barmerge.lookahead_on)
+float pwh = request.security(syminfo.tickerid, "W", high[1], lookahead = barmerge.lookahead_on)
+float roll_lo = ta.lowest(low, roll_k)[1]      // as of PRIOR bar — excludes current
+float roll_hi = ta.highest(high, roll_k)[1]
+float os_min_m = ta.lowest(os_raw, os_m)        // stretch extreme within last m bars
+float os_max_m = ta.highest(os_raw, os_m)
+int age_roll_lo = ta.barssince(roll_lo != roll_lo[1])
+int age_roll_hi = ta.barssince(roll_hi != roll_hi[1])
+int age_pdl = ta.barssince(pdl != pdl[1])
+int age_pdh = ta.barssince(pdh != pdh[1])
+
 // ════════════════ Emission ════════════════
 if ph_new
     f_emit("SYS", "PIV", "N", math.round(time[pivot_right] / 1000), ph_val, "typ=H")
@@ -382,6 +417,31 @@ f_t2_tail(float lvl, float stp, float t1px, string rsn, float wkp, bool t1co, fl
      + "|age_t=" + (na(aget) ? "na" : str.tostring(aget))
      + "|" + f_cov_tail()
 
+// fixed tail key order: lvl|stop|t1|rsn|lvl_src|n_lvls|align|oco|reg|reg1d|age|swd|age_t|rt1|<cov>
+f_os_tail(float lvl, float stp, float t1px, string rsn, string src, int nlv, string align, bool oco, float swd, int aget, float rt1) =>
+    "lvl=" + f_fstr(lvl) + "|stop=" + f_fstr(stp) + "|t1=" + f_fstr(t1px) + "|rsn=" + rsn
+     + "|lvl_src=" + src + "|n_lvls=" + str.tostring(nlv) + "|align=" + align
+     + "|oco=" + (oco ? "1" : "0")
+     + "|reg=" + f_reg_str(regime) + "|reg1d=" + f_reg_str(reg_1d)
+     + "|age=" + str.tostring(regime_age)
+     + "|swd=" + (na(swd) ? "na" : str.tostring(swd, "#.##"))
+     + "|age_t=" + (na(aget) ? "na" : str.tostring(aget))
+     + "|rt1=" + (na(rt1) ? "na" : str.tostring(rt1, "#.##"))
+     + "|" + f_cov_tail()
+
+// OS chips: color by ALIGNMENT (green=with-regime, red=against, gray=chop) — spec §14
+f_mark_os(string dir, float px, string tail, string align) =>
+    if in_window and barstate.isconfirmed
+        color bg = align == "W" ? color.new(color.lime, 0) : align == "A" ? color.new(color.red, 0) : color.new(color.gray, 0)
+        string card = "OS " + (dir == "L" ? "LONG @ " : "SHORT @ ") + str.tostring(px, "#.########")
+             + "\n" + str.replace_all(tail, "|", "\n")
+        if dir == "L"
+            label.new(bar_index, low, "OS", style = label.style_label_up, color = bg,
+                 textcolor = align == "N" ? color.white : color.black, size = size.small, tooltip = card)
+        else
+            label.new(bar_index, high, "OS", style = label.style_label_down, color = bg,
+                 textcolor = align == "N" ? color.white : color.black, size = size.small, tooltip = card)
+
 bool t1l_ent_mark = false
 if barstate.isconfirmed and regime == 1 and not na(hl_ref) and not na(trend_high)
     // dissolve: a NEW trend high while armed = pullback over without trigger (decision #3)
@@ -399,7 +459,7 @@ if barstate.isconfirmed and regime == 1 and not na(hl_ref) and not na(trend_high
         t1l.mlh  := high[1]
         t1l.mlhn := t1l.mlhn + 1
         if not t1l.armed
-            if reg_1d != -1                         // S1: 1D gate blocks ARMING only (decision #1)
+            if not use_1d_gate or reg_1d != -1      // S1: 1D gate (knob; default OFF per 2026-06-11 ruling)
                 t1l.armed := true
                 f_emit("T1", "ARM", "L", math.round(time / 1000), close,
                      f_t1_tail(t1l, hl_ref, na, t1l.th, "na", na))
@@ -454,7 +514,7 @@ if barstate.isconfirmed and regime == -1 and not na(lh_ref) and not na(trend_low
         t1s.mhl  := low[1]
         t1s.mhln := t1s.mhln + 1
         if not t1s.armed
-            if reg_1d != 1                          // S1 mirror: opposing 1D blocks ARMING only
+            if not use_1d_gate or reg_1d != 1       // S1 mirror: 1D gate (knob; default OFF)
                 t1s.armed := true
                 f_emit("T1", "ARM", "S", math.round(time / 1000), close,
                      f_t1s_tail(t1s, lh_ref, na, t1s.tl, "na", na))
@@ -497,7 +557,7 @@ bool t2a_ent_short = false
 if swp_l and not na(trend_high)
     float stp = low - stop_buffer_atr * atr
     float rt1 = close > stp ? (trend_high - close) / (close - stp) : na
-    if reg_1d == -1                                 // decision #1: 1D gate = logged SKP, not silence
+    if use_1d_gate and reg_1d == -1                 // 1D gate knob (default OFF; reg1d always stamped)
         // v0.4.4: 1d-skips carry FULL snapshot levels — the campaign's pseudo-
         // episodes must be walkable, or the 1D-gate question returns an empty set.
         f_emit("2A", "SKP", "L", math.round(time / 1000), close,
@@ -514,7 +574,7 @@ if swp_l and not na(trend_high)
 if swp_s and not na(trend_low)
     float stp = high + stop_buffer_atr * atr
     float rt1 = stp > close ? (close - trend_low) / (stp - close) : na
-    if reg_1d == 1
+    if use_1d_gate and reg_1d == 1
         f_emit("2A", "SKP", "S", math.round(time / 1000), close,
              f_t2_tail(lh_ref, stp, trend_low, "1d", wkp_hi, t2a_s_coin, rt1, (high - lh_ref) / atr, age_lh))
     else
@@ -537,7 +597,7 @@ if barstate.isconfirmed and regime == 0 and not na(range_hi) and not na(range_lo
     if low < range_lo and close >= range_lo         // §4 SWEEP of the low wall
         float stp = low - stop_buffer_atr * atr
         float rt1 = close > stp ? (mid - close) / (close - stp) : na
-        if reg_1d == -1
+        if use_1d_gate and reg_1d == -1
             f_emit("2B", "SKP", "L", math.round(time / 1000), close,
                  f_t2_tail(range_lo, stp, mid, "1d", wkp_lo, false, rt1, (range_lo - low) / atr, age_rlo))
         else
@@ -552,7 +612,7 @@ if barstate.isconfirmed and regime == 0 and not na(range_hi) and not na(range_lo
     if high > range_hi and close <= range_hi        // §4 SWEEP of the high wall
         float stp = high + stop_buffer_atr * atr
         float rt1 = stp > close ? (close - mid) / (stp - close) : na
-        if reg_1d == 1
+        if use_1d_gate and reg_1d == 1
             f_emit("2B", "SKP", "S", math.round(time / 1000), close,
                  f_t2_tail(range_hi, stp, mid, "1d", wkp_hi, false, rt1, (high - range_hi) / atr, age_rhi))
         else
@@ -564,6 +624,101 @@ if barstate.isconfirmed and regime == 0 and not na(range_hi) and not na(range_lo
                 f_emit("2B", "ENT", "S", math.round(time / 1000), close, b_ent_s)
                 f_mark("2B", "S", close, b_ent_s)
                 t2b_ent_short := true
+
+// ════════════════ Trade OS: generalized sweep-reclaim (spec §14 v0.5) ════════════════
+// One event per bar per direction at the DEEPEST swept-and-reclaimed level.
+// Sweep grammar: low < lvl and close > lvl (strict reclaim; level as of prior bar).
+// Roll class additionally requires the stretch gate (event-volume control, NOT a tuned edge).
+float os_l_lvl = na
+string os_l_src = "na"
+int os_l_n = 0
+float os_s_lvl = na
+string os_s_src = "na"
+int os_s_n = 0
+if barstate.isconfirmed
+    if array.size(piv_lows) > 0
+        for i = 0 to array.size(piv_lows) - 1
+            float lv = array.get(piv_lows, i)
+            if low < lv and close > lv
+                os_l_n += 1
+                if na(os_l_lvl) or lv < os_l_lvl
+                    os_l_lvl := lv
+                    os_l_src := "piv"
+    if not na(pdl) and low < pdl and close > pdl
+        os_l_n += 1
+        if na(os_l_lvl) or pdl < os_l_lvl
+            os_l_lvl := pdl
+            os_l_src := "pdl"
+    if not na(pwl) and low < pwl and close > pwl
+        os_l_n += 1
+        if na(os_l_lvl) or pwl < os_l_lvl
+            os_l_lvl := pwl
+            os_l_src := "pwl"
+    if not na(roll_lo) and low < roll_lo and close > roll_lo and not na(os_min_m) and os_min_m <= -os_gate_atr
+        os_l_n += 1
+        if na(os_l_lvl) or roll_lo < os_l_lvl
+            os_l_lvl := roll_lo
+            os_l_src := "roll"
+    if array.size(piv_highs) > 0
+        for i = 0 to array.size(piv_highs) - 1
+            float lv = array.get(piv_highs, i)
+            if high > lv and close < lv
+                os_s_n += 1
+                if na(os_s_lvl) or lv > os_s_lvl
+                    os_s_lvl := lv
+                    os_s_src := "piv"
+    if not na(pdh) and high > pdh and close < pdh
+        os_s_n += 1
+        if na(os_s_lvl) or pdh > os_s_lvl
+            os_s_lvl := pdh
+            os_s_src := "pdh"
+    if not na(pwh) and high > pwh and close < pwh
+        os_s_n += 1
+        if na(os_s_lvl) or pwh > os_s_lvl
+            os_s_lvl := pwh
+            os_s_src := "pwh"
+    if not na(roll_hi) and high > roll_hi and close < roll_hi and not na(os_max_m) and os_max_m >= os_gate_atr
+        os_s_n += 1
+        if na(os_s_lvl) or roll_hi > os_s_lvl
+            os_s_lvl := roll_hi
+            os_s_src := "roll"
+
+// Same-bar coincidence with the kill-line sweep: emit BOTH, cross-flag oco=1 (dedup offline).
+// 1D opposition = logged SKP only when use_1d_gate (default off — 2026-06-11 ruling, reg1d always stamped).
+if not na(os_l_lvl)
+    string al = regime == 1 ? "W" : regime == -1 ? "A" : "N"
+    int aget = os_l_src == "roll" ? age_roll_lo : os_l_src == "pdl" ? age_pdl : na
+    float stp = low - stop_buffer_atr * atr
+    float t1px = lr_anchor                       // entry-snapshotted fair-value anchor (§14 doctrine exception)
+    float swd = (os_l_lvl - low) / atr
+    float rt1 = close > stp and not na(t1px) and t1px > close ? (t1px - close) / (close - stp) : na
+    if use_1d_gate and reg_1d == -1
+        f_emit("OS", "SKP", "L", math.round(time / 1000), close,
+             f_os_tail(os_l_lvl, stp, t1px, "1d", os_l_src, os_l_n, al, swp_l, swd, aget, rt1))
+    else if na(rt1) or rt1 < rr_min
+        f_emit("OS", "SKP", "L", math.round(time / 1000), close,
+             f_os_tail(os_l_lvl, stp, t1px, "rr", os_l_src, os_l_n, al, swp_l, swd, aget, rt1))
+    else
+        string os_ent = f_os_tail(os_l_lvl, stp, t1px, "na", os_l_src, os_l_n, al, swp_l, swd, aget, rt1)
+        f_emit("OS", "ENT", "L", math.round(time / 1000), close, os_ent)
+        f_mark_os("L", close, os_ent, al)
+if not na(os_s_lvl)
+    string al = regime == -1 ? "W" : regime == 1 ? "A" : "N"
+    int aget = os_s_src == "roll" ? age_roll_hi : os_s_src == "pdh" ? age_pdh : na
+    float stp = high + stop_buffer_atr * atr
+    float t1px = lr_anchor
+    float swd = (high - os_s_lvl) / atr
+    float rt1 = stp > close and not na(t1px) and t1px < close ? (close - t1px) / (stp - close) : na
+    if use_1d_gate and reg_1d == 1
+        f_emit("OS", "SKP", "S", math.round(time / 1000), close,
+             f_os_tail(os_s_lvl, stp, t1px, "1d", os_s_src, os_s_n, al, swp_s, swd, aget, rt1))
+    else if na(rt1) or rt1 < rr_min
+        f_emit("OS", "SKP", "S", math.round(time / 1000), close,
+             f_os_tail(os_s_lvl, stp, t1px, "rr", os_s_src, os_s_n, al, swp_s, swd, aget, rt1))
+    else
+        string os_ent_s = f_os_tail(os_s_lvl, stp, t1px, "na", os_s_src, os_s_n, al, swp_s, swd, aget, rt1)
+        f_emit("OS", "ENT", "S", math.round(time / 1000), close, os_ent_s)
+        f_mark_os("S", close, os_ent_s, al)
 
 // ════════════════ Rendering (§11 — minimal by design) ════════════════
 // Two always-on structure lines with seeded continuity across transitions:
