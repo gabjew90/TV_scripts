@@ -348,16 +348,79 @@ In `render_report`, after the headline:
 
 (e) PREREG: add `- OS roll-class rt1 correlates with os by construction (target = stretch anchor).` and `- The 1D gate is OFF by user ruling (2026-06-11) — the blocked-cohort table is the ruling's scoreboard.`
 
+- [ ] **Step 4b: Direction-oriented conditioning (s046 external review — the direction-blind bucketing flaw).** Add to `report.py`:
+
+```python
+def oriented(e, key):
+    """Signed covariate oriented to trade direction: positive = supportive of the trade.
+    os: stretched-down supports a long -> orient = -os for L, +os for S.
+    fr/fp: crowded-long (positive funding / high pctile) supports a SHORT fade -> +for S, -for L
+           (fp is centered at 50 before orienting).
+    """
+    v = fnum(e["factors"], key)
+    if v is None:
+        return None
+    if key == "fp":
+        v = v - 50.0
+    return -v if e["dir"] == "L" else v
+
+
+def oriented_q(e):
+    """Quadrant with the price leg made trade-relative: PW=price moved WITH trade dir pre-entry."""
+    q = e["factors"].get("q", "na")
+    if q == "na" or "." not in q:
+        return "na"
+    px, oi = q.split(".")
+    with_trade = (px == "PU") == (e["dir"] == "L")
+    return ("PW" if with_trade else "PA") + "." + oi
+```
+
+And render (after the existing factor tables):
+
+```python
+    L.append("\n## Direction-ORIENTED conditioning (supportive = positive; fixes the pooled-signed-factor wash-out)\n")
+    for key in ("os", "fr", "fp"):
+        L.append(f"\n### by oriented `{key}`\n")
+        rows = []
+        for lab, lo, hi in (("against (<0)", None, 0.0), ("supportive (>=0)", 0.0, None)):
+            sub = [e for e in eps_all if (w := oriented(e, key)) is not None
+                   and (lo is None or w >= lo) and (hi is None or w < hi)]
+            s = stats_row(sub)
+            rows.append([lab, s["n"], fmt(s["win%"], 0), fmt(s["avg_r"]), fmt(s["med_mfe"])])
+        L.append(table(FACTOR_HEADER, rows))
+    L.append("\n### by oriented `q` (PW=price moved with trade pre-entry, PA=against)\n")
+    groups = defaultdict(list)
+    for e in eps_all:
+        groups[oriented_q(e)].append(e)
+    rows = [[k, stats_row(g)["n"], fmt(stats_row(g)["win%"], 0), fmt(stats_row(g)["avg_r"]), fmt(stats_row(g)["med_mfe"])] for k, g in sorted(groups.items())]
+    L.append(table(FACTOR_HEADER, rows))
+```
+
+Test (add to `test_v05_eval.py`):
+
+```python
+def test_oriented_flips_sign_for_longs():
+    from evaluator.report import oriented
+    e = {"dir": "L", "factors": {"os": "-2.0"}}
+    assert oriented(e, "os") == 2.0           # stretched-down long = supportive
+    e2 = {"dir": "S", "factors": {"os": "-2.0"}}
+    assert oriented(e2, "os") == -2.0
+```
+
+- [ ] **Step 4c: Two sensitivity appendices.** (a) rr_min=2.0 counterfactual: render the headline `stats_row` twice — all episodes vs episodes with `fnum(factors, "rt1") >= 2.0` — labeled "book as-is (rr 1.5)" / "book if rr_min were 2.0 (offline counterfactual, no knob change)". (b) skip_overlap sensitivity: walk EVERY ENT independently (`walk_episode` directly, no sequential rule), render the same stats line labeled "all entries walked independently (sequential rule OFF)" with the episode count — shows whether dropping 13/43 candidates shapes the story. (c) PREREG additions: the campaign-2 hypothesis line ("quiet, shallow sweeps revert, violent ones don't — conditional on chop; pre-registered 2026-06-11 BEFORE s0.5.0 data"), the multiple-comparisons line ("~15 tables at n≈30 guarantee chance splits; vz≈p0.1 unadjusted"), and the er-window line ("er>0.45 had zero events in campaign 1 — the violence prior is untested in trends").
+
 - [ ] **Step 5:** `sanity_gate.py`: filename → `s0.5.0_c<new cfg>`; expectations unchanged (the 11 audited entries predate any 1D-gate effect — they were taken entries).
 
 - [ ] **Step 6:** Full suite: `py -m pytest harness/tests/ -v` → all pass. Commit + push.
 
 ---
 
-### Task 4: Re-harvest + diff + volume management
+### Task 4: Re-harvest (DEEP window: Jan 1 → today) + diff + volume management
 
-- [ ] **Step 1:** Refresh bars (4 symbols, `--until` = tomorrow, same commands as the v0.4.6 plan with updated date).
-- [ ] **Step 2:** Per symbol: harvest with `data_get_pine_labels study_filter="Jamal Fable" max_labels=500 verbose=true` (forces disk-save) → copy to `harness/events/raw/<SYM>_s050.json` → parse → align. **Label-budget check FIRST:** if `total_labels` reports exactly 500, the window overflowed — set the emit-window inputs to two chunks (Apr 1–May 15, May 15–tomorrow) via the TV input dialog and harvest each chunk (parse merge is idempotent by dedup key). NOTE: input indices shifted again (5 new knobs) — set emit window via the indicator settings dialog, not positional `in_N`, or recount positions live.
+The window extends to 2026-01-01 (s046 review action: the er>0.45 bucket had ZERO events — trending months must enter the sample). Deep history harvests under the v0.5 cfg in one pass — never harvested twice across cfgs.
+
+- [ ] **Step 1:** Refresh bars per symbol with `--since 2025-12-25 --until <tomorrow>` (since ≥ pivot_right bars before the window start), same `--out` filenames.
+- [ ] **Step 2:** Per symbol, harvest in EMIT-WINDOW CHUNKS (the deep window certainly exceeds 500 labels): set `emit_from`/`emit_to` via the indicator settings dialog (input indices shifted — do NOT trust old `in_N` positions) to successive chunks, e.g. Jan 1–Feb 15, Feb 15–Apr 1, Apr 1–May 15, May 15–tomorrow. For each chunk: `data_get_pine_labels study_filter="Jamal Fable" max_labels=500 verbose=true` (forces disk-save) → copy to `harness/events/raw/<SYM>_s050_<chunk>.json` → parse (merge is idempotent by dedup key) → if any chunk reports exactly 500 labels, split that chunk and re-pull. Then `align_check` on the merged file. Census check: confirm the `er` distribution now has events at er>0.45 (the point of the depth); if Jan–Mar was also chop, note it — the hypothesis stays untested, not failed.
 - [ ] **Step 3:** Emission-diff vs s0.4.6 — extend `compare_emissions.py` with a `--baseline s0.4.6 --target s0.5.0` mode and v0.5 tolerances: (a) `trade=OS` keys are all-new — ignore; (b) an old `SKP` with `rsn=1d` may become `ENT` same bar/trade/dir — count as EXPECTED SWAP, list them; (c) T1 streams may diverge after a previously-blocked ARM (gate-off arms earlier — state evolution legitimately differs) — report T1 deltas as expected-class, but `SYS` and 2B and non-swap 2A must be IDENTICAL. Any 2A/2B/SYS surprise = STOP.
 - [ ] **Step 4:** `coverage_check.py` on s0.5.0 + a quick OS census: events by `lvl_src` × ENT/SKP per symbol (sanity: roll-class volume reasonable, stretch gate doing its scope job; if OS events alone exceed ~150/symbol, note for the os_gate_atr discussion — do NOT retune mid-harvest).
 - [ ] **Step 5:** Commit + push (events, raw, scripts).
