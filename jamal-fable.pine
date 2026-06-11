@@ -1,10 +1,10 @@
 //@version=6
-indicator("Jamal Fable v0.4.3", shorttitle = "JFbl0.4.3", overlay = true,
+indicator("Jamal Fable v0.4.4", shorttitle = "JFbl0.4.4", overlay = true,
      max_labels_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity (spec §9 provenance) ════════════════
 SCHEMA_V = "1"
-SCRIPT_V = "0.4.3"
+SCRIPT_V = "0.4.4"
 
 // ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
 pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
@@ -214,6 +214,9 @@ type T1S
     float pblow = na      // running pullback low (S2; survives SKP)
     float th    = na      // trend high this pullback keyed off (dissolve detector)
     float oi0   = na      // OI snapshot at pullback start (oi_d reference)
+    bool  blk   = false   // blocked-ARM emitted this pullback cycle (v0.4.4: ONE
+                          // ARM|rsn=1d per pullback — unbounded re-emission would
+                          // silently FIFO-evict real events at the 500-label cap)
 
 var T1S t1l = T1S.new()
 
@@ -225,6 +228,7 @@ f_t1_reset(T1S s, bool full) =>
         s.pblow := na
         s.th    := na
         s.oi0   := na
+        s.blk   := false
 
 f_fstr(float x) => na(x) ? "na" : str.tostring(x, "#.########")
 
@@ -256,6 +260,7 @@ type T1SS
     float pbhigh = na     // running pullback high (survives SKP)
     float tl     = na     // trend low this pullback keyed off (dissolve detector)
     float oi0    = na     // OI snapshot at pullback start (oi_d reference)
+    bool  blk    = false  // blocked-ARM emitted this pullback cycle (see T1S.blk)
 
 var T1SS t1s = T1SS.new()
 
@@ -267,6 +272,7 @@ f_t1s_reset(T1SS s, bool full) =>
         s.pbhigh := na
         s.tl     := na
         s.oi0    := na
+        s.blk    := false
 
 f_t1s_tail(T1SS s, float lvl, float stp, float t1px, string rsn, float rt1) =>
     float d_atr = na(s.pbhigh) or na(s.tl) ? na : (s.pbhigh - s.tl) / atr
@@ -290,9 +296,11 @@ f_t1s_tail(T1SS s, float lvl, float stp, float t1px, string rsn, float rt1) =>
 // Sweep conditions (§4, one-bar definition) — evaluated once per bar.
 bool swp_l = barstate.isconfirmed and regime == 1 and not na(hl_ref) and low < hl_ref and close >= hl_ref
 bool swp_s = barstate.isconfirmed and regime == -1 and not na(lh_ref) and high > lh_ref and close <= lh_ref
-// §4 coincidence: the sweep bar ALSO satisfied T1's trigger (captured pre-reset).
-bool t2a_l_coin = swp_l and t1l.armed and not na(t1l.mlh) and close > t1l.mlh
-bool t2a_s_coin = swp_s and t1s.armed and not na(t1s.mhl) and close < t1s.mhl
+// §4 coincidence (v0.4.4): set by T1's OWN handoff branch — consistent with the
+// CXL|handoff event BY CONSTRUCTION (the old pre-capture checked the previous
+// bar's chain and could disagree with a same-bar chain-growth handoff).
+bool t2a_l_coin = false
+bool t2a_s_coin = false
 
 // Wick-size percentiles (decision #2): relevant wick in ATRs, ranked vs own history.
 float wick_lo_atr = (math.min(open, close) - low) / atr
@@ -334,7 +342,8 @@ if barstate.isconfirmed and regime == 1 and not na(hl_ref) and not na(trend_high
                 t1l.armed := true
                 f_emit("T1", "ARM", "L", math.round(time / 1000), close,
                      f_t1_tail(t1l, hl_ref, na, t1l.th, "na", na))
-            else                                    // v0.4: blocked watch is VISIBLE (rsn=1d), not silent
+            else if not t1l.blk                     // v0.4.4: ONE blocked-ARM per pullback cycle
+                t1l.blk := true                     // (unbounded re-emission FIFO-evicts real events)
                 f_emit("T1", "ARM", "L", math.round(time / 1000), close,
                      f_t1_tail(t1l, hl_ref, na, t1l.th, "1d", na))
     // NOTE: the in-regime "close < hl_ref" branch is unreachable — the engine's
@@ -343,6 +352,7 @@ if barstate.isconfirmed and regime == 1 and not na(hl_ref) and not na(trend_high
     if t1l.armed
         if close > t1l.mlh                          // S3 trigger: body close above micro-LH
             if low < hl_ref and close >= hl_ref     // §4 coincidence: SWEEP bar → 2A owns
+                t2a_l_coin := true                  // v0.4.4: t1co mirrors THIS handoff exactly
                 f_emit("T1", "CXL", "L", math.round(time / 1000), close,
                      f_t1_tail(t1l, hl_ref, na, t1l.th, "handoff", na))
                 f_t1_reset(t1l, false)
@@ -387,7 +397,8 @@ if barstate.isconfirmed and regime == -1 and not na(lh_ref) and not na(trend_low
                 t1s.armed := true
                 f_emit("T1", "ARM", "S", math.round(time / 1000), close,
                      f_t1s_tail(t1s, lh_ref, na, t1s.tl, "na", na))
-            else                                    // v0.4: blocked watch is VISIBLE (rsn=1d), not silent
+            else if not t1s.blk                     // v0.4.4: ONE blocked-ARM per pullback cycle
+                t1s.blk := true
                 f_emit("T1", "ARM", "S", math.round(time / 1000), close,
                      f_t1s_tail(t1s, lh_ref, na, t1s.tl, "1d", na))
     // NOTE: in-regime "close > lh_ref" is unreachable (engine flips first);
@@ -395,6 +406,7 @@ if barstate.isconfirmed and regime == -1 and not na(lh_ref) and not na(trend_low
     if t1s.armed
         if close < t1s.mhl                          // S3 mirror trigger
             if high > lh_ref and close <= lh_ref    // §4 coincidence: SWEEP of lh_ref → 2A owns
+                t2a_s_coin := true                  // v0.4.4: t1co mirrors THIS handoff exactly
                 f_emit("T1", "CXL", "S", math.round(time / 1000), close,
                      f_t1s_tail(t1s, lh_ref, na, t1s.tl, "handoff", na))
                 f_t1s_reset(t1s, false)
@@ -422,12 +434,14 @@ if barstate.isconfirmed and regime != -1
 bool t2a_ent_long = false
 bool t2a_ent_short = false
 if swp_l and not na(trend_high)
+    float stp = low - stop_buffer_atr * atr
+    float rt1 = close > stp ? (trend_high - close) / (close - stp) : na
     if reg_1d == -1                                 // decision #1: 1D gate = logged SKP, not silence
+        // v0.4.4: 1d-skips carry FULL snapshot levels — the campaign's pseudo-
+        // episodes must be walkable, or the 1D-gate question returns an empty set.
         f_emit("2A", "SKP", "L", math.round(time / 1000), close,
-             f_t2_tail(hl_ref, na, trend_high, "1d", wkp_lo, t2a_l_coin, na))
+             f_t2_tail(hl_ref, stp, trend_high, "1d", wkp_lo, t2a_l_coin, rt1))
     else
-        float stp = low - stop_buffer_atr * atr
-        float rt1 = close > stp ? (trend_high - close) / (close - stp) : na
         if na(rt1) or rt1 < rr_min
             f_emit("2A", "SKP", "L", math.round(time / 1000), close,
                  f_t2_tail(hl_ref, stp, trend_high, "rr", wkp_lo, t2a_l_coin, rt1))
@@ -437,12 +451,12 @@ if swp_l and not na(trend_high)
             f_mark("2A", "L", close, a_ent)
             t2a_ent_long := true
 if swp_s and not na(trend_low)
+    float stp = high + stop_buffer_atr * atr
+    float rt1 = stp > close ? (close - trend_low) / (stp - close) : na
     if reg_1d == 1
         f_emit("2A", "SKP", "S", math.round(time / 1000), close,
-             f_t2_tail(lh_ref, na, trend_low, "1d", wkp_hi, t2a_s_coin, na))
+             f_t2_tail(lh_ref, stp, trend_low, "1d", wkp_hi, t2a_s_coin, rt1))
     else
-        float stp = high + stop_buffer_atr * atr
-        float rt1 = stp > close ? (close - trend_low) / (stp - close) : na
         if na(rt1) or rt1 < rr_min
             f_emit("2A", "SKP", "S", math.round(time / 1000), close,
                  f_t2_tail(lh_ref, stp, trend_low, "rr", wkp_hi, t2a_s_coin, rt1))
@@ -460,12 +474,12 @@ bool t2b_ent_short = false
 if barstate.isconfirmed and regime == 0 and not na(range_hi) and not na(range_lo)
     float mid = (range_hi + range_lo) / 2.0
     if low < range_lo and close >= range_lo         // §4 SWEEP of the low wall
+        float stp = low - stop_buffer_atr * atr
+        float rt1 = close > stp ? (mid - close) / (close - stp) : na
         if reg_1d == -1
             f_emit("2B", "SKP", "L", math.round(time / 1000), close,
-                 f_t2_tail(range_lo, na, mid, "1d", wkp_lo, false, na))
+                 f_t2_tail(range_lo, stp, mid, "1d", wkp_lo, false, rt1))
         else
-            float stp = low - stop_buffer_atr * atr
-            float rt1 = close > stp ? (mid - close) / (close - stp) : na
             if na(rt1) or rt1 < rr_min               // the R gate IS the width gate (§3/§6B)
                 f_emit("2B", "SKP", "L", math.round(time / 1000), close,
                      f_t2_tail(range_lo, stp, mid, "rr", wkp_lo, false, rt1))
@@ -475,12 +489,12 @@ if barstate.isconfirmed and regime == 0 and not na(range_hi) and not na(range_lo
                 f_mark("2B", "L", close, b_ent)
                 t2b_ent_long := true
     if high > range_hi and close <= range_hi        // §4 SWEEP of the high wall
+        float stp = high + stop_buffer_atr * atr
+        float rt1 = stp > close ? (close - mid) / (stp - close) : na
         if reg_1d == 1
             f_emit("2B", "SKP", "S", math.round(time / 1000), close,
-                 f_t2_tail(range_hi, na, mid, "1d", wkp_hi, false, na))
+                 f_t2_tail(range_hi, stp, mid, "1d", wkp_hi, false, rt1))
         else
-            float stp = high + stop_buffer_atr * atr
-            float rt1 = stp > close ? (close - mid) / (stp - close) : na
             if na(rt1) or rt1 < rr_min
                 f_emit("2B", "SKP", "S", math.round(time / 1000), close,
                      f_t2_tail(range_hi, stp, mid, "rr", wkp_hi, false, rt1))

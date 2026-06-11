@@ -7,7 +7,7 @@
 
 **Architecture:** Pure repo-side work plus harvests. `episodes.py` walks each ENT forward through ccxt bars against its OWN snapshot levels (spec §7 — never reconstructed); `report.py` conditions outcomes on the §8 factors and *reclassifies logged skips as pseudo-episodes* to answer gate questions without touching Pine. Every §10 rule (no-pool, sequential-per-direction, pre-registered annotations) is enforced in code.
 
-**Tech Stack:** Python (existing harness), TradingView MCP for harvests only. **No Pine changes** — the indicator is frozen at v0.4.3 for the whole campaign (provenance hygiene).
+**Tech Stack:** Python (existing harness), TradingView MCP for harvests only. **No Pine changes** — the indicator is frozen at **v0.4.4** for the whole campaign (provenance hygiene; v0.4.4 = the pre-campaign emission fixes from external review: blocked-ARM once-per-pullback, walkable 1d-SKP levels, handoff-consistent t1co).
 
 **Spec:** §7 (snapshot grading), §8 (factors + promotion path), §10 (evaluator rules), §14 (2A-general gate criteria). Pre-registered, NOT findings: depth↔R mechanical correlation; V-shape coverage hole; ambiguous-bar resolution (below).
 
@@ -84,7 +84,7 @@ def test_mfe_computed():
 
 **Files:** Create `harness/evaluator/report.py`; Test `harness/tests/test_report.py` (smoke: synthetic episodes → markdown contains the pre-registered annotations block and a gvb-band table).
 
-- [ ] **Step 1:** Implement: loads all `harness/events/*_s0.4*_*.jsonl` (no-pool enforced: refuses mixed cfg/schema without `--allow-mixed`; script_v 0.4.x pooled EXPLICITLY with a printed note — render-only deltas, factors identical), builds episodes per symbol via `episodes.py` + that symbol's bars CSV, then writes `harness/reports/campaign_<date>.md`:
+- [ ] **Step 1:** Implement: loads **`harness/events/*_s0.4.4_*.jsonl` ONLY** (no-pool enforced: refuses mixed cfg/schema without `--allow-mixed`; **CORRECTION to the original draft:** 0.4.x deltas are NOT all render-only — v0.4.4 changed emission semantics (blocked-ARM dedup, 1d-SKP levels, t1co timing) precisely so the campaign could be answered; since nothing was harvested for the campaign before v0.4.4, the campaign pools nothing across script versions — earlier s0.4.0 probe files are excluded), builds episodes per symbol via `episodes.py` + that symbol's bars CSV, then writes `harness/reports/campaign_<date>.md`:
   - **Headline:** episodes by trade/dir/symbol — count, win% (t1 before stop), avg R, median MFE, ambiguous count, skip_overlap count, open count.
   - **Factor conditioning** (each: count / win% / avg R / median MFE per bucket): `gvb` (<0.3, 0.3–0.7, >0.7), `wkp` (<50, 50–85, >85), `oi_d` sign, `fp` (<25, 25–75, >75), `q`, `t1co`, `d_pct` (<60, 60–100, >100), `age` (<10, 10–50, >50).
   - **Gate questions:** (a) rr reclassification — pseudo-episodes from `SKP rsn=rr` bucketed by their rt1 (1.0–1.25, 1.25–1.5): would they have paid? (b) 1D gate — pseudo-episodes from `SKP rsn=1d` + `ARM rsn=1d` follow-throughs: what did blocking cost/save? (c) thesis-exit counterfactuals: recovered vs stopped ratio.
