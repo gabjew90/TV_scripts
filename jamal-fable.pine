@@ -1,10 +1,10 @@
 //@version=6
-indicator("Jamal Fable v0.4.2", shorttitle = "JFbl0.4.2", overlay = true,
+indicator("Jamal Fable v0.4.3", shorttitle = "JFbl0.4.3", overlay = true,
      max_labels_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity (spec §9 provenance) ════════════════
 SCHEMA_V = "1"
-SCRIPT_V = "0.4.2"
+SCRIPT_V = "0.4.3"
 
 // ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
 pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
@@ -506,6 +506,23 @@ plot(lower_lvl, "Structure: lower", lower_col, 2, plot.style_stepline)
 bgcolor(regime == 1 ? color.new(color.green, 88) : regime == -1 ? color.new(color.red, 88) : na)
 // Entry marks are now f_mark labels (T1/2A/2B tags with hover cards) — the
 // plotshape triangles/diamonds were replaced in v0.4.2.
+
+// ════════════════ Data Window (per-bar inspection; hidden from the chart) ════════════════
+// Crosshair any bar → TV's Data Window panel shows the live state + factors.
+plot(regime,     "DW regime (1=up 0=chop -1=dn)", display = display.data_window)
+plot(regime_age, "DW regime age (bars)",          display = display.data_window)
+plot(reg_1d,     "DW 1D regime",                  display = display.data_window)
+plot(atr,        "DW ATR14",                      display = display.data_window)
+plot(oi,         "DW open interest",              display = display.data_window)
+plot(oi_chg,     "DW OI chg % (bar)",             display = display.data_window)
+plot(prem,       "DW premium",                    display = display.data_window)
+plot(fp,         "DW funding pctile",             display = display.data_window)
+plot(wkp_lo,     "DW wick pctile (lower)",        display = display.data_window)
+plot(wkp_hi,     "DW wick pctile (upper)",        display = display.data_window)
+plot(q_dpx >= 0 ? 1 : -1, "DW quad dPrice sign",  display = display.data_window)
+plot(na(q_doi) ? na : q_doi >= 0 ? 1 : -1, "DW quad dOI sign", display = display.data_window)
+plot(regime == 1 ? f_gvb(hl_ref) : regime == -1 ? f_gvb(lh_ref) : na,
+     "DW giveback vs kill line (ATR)",            display = display.data_window)
 
 var table vt = table.new(position.top_right, 1, 1)
 if barstate.islast
