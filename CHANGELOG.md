@@ -525,3 +525,18 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 - `fr>=0` 59%/+1.30R vs `<0` 40%/+0.39R (crude long/short mix; `fp<25` remains the better-formed funding read).
 - LQ_SPLIT = harvested median 3834.5 — units feed-native, NOT cross-symbol comparable (per-symbol normalization = v2).
 **Status:** v0.4.6 COMPLETE — awaiting user review (campaign decisions + v0.5 unified sweep engine go-ahead).
+
+## Fable v0.5.0 — generalized sweep engine (OS) + 1D gate off + campaign 2
+**Date:** 2026-06-11 · **On-chart:** "Jamal Fable v0.5.0" (`JFbl0.5.0`) · **cfg 209091** · plan `docs/superpowers/plans/2026-06-11-jamal-fable-v0.5.md` · report `harness/reports/campaign_2026-06_s050.md`.
+**Code:** Trade `OS` = stateless sweep-reclaim of a generalized level set (`lvl_src=` piv last-5/pdl/pdh/pwl/pwh via D/W security closed-candle + roll k=20 stretch-gated at 1.5 ATR), deepest-level dedup + `n_lvls`, `align=W/A/N` chips (green/red/gray), `oco=1` on kill-line coincidence, target = entry-snapshotted linreg anchor; `use_1d_gate` knob DEFAULT OFF (user ruling, pre-registered against n=9). Evaluator: thesis-exit v2 (`cf_r`/`rule_delta_r`), 1D ruling-watch cohort, direction-oriented conditioning (os/fr/fp/q), rr-2.0 + skip-overlap sensitivity appendices. 29/29 tests.
+**Verification:** hand-traces 4/4 to the tick from ccxt bars (linreg anchor to 8dp, stretch gate, deepest-dedup, oco co-presence); emission-diff vs s0.4.6 PASS (deltas = OS + 12 gate-swaps + 20 T1 arming-divergences ONLY); sanity gate PASS. **Ops:** NEAR's single-window pull FIFO-evicted 20 early-April labels at the 500 cap — recovered by chunked re-pull; ALWAYS harvest in ≤6-week chunks at v0.5 event density. Transient Binance 451 (geo) mid-session — cleared on retry.
+**Campaign 2 (deep window Jan 1→Jun 11, 3,883 events, 515 ENTs, 258 sequential episodes):**
+- **Headline: the raw expanded book is breakeven** (25% win, 0.00R) — entry expansion found volume, not edge; the selectors are the product. OS raw: ~22% win, −0.1R.
+- **Thesis-exit v2 (n=93): NET −3.67R.** 73/93 exits saved a stop (+), but the 19 recoveries forfeited large +rt1 each. Per-trade: 2B +3.43 KEEP, T1 +0.36 KEEP, 2A −2.68, **OS −4.78 — the third exit HURTS the new trade**; v0.6 question: drop thesis-exit for OS (its lvl is a swept level, not a regime line).
+- **1D ruling-watch: ~no cost so far** (blocked 23%/−0.06R vs passed 26%/+0.02R, n=60/198). Scoreboard standing.
+- **Campaign-2 hypothesis SUPPORTED directionally on 10× the data:** er>0.45 (trends) 15%/−0.34R vs chop 29%/+0.12R — sweep-reclaims are a CHOP tool; vz<0 31%/+0.19 vs vz 0–1.5 20%/−0.15; wkp<50 50%/+1.11 vs >85 15%/−0.26. Quiet, shallow, in-chop survives; violent/trending fails.
+- **OS reads:** align=W 40%/+0.14 vs A 20%/−0.23 (the against-regime fade still loses — Phase-1's ghost, now with n); lvl_src: pdl best (32%/+0.18), roll worst; **OS rt1>3 INVERTED (8%/−0.42)** vs 2A rt1>3 (57%/+2.07) — far linreg targets don't get hit, exactly the pre-registered mechanical-correlation warning.
+- **Oriented conditioning resurrected funding** (supportive fp 38%/+0.52 vs against 19%/−0.16) and exposed `PA.OD` (price-against + OI-down washout) 44%/+1.01.
+- rr sensitivity: rr 2.0 would WORSEN the book (−0.07R) — 1.5 stays. skip-overlap sensitivity: independent 29%/+0.12 vs sequential 25%/0.00 (mild shaping, noted).
+- KNOWN ARTIFACT (fix in v0.6 report): the rr-gate pseudo table's `rt1=na` row (757 anchor-wrong-side OS skips) grades meaninglessly (target already passed at entry) — exclude from that table.
+**Status:** v0.5.0 COMPLETE — awaiting user review (v0.6 directions: OS selector study (W-align + chop + quiet + pdl), OS thesis-exit reconsideration, per-symbol lq normalization).
