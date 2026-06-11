@@ -21,7 +21,9 @@ from evaluator.episodes import build_episodes, walk_episode
 
 HARNESS = Path(__file__).resolve().parents[1]
 EVENT_GLOB = "*_s0.4.6_*.jsonl"
-LQ_SPLIT = 1.0   # lq_tot inner-band edge — placeholder; set to the harvested median after first render
+LQ_SPLIT = 3834.5  # lq_tot inner-band edge = harvested median over sweep ENTs (n=32).
+                   # CAVEAT: lq units are feed-native and NOT comparable across symbols —
+                   # a global split is a coarse v1; per-symbol normalization is the v2 fix.
 BARS_MAP = {
     "BTCUSDT.P": "binanceusdm_BTCUSDT_4h.csv",
     "ETHUSDT.P": "binanceusdm_ETHUSDT_4h.csv",

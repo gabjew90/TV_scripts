@@ -509,3 +509,19 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 - 7 new Data Window plots (os/er/vz/dlt/fr/lqb/lqs).
 **Tests run:** pine_smart_compile clean (after the two expected fixes: requestVolumeDelta namespace; ta.sma extracted from ternary); study removed+re-added; version cell v0.4.6/cfg 553046; `data_get_study_values` on NEAR 4H shows ALL new DW values non-na (OI 41.79M, fr 0.010%, lqb 3, lqs 588, dlt −4.89M, vz −1.92, er 0.103, os +1.19).
 **Status:** Pine live; feed cross-checks, harness report v0.4.6, basket re-harvest + emission-diff next.
+
+## Fable v0.4.6 close-out — re-harvest, emission proof, report
+**Date:** 2026-06-11 · **Report:** `harness/reports/campaign_2026-06_s046.md`.
+**Feed verification:** library OI vs ccxt — BTC 102,767.6 vs 102,762.1 (0.005%), NEAR 41.79M vs 41.81M (0.05%); funding sign agreement both (chart fr is in PERCENT; ccxt decimal).
+**Harvests:** BTC 235 + ETH 189 + SOL 238 + NEAR 215 = 877 events, all aligned, s0.4.6/cfg 553046 only.
+**Emission-only PROOF (compare_emissions.py):** all 871 events shared with s0.4.5 are bit-identical on every pre-existing key — including `oi_d`/`q`, meaning the Request-library OI series matches the old `_OI` ticker exactly on every event bar. One false positive (NEAR PIV at 1781121600) traced to PIV backdating (§9: bar_ts = pivot bar, emission = +3 bars) — horizon rule fixed, PASS 4/4.
+**Coverage (coverage_check.py):** fr/lqb/lqs/dlt **0% na back through April** — full-window history for funding, liquidations AND 60m CVD. swd/age_t na on T1 rows is structural (t2-only keys).
+**Sanity gate:** PASS — the 11 v0.3-audited entries grade identically from s0.4.6 data.
+**Report:** headline unchanged (n=30, 52%, +0.96R — regression-clean). New factor reads (ALL small-n):
+- **`vz<0` (quiet entry bars): 77% win / +1.86R vs `vz` 0–1.5: 27% / +0.03R** — the standout; rhymes with the wkp-inverted finding (quiet sweeps beat violent ones).
+- **`lq_tot` low within swd<0.3: 62% / +1.51R vs lq high: 45% / +0.89R** — same quiet-beats-loud shape in liquidation space.
+- **Per-trade `rt1` (critique #5 answered): the >3 row is ENTIRELY Trade-#2 family** (2A 3/3 +3.94R, 2B 2/2 +3.69R; T1 never produces rt1>3). The "high projected R" selector is a 2A/2B property.
+- `osp` FLAT (55/45/60%) — the OS stretch thesis's free first read on existing trades: neither confirmed nor refuted. `os` signed: stretched-down slightly best, but signed-os-vs-trade-direction conditioning is the v2 refinement.
+- `fr>=0` 59%/+1.30R vs `<0` 40%/+0.39R (crude long/short mix; `fp<25` remains the better-formed funding read).
+- LQ_SPLIT = harvested median 3834.5 — units feed-native, NOT cross-symbol comparable (per-symbol normalization = v2).
+**Status:** v0.4.6 COMPLETE — awaiting user review (campaign decisions + v0.5 unified sweep engine go-ahead).
