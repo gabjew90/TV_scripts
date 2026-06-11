@@ -1,10 +1,10 @@
 //@version=6
-indicator("Jamal Fable v0.4.4", shorttitle = "JFbl0.4.4", overlay = true,
+indicator("Jamal Fable v0.4.5", shorttitle = "JFbl0.4.5", overlay = true,
      max_labels_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity (spec §9 provenance) ════════════════
 SCHEMA_V = "1"
-SCRIPT_V = "0.4.4"
+SCRIPT_V = "0.4.5"
 
 // ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
 pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
@@ -71,7 +71,9 @@ f_reg_str(int r) => r == 1 ? "U" : r == -1 ? "D" : "C"
 // full event card. Entries are rare → no overlap. Everything else (ARM/SKP/
 // CXL/SYS) lives only in the invisible transport layer + the harvest.
 f_mark(string trade, string dir, float px, string tail) =>
-    if barstate.isconfirmed
+    if in_window and barstate.isconfirmed   // v0.4.5: chips share the emit window —
+                                            // all-history chips were eating the label
+                                            // budget (265 on BTC) at the eviction cliff
         string card = trade + (dir == "L" ? " LONG @ " : " SHORT @ ")
              + str.tostring(px, "#.########") + "\n" + str.replace_all(tail, "|", "\n")
         if dir == "L"

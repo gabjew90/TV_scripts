@@ -1,6 +1,6 @@
 """Campaign report generator (campaign plan Task 2).
 
-Loads s0.4.4 event JSONLs ONLY (no-pool: single settings_hash+schema set
+Loads s0.4.5 event JSONLs ONLY (no-pool: single settings_hash+schema set
 unless --allow-mixed), builds sequential episodes per symbol from that
 symbol's bars CSV, walks pseudo-episodes (SKP rsn=rr|1d) INDIVIDUALLY
 (counterfactual questions need independence, not portfolio sequencing),
@@ -46,7 +46,7 @@ def load_bars(path):
 
 
 def load_events(allow_mixed=False):
-    files = sorted(glob.glob(str(HARNESS / "events" / "*_s0.4.4_*.jsonl")))
+    files = sorted(glob.glob(str(HARNESS / "events" / "*_s0.4.5_*.jsonl")))
     by_symbol = defaultdict(list)
     provenance = set()
     for f in files:
@@ -134,7 +134,7 @@ def render_report(eps_all, pseudo_all, overlap_counts, file_list):
     L = []
     L.append(f"# Jamal Fable — Backfill Campaign Report ({datetime.now(timezone.utc).strftime('%Y-%m-%d')})\n")
     L.append(PREREG)
-    L.append(f"\nSources ({len(file_list)} provenance files, s0.4.4 only):\n" +
+    L.append(f"\nSources ({len(file_list)} provenance files, s0.4.5 only):\n" +
              "\n".join(f"- {Path(f).name}" for f in file_list) + "\n")
 
     # ── Headline ──
