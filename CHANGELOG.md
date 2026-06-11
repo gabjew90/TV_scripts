@@ -485,3 +485,16 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 3. **`t1co` could disagree with the handoff:** the pre-captured coincidence checked the PREVIOUS bar's chain; T1's handoff checks after same-bar chain growth (engulfing lower-low bars diverge). Fix: `t1co` is now set by T1's own handoff branch — consistent with `CXL|handoff` by construction.
 4. **(Backlogged, pre-Stage-2 gate):** `barstate.isconfirmed` semantics inside the `request.security` 1D engine copy are unverified for LIVE bars (TV's documented behavior is counterintuitive; a developing daily close could corrupt the D-copy's `var` state). Backfill immune. Robust pattern noted: gate D-copy mutations on `ta.change(time("D"))`. Spec §14 updated.
 **Also recorded:** engine detail #8 (spec §3) — T1's chain grows and can trigger in the SAME bar pass; Python parity must replicate. Campaign plan corrected: harvests pool s0.4.4 ONLY (the "0.4.x render-only" claim was wrong as of this version).
+
+## Fable v0.4.5 + BACKFILL CAMPAIGN — the first judgment pass
+**Date:** 2026-06-10/11 · **Report:** `harness/reports/campaign_2026-06.md`.
+**v0.4.5 (found AT harvest time):** entry chips weren't window-gated — ALL-HISTORY chips (265 on BTC) filled the label budget to exactly 500, one label from evicting in-window events. One-line fix (`in_window` on f_mark); freeze moved to s0.4.5. Also discovered: oversized MCP results auto-save to disk → harvest transport now costs ~zero context (copy file → parse), and clipboard-paste (Set-Clipboard → Ctrl+A/V in the editor) replaces full-source resends.
+**Harvests:** BTC 235/235, ETH 187/187, SOL 235/235, NEAR 214/214 aligned (871 events, 4 symbols, Apr 1→Jun 11, s0.4.5 only).
+**Evaluator:** episodes.py (8 tests) + report.py (smoke) + sanity_gate.py. **Gate initially FAILED 2/11** — and the investigation VALIDATED the walker: the two disagreements were §7 thesis-exits (bar closed back through the kill line before target) that the cruder v0.3 stop-vs-target audit couldn't see; both graded `cf=recovered`, exactly matching the v0.3 eventual-target observation. Gate criterion corrected to spec-equivalence → PASS.
+**Headline (n=30 episodes, 27 closed — SMALL SAMPLE, directional reads only):** win 52%, avg +0.96R, med MFE 1.42R. April 64%/+1.28R; May 38%/+0.63R; June 3 open. skip_overlap collapsed 12 clustered entries.
+**Gate questions answered from logged skips (the architecture's payoff):**
+- (a) **rr gate KEEP at 1.5**: pseudo-episodes below the gate earn ≤+0.44R avg (1.25–1.5 band: 55%/+0.44R; <1.0: ~zero/negative) vs +0.96R for taken entries — lowering dilutes.
+- (b) **1D gate KEEP**: blocked sweeps graded 33% win / −0.25R as-if-taken — the gate is net-saving (incl. the NEAR Jun-3 monster it missed; the class still loses).
+- (c) thesis-exit counterfactuals 2 recovered / 2 stopped — no evidence against §7.
+**Factor reads (small-n):** `rt1>3` 5/5 wins +3.84R (high-R setups carried the book); `fp<25` 80%/+1.91R (washed-out premium); **`wkp` INVERTED vs intuition** — modest wicks (<50pct) 75% beat violent flushes (>85pct, 40%); `gvb` INCONCLUSIVE (the eye-test factor shows no clean edge yet); `reg1d` aligned-with-trend 4/4 (n=4).
+**Status:** report committed — **awaiting user review** (the decisions: rr gate, 1D gate, gvb, v0.5 2A-general selectors).
