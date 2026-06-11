@@ -498,3 +498,14 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 - (c) thesis-exit counterfactuals 2 recovered / 2 stopped — no evidence against §7.
 **Factor reads (small-n):** `rt1>3` 5/5 wins +3.84R (high-R setups carried the book); `fp<25` 80%/+1.91R (washed-out premium); **`wkp` INVERTED vs intuition** — modest wicks (<50pct) 75% beat violent flushes (>85pct, 40%); `gvb` INCONCLUSIVE (the eye-test factor shows no clean edge yet); `reg1d` aligned-with-trend 4/4 (n=4).
 **Status:** report committed — **awaiting user review** (the decisions: rr gate, 1D gate, gvb, v0.5 2A-general selectors).
+
+## Fable v0.4.6 — covariate emission release (Request-library migration)
+**Date:** 2026-06-11 · **On-chart:** "Jamal Fable v0.4.6" (`JFbl0.4.6`) · **cfg 553046** (was 509208 — 4 new hashed knobs) · plan `docs/superpowers/plans/2026-06-11-jamal-fable-v0.4.6.md`.
+**Code changes (EMISSION-ONLY — zero signal-logic edits, to be proven by emission-diff vs s0.4.5):**
+- **Derivative data migrated to official libraries** (user-corrected: these were never raw-ticker-only): `import TradingView/Request/3 as r` — OI via `r.openInterestCrypto()` (5-tuple, never nz raw OI), funding via `r.cryptoDerivativeMetric("Funding Rate")`, liquidations via `"Liquidations Buy"` (= SHORTS force-closed) / `"Liquidations Sell"` (= LONGS force-closed). The `_OI` security feed AND the OI-override `input.symbol` (garbage-value study-kill hazard) are DELETED. `_PREMIUM`-based `fp` retained alongside the new actual `fr`.
+- **CVD:** `import TradingView/ta/9 as tvta` → `tvta.requestVolumeDelta("60")`, bar delta = last−open. (Plan's `ta.requestVolumeDelta` doesn't exist as a built-in — compile-gated fallback to the ta library worked first try.)
+- **New covariates, all logged never gate:** `os` (signed linreg-anchored ATR-normalized overshoot; anchor on `[1]` so the signal bar can't drag the fit) + `osp` (percentrank of |os|), `er` (Kaufman), `vz` (volume z-score), `dlt` (60m CVD bar delta), `swd` (sweep penetration in ATR, t2 tails only), `age_t` (bars since swept level set, via `ta.barssince(lvl != lvl[1])`), `fr`, `lqb`, `lqs`. Appended in fixed order via shared `f_cov_tail()`; `f_t2_tail` gains `(swd, aget)` params across all 12 call sites.
+- New hashed knobs: `os_linreg_window=50`, `os_pctile_window=200`, `er_window=20`, `vz_window=100`. Renamed `f_reg_str`/`f_engine_reg` locals `r`→`rg` (library-alias collision).
+- 7 new Data Window plots (os/er/vz/dlt/fr/lqb/lqs).
+**Tests run:** pine_smart_compile clean (after the two expected fixes: requestVolumeDelta namespace; ta.sma extracted from ternary); study removed+re-added; version cell v0.4.6/cfg 553046; `data_get_study_values` on NEAR 4H shows ALL new DW values non-na (OI 41.79M, fr 0.010%, lqb 3, lqs 588, dlt −4.89M, vz −1.92, er 0.103, os +1.19).
+**Status:** Pine live; feed cross-checks, harness report v0.4.6, basket re-harvest + emission-diff next.

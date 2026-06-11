@@ -1,10 +1,12 @@
 //@version=6
-indicator("Jamal Fable v0.4.5", shorttitle = "JFbl0.4.5", overlay = true,
+indicator("Jamal Fable v0.4.6", shorttitle = "JFbl0.4.6", overlay = true,
      max_labels_count = 500, max_lines_count = 500)
+import TradingView/Request/3 as r
+import TradingView/ta/9 as tvta
 
 // ════════════════ Identity (spec §9 provenance) ════════════════
 SCHEMA_V = "1"
-SCRIPT_V = "0.4.5"
+SCRIPT_V = "0.4.6"
 
 // ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
 pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
@@ -15,6 +17,10 @@ rr_min                = input.float(1.5, "Min R to T1 (skip gate)", step = 0.1)
 quadrant_window       = input.int(14,   "Quadrant window")
 funding_pctile_window = input.int(200,  "Funding pctile window")
 wick_pctile_window    = input.int(200,  "Wick pctile window")
+os_linreg_window      = input.int(50,   "Overshoot linreg window",  minval = 5)
+os_pctile_window      = input.int(200,  "Overshoot pctile window")
+er_window             = input.int(20,   "Efficiency ratio window",  minval = 2)
+vz_window             = input.int(100,  "Volume z-score window",    minval = 10)
 
 // Transport-layer inputs — EXCLUDED from settings_hash (they chunk the label
 // budget; they change which events are emitted, never what an event means).
@@ -41,6 +47,10 @@ if barstate.isfirst
     h := f_mix(h, quadrant_window)
     h := f_mix(h, funding_pctile_window)
     h := f_mix(h, wick_pctile_window)
+    h := f_mix(h, os_linreg_window)
+    h := f_mix(h, os_pctile_window)
+    h := f_mix(h, er_window)
+    h := f_mix(h, vz_window)
     cfg_i := h
 
 // ════════════════ ATR (SMA of TR — cross-language reproducible) ════════════════
@@ -64,7 +74,9 @@ f_emit(string trade, string event, string dir, int ts_sec, float px, string tail
              textcolor = color.new(color.black, show_labels ? 30 : 100),
              size = size.tiny, tooltip = str.replace_all(txt, "|", "\n"))
 
-f_reg_str(int r) => r == 1 ? "U" : r == -1 ? "D" : "C"
+f_reg_str(int rg) => rg == 1 ? "U" : rg == -1 ? "D" : "C"
+
+f_fstr(float x) => na(x) ? "na" : str.tostring(x, "#.########")
 
 // ════════════════ Human entry marks (the readable layer) ════════════════
 // Every ENTRY gets a small colored tag (T1/2A/2B) whose hover-tooltip is the
@@ -162,17 +174,22 @@ f_engine() =>
 // [1] + lookahead_on = the classic non-repaint HTF pattern: always the last
 // CLOSED D bar's regime. The security call gets its OWN f_engine state copy.
 f_engine_reg() =>
-    [r, _a, _hl, _lh, _th, _tl, _rh, _rl, _bl, _pn, _pv, _qn, _qv, _rc] = f_engine()
-    r
+    [rg, _a, _hl, _lh, _th, _tl, _rh, _rl, _bl, _pn, _pv, _qn, _qv, _rc] = f_engine()
+    rg
 
 int reg_1d = request.security(syminfo.tickerid, "D", f_engine_reg()[1],
      lookahead = barmerge.lookahead_on)
 
-// ════════════════ Derivatives + price-context factors (spec §8; all logged, none gate) ════════════════
-// Data-plumbing input — EXCLUDED from settings_hash (selects a feed, not semantics).
-oi_symbol_in = input.symbol("", "OI symbol override (blank = auto <ticker>_OI)")
-string oi_tkr = oi_symbol_in != "" ? oi_symbol_in : syminfo.prefix + ":" + syminfo.ticker + "_OI"
-float oi = request.security(oi_tkr, timeframe.period, close, ignore_invalid_symbol = true)
+// ════════════════ Derivatives via official TradingView/Request library (v0.4.6) ════════════════
+// Perpetuals only — spot symbols return na everywhere; let na propagate.
+// NEVER nz() raw OI: nz(oi[1]) fabricates a 0 prior → spurious giant bar-1 delta.
+// (Replaces the raw <ticker>_OI security feed AND deletes the OI-override
+// input.symbol — whose garbage-value study-kill hazard goes with it.)
+[_oo, _oh, _ol, oi_close, _orising] = r.openInterestCrypto(symbol = syminfo.tickerid, timeframe = timeframe.period)
+float oi = oi_close
+float fr  = r.cryptoDerivativeMetric(metricName = "Funding Rate",      symbol = syminfo.tickerid, timeframe = timeframe.period)
+float lqb = r.cryptoDerivativeMetric(metricName = "Liquidations Buy",  symbol = syminfo.tickerid, timeframe = timeframe.period)  // SHORTS force-closed
+float lqs = r.cryptoDerivativeMetric(metricName = "Liquidations Sell", symbol = syminfo.tickerid, timeframe = timeframe.period)  // LONGS force-closed
 
 // Funding proxy: Binance _PREMIUM derivative-metrics feed when available (the
 // premium index that drives funding); else perp-vs-spot premium. Units don't
@@ -196,6 +213,45 @@ string oi_t_dir = na(oi_chg) ? "na" : oi_chg >= 0 ? "up" : "dn"
 
 f_oi_d_from(float oi0) => na(oi) or na(oi0) or oi0 == 0 ? na : 100.0 * (oi - oi0) / oi0
 f_gvb(float lvl) => na(lvl) or na(atr) or atr == 0 ? na : math.abs(close - lvl) / atr
+
+// ════════════════ v0.4.6 covariates (spec §8; logged, never gate) ════════════════
+// Overshoot: linreg anchor on [1] so the signal bar never drags the fit.
+// os is SIGNED (above/below anchor); osp ranks |os| (stretch magnitude).
+float lr_anchor = ta.linreg(close, os_linreg_window, 0)[1]
+float os_raw  = na(lr_anchor) or na(atr) or atr == 0 ? na : (close - lr_anchor) / atr
+float os_rank = ta.percentrank(math.abs(os_raw), os_pctile_window)   // unconditional (consistency)
+
+// Kaufman efficiency ratio
+float er_num = math.abs(close - close[er_window])
+float er_den = math.sum(math.abs(close - close[1]), er_window)
+float er = na(er_den) or er_den == 0 ? na : er_num / er_den
+
+// Volume z-score on the signal bar
+float v_std  = ta.stdev(volume, vz_window)
+float v_mean = ta.sma(volume, vz_window)
+float vz = na(v_std) or v_std == 0 ? na : (volume - v_mean) / v_std
+
+// CVD: this bar's net volume delta from 60-min intrabars (na where unavailable).
+[dlt_o, dlt_max, dlt_min, dlt_c] = tvta.requestVolumeDelta("60")
+float dlt = na(dlt_c) or na(dlt_o) ? na : dlt_c - dlt_o
+
+// Level ages (bars since each structural level last changed) — na-safe: an
+// na != na comparison is na → false inside barssince, yielding na early-history.
+int age_hl  = ta.barssince(hl_ref   != hl_ref[1])
+int age_lh  = ta.barssince(lh_ref   != lh_ref[1])
+int age_rlo = ta.barssince(range_lo != range_lo[1])
+int age_rhi = ta.barssince(range_hi != range_hi[1])
+
+// Shared covariate tail suffix — appended to EVERY trade tail (fixed key order:
+// os|osp|er|vz|dlt|fr|lqb|lqs). Append-only per §9 schema discipline.
+f_cov_tail() =>
+    "os=" + (na(os_raw) ? "na" : str.tostring(os_raw, "#.##"))
+     + "|osp=" + (na(os_raw) or na(os_rank) ? "na" : str.tostring(os_rank, "#.#"))
+     + "|er=" + (na(er) ? "na" : str.tostring(er, "#.##"))
+     + "|vz=" + (na(vz) ? "na" : str.tostring(vz, "#.##"))
+     + "|dlt=" + f_fstr(dlt)
+     + "|fr=" + (na(fr) ? "na" : str.tostring(fr, "#.######"))
+     + "|lqb=" + f_fstr(lqb) + "|lqs=" + f_fstr(lqs)
 
 // ════════════════ Emission ════════════════
 if ph_new
@@ -232,9 +288,7 @@ f_t1_reset(T1S s, bool full) =>
         s.oi0   := na
         s.blk   := false
 
-f_fstr(float x) => na(x) ? "na" : str.tostring(x, "#.########")
-
-// fixed tail key order (schema stability): lvl|stop|t1|rsn|reg|reg1d|age|d_atr|d_pct|bz|mlh|rt1
+// fixed tail key order (schema stability): lvl|stop|t1|rsn|reg|reg1d|age|d_atr|d_pct|bz|mlh|rt1|oi_d|oi_t|q|fp|gvb|<cov>
 f_t1_tail(T1S s, float lvl, float stp, float t1px, string rsn, float rt1) =>
     float d_atr = na(s.pblow) or na(s.th) ? na : (s.th - s.pblow) / atr
     float d_pct = na(s.pblow) or na(s.th) or na(lvl) or s.th == lvl ? na :
@@ -252,6 +306,7 @@ f_t1_tail(T1S s, float lvl, float stp, float t1px, string rsn, float rt1) =>
      + "|oi_d=" + (na(od) ? "na" : str.tostring(od, "#.##")) + "|oi_t=" + oi_t_dir
      + "|q=" + quad + "|fp=" + (na(fp) ? "na" : str.tostring(fp, "#.#"))
      + "|gvb=" + (na(g) ? "na" : str.tostring(g, "#.##"))
+     + "|" + f_cov_tail()
 
 // (T1 short-side declarations hoisted here — the Trade #2 coincidence captures
 // below must read BOTH t1l and t1s state before either detector resets it.)
@@ -293,6 +348,7 @@ f_t1s_tail(T1SS s, float lvl, float stp, float t1px, string rsn, float rt1) =>
      + "|oi_d=" + (na(od) ? "na" : str.tostring(od, "#.##")) + "|oi_t=" + oi_t_dir
      + "|q=" + quad + "|fp=" + (na(fp) ? "na" : str.tostring(fp, "#.#"))
      + "|gvb=" + (na(g) ? "na" : str.tostring(g, "#.##"))
+     + "|" + f_cov_tail()
 
 // ════════════════ Trade #2 shared (spec §6) ════════════════
 // Sweep conditions (§4, one-bar definition) — evaluated once per bar.
@@ -310,8 +366,8 @@ float wick_hi_atr = (high - math.max(open, close)) / atr
 float wkp_lo = ta.percentrank(wick_lo_atr, wick_pctile_window)
 float wkp_hi = ta.percentrank(wick_hi_atr, wick_pctile_window)
 
-// fixed tail key order: lvl|stop|t1|rsn|reg|reg1d|age|wkp|t1co|rt1
-f_t2_tail(float lvl, float stp, float t1px, string rsn, float wkp, bool t1co, float rt1) =>
+// fixed tail key order: lvl|stop|t1|rsn|reg|reg1d|age|wkp|t1co|rt1|oi_d|q|fp|gvb|swd|age_t|<cov>
+f_t2_tail(float lvl, float stp, float t1px, string rsn, float wkp, bool t1co, float rt1, float swd, int aget) =>
     float g = f_gvb(lvl)
     "lvl=" + f_fstr(lvl) + "|stop=" + f_fstr(stp) + "|t1=" + f_fstr(t1px) + "|rsn=" + rsn
      + "|reg=" + f_reg_str(regime) + "|reg1d=" + f_reg_str(reg_1d)
@@ -322,6 +378,9 @@ f_t2_tail(float lvl, float stp, float t1px, string rsn, float wkp, bool t1co, fl
      + "|oi_d=" + (na(oi_chg) ? "na" : str.tostring(oi_chg, "#.##"))
      + "|q=" + quad + "|fp=" + (na(fp) ? "na" : str.tostring(fp, "#.#"))
      + "|gvb=" + (na(g) ? "na" : str.tostring(g, "#.##"))
+     + "|swd=" + (na(swd) ? "na" : str.tostring(swd, "#.##"))
+     + "|age_t=" + (na(aget) ? "na" : str.tostring(aget))
+     + "|" + f_cov_tail()
 
 bool t1l_ent_mark = false
 if barstate.isconfirmed and regime == 1 and not na(hl_ref) and not na(trend_high)
@@ -442,13 +501,13 @@ if swp_l and not na(trend_high)
         // v0.4.4: 1d-skips carry FULL snapshot levels — the campaign's pseudo-
         // episodes must be walkable, or the 1D-gate question returns an empty set.
         f_emit("2A", "SKP", "L", math.round(time / 1000), close,
-             f_t2_tail(hl_ref, stp, trend_high, "1d", wkp_lo, t2a_l_coin, rt1))
+             f_t2_tail(hl_ref, stp, trend_high, "1d", wkp_lo, t2a_l_coin, rt1, (hl_ref - low) / atr, age_hl))
     else
         if na(rt1) or rt1 < rr_min
             f_emit("2A", "SKP", "L", math.round(time / 1000), close,
-                 f_t2_tail(hl_ref, stp, trend_high, "rr", wkp_lo, t2a_l_coin, rt1))
+                 f_t2_tail(hl_ref, stp, trend_high, "rr", wkp_lo, t2a_l_coin, rt1, (hl_ref - low) / atr, age_hl))
         else
-            string a_ent = f_t2_tail(hl_ref, stp, trend_high, "na", wkp_lo, t2a_l_coin, rt1)
+            string a_ent = f_t2_tail(hl_ref, stp, trend_high, "na", wkp_lo, t2a_l_coin, rt1, (hl_ref - low) / atr, age_hl)
             f_emit("2A", "ENT", "L", math.round(time / 1000), close, a_ent)
             f_mark("2A", "L", close, a_ent)
             t2a_ent_long := true
@@ -457,13 +516,13 @@ if swp_s and not na(trend_low)
     float rt1 = stp > close ? (close - trend_low) / (stp - close) : na
     if reg_1d == 1
         f_emit("2A", "SKP", "S", math.round(time / 1000), close,
-             f_t2_tail(lh_ref, stp, trend_low, "1d", wkp_hi, t2a_s_coin, rt1))
+             f_t2_tail(lh_ref, stp, trend_low, "1d", wkp_hi, t2a_s_coin, rt1, (high - lh_ref) / atr, age_lh))
     else
         if na(rt1) or rt1 < rr_min
             f_emit("2A", "SKP", "S", math.round(time / 1000), close,
-                 f_t2_tail(lh_ref, stp, trend_low, "rr", wkp_hi, t2a_s_coin, rt1))
+                 f_t2_tail(lh_ref, stp, trend_low, "rr", wkp_hi, t2a_s_coin, rt1, (high - lh_ref) / atr, age_lh))
         else
-            string a_ent_s = f_t2_tail(lh_ref, stp, trend_low, "na", wkp_hi, t2a_s_coin, rt1)
+            string a_ent_s = f_t2_tail(lh_ref, stp, trend_low, "na", wkp_hi, t2a_s_coin, rt1, (high - lh_ref) / atr, age_lh)
             f_emit("2A", "ENT", "S", math.round(time / 1000), close, a_ent_s)
             f_mark("2A", "S", close, a_ent_s)
             t2a_ent_short := true
@@ -480,13 +539,13 @@ if barstate.isconfirmed and regime == 0 and not na(range_hi) and not na(range_lo
         float rt1 = close > stp ? (mid - close) / (close - stp) : na
         if reg_1d == -1
             f_emit("2B", "SKP", "L", math.round(time / 1000), close,
-                 f_t2_tail(range_lo, stp, mid, "1d", wkp_lo, false, rt1))
+                 f_t2_tail(range_lo, stp, mid, "1d", wkp_lo, false, rt1, (range_lo - low) / atr, age_rlo))
         else
             if na(rt1) or rt1 < rr_min               // the R gate IS the width gate (§3/§6B)
                 f_emit("2B", "SKP", "L", math.round(time / 1000), close,
-                     f_t2_tail(range_lo, stp, mid, "rr", wkp_lo, false, rt1))
+                     f_t2_tail(range_lo, stp, mid, "rr", wkp_lo, false, rt1, (range_lo - low) / atr, age_rlo))
             else
-                string b_ent = f_t2_tail(range_lo, stp, mid, "na", wkp_lo, false, rt1)
+                string b_ent = f_t2_tail(range_lo, stp, mid, "na", wkp_lo, false, rt1, (range_lo - low) / atr, age_rlo)
                 f_emit("2B", "ENT", "L", math.round(time / 1000), close, b_ent)
                 f_mark("2B", "L", close, b_ent)
                 t2b_ent_long := true
@@ -495,13 +554,13 @@ if barstate.isconfirmed and regime == 0 and not na(range_hi) and not na(range_lo
         float rt1 = stp > close ? (close - mid) / (stp - close) : na
         if reg_1d == 1
             f_emit("2B", "SKP", "S", math.round(time / 1000), close,
-                 f_t2_tail(range_hi, stp, mid, "1d", wkp_hi, false, rt1))
+                 f_t2_tail(range_hi, stp, mid, "1d", wkp_hi, false, rt1, (high - range_hi) / atr, age_rhi))
         else
             if na(rt1) or rt1 < rr_min
                 f_emit("2B", "SKP", "S", math.round(time / 1000), close,
-                     f_t2_tail(range_hi, stp, mid, "rr", wkp_hi, false, rt1))
+                     f_t2_tail(range_hi, stp, mid, "rr", wkp_hi, false, rt1, (high - range_hi) / atr, age_rhi))
             else
-                string b_ent_s = f_t2_tail(range_hi, stp, mid, "na", wkp_hi, false, rt1)
+                string b_ent_s = f_t2_tail(range_hi, stp, mid, "na", wkp_hi, false, rt1, (high - range_hi) / atr, age_rhi)
                 f_emit("2B", "ENT", "S", math.round(time / 1000), close, b_ent_s)
                 f_mark("2B", "S", close, b_ent_s)
                 t2b_ent_short := true
@@ -539,6 +598,13 @@ plot(q_dpx >= 0 ? 1 : -1, "DW quad dPrice sign",  display = display.data_window)
 plot(na(q_doi) ? na : q_doi >= 0 ? 1 : -1, "DW quad dOI sign", display = display.data_window)
 plot(regime == 1 ? f_gvb(hl_ref) : regime == -1 ? f_gvb(lh_ref) : na,
      "DW giveback vs kill line (ATR)",            display = display.data_window)
+plot(os_raw, "DW overshoot (ATR, signed)",  display = display.data_window)
+plot(er,     "DW efficiency ratio",          display = display.data_window)
+plot(vz,     "DW volume z-score",            display = display.data_window)
+plot(dlt,    "DW volume delta (60m CVD)",    display = display.data_window)
+plot(fr,     "DW funding rate",              display = display.data_window)
+plot(lqb,    "DW liq buy (shorts closed)",   display = display.data_window)
+plot(lqs,    "DW liq sell (longs closed)",   display = display.data_window)
 
 var table vt = table.new(position.top_right, 1, 1)
 if barstate.islast
