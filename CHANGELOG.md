@@ -545,3 +545,14 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Date:** 2026-06-12 · **On-chart:** "Jamal Fable v0.6.0" (`JFbl0.6.0`) · **cfg 935851** · plan `docs/superpowers/plans/2026-06-11-jamal-fable-v0.6.md` (scope-override header).
 **USER DESCOPE at plan review:** the full v0.6 design (unified nearest-structure targets + 1.0R gate, OS thesis-exit removal, SYS|STR stretch marker, wVWAP/FVG machinery) is PARKED in spec §14 + the plan. Shipped: **OS sweeps prev DAY/WEEK extremes only** — `os_use_piv`/`os_use_roll` hashed toggles, default OFF (campaign-2 verdicts: piv 23%/−0.07R, roll 22%/−0.10R; daily levels best 32%/+0.18R). rr_min STAYS 1.5; all targets unchanged (OS keeps the linreg anchor); OS keeps its thesis exit. Pivot/roll machinery retained behind the toggles (one-line re-enable; their s0.5.0 data remains minable offline). Report fix: rr-pseudo table excludes the meaningless `rt1=na` rows (anchor-wrong-side skips).
 **Status:** Pine live; evaluator bump + deep re-harvest + campaign 3 next.
+
+## Fable v0.6.0 close-out — campaign 3 (daily/weekly OS)
+**Date:** 2026-06-12 · **Report:** `harness/reports/campaign_2026-06_s060.md`.
+**Harvests:** BTC 738 + ETH 649 + SOL 716 + NEAR 717 = 2,820 events (Jan 1→Jun 12), all aligned, 16 chunks. **Invariant diff PASS:** 1,064 OS piv/roll events dropped, ~504 stacked bars cleanly re-selected their daily candidate (level-identity keys only), every other event bit-identical. Sanity gate PASS. One transient quarantine (post-fetch bar) cleared by bars refetch.
+**Campaign 3 (158 sequential episodes):**
+- **Headline improved: 28% win / +0.10R** (campaign 2: 25% / 0.00R) — the level cut removed mostly-losing volume. OS curated to 96 episodes; daily classes ~flat (pdl 29%/+0.08, pdh 29%/0.00, pwh 33%/+0.11), **pwl 0/7 (−0.66R)** — prior-week-low longs are the new worst slice.
+- **1D ruling-watch FLIPPED in the user's favor:** would-have-been-blocked 32%/+0.14 vs passed 27%/+0.08 (n=34/124) — the old gate would have COST money this window. Ruling vindicated so far.
+- Persistent selectors (3rd consecutive campaign): vz<0 32%/+0.27 vs 0–1.5 23%/−0.14; wkp<50 57%/+1.40; er>0.45 trends still negative (21%/−0.14); osp>85 extreme stretch still bad (16%/−0.19); OS align=W 40% > A/N.
+- OS rt1>3 still inverted (7%/−0.47 — the far-anchor pathology persists while the linreg target stays, per descope); 2A/2B rt1>3 still strong (50%/+1.69, 50%/+1.50). rr 2.0 still worsens the book.
+- Thesis-exit v2 (n=51): net −4.80R ALL; OS −3.38, 2A −3.22, 2B +1.44, T1 +0.36 — evidence for the parked OS/2A third-exit question keeps accumulating.
+**Status:** v0.6.0 COMPLETE — parked designs (unified nearest-structure targets, OS thesis-exit removal, STR marker) remain in spec §14 + v0.6 plan, each with growing evidence.

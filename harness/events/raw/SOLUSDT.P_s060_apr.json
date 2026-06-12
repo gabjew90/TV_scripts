@@ -1,0 +1,2363 @@
+{
+  "success": true,
+  "study_count": 1,
+  "studies": [
+    {
+      "name": "Jamal Fable v0.6.0",
+      "total_labels": 235,
+      "showing": 235,
+      "labels": [
+        {
+          "id": 2,
+          "text": "JF|1|0.6.0|935851|B|OS|ENT|S|240|1775016000|83.8|lvl=84.6|stop=85.655|t1=80.17063529|rsn=na|lvl_src=pdh|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=10|swd=0.05|age_t=1|rt1=1.96|os=1.9|osp=74.5|er=0.12|vz=0.1|dlt=1906373.76|fr=-0.000623|lqb=3706.92|lqs=381.8",
+          "price": 84.7,
+          "x": 0,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 3,
+          "text": "OS",
+          "price": 84.7,
+          "x": 0,
+          "yloc": "pr",
+          "size": "small",
+          "textColor": 4294967295,
+          "color": 4287003512
+        },
+        {
+          "id": 4,
+          "text": "JF|1|0.6.0|935851|B|2B|SKP|S|240|1775059200|83.79|lvl=84.98|stop=87.57357143|t1=81.875|rsn=rr|reg=C|reg1d=C|age=13|wkp=99.5|t1co=0|rt1=0.51|oi_d=1.99|q=PD.OD|fp=22|gvb=0.6|swd=0.82|age_t=38|os=1.74|osp=68.5|er=0.09|vz=2.94|dlt=-2353846.41|fr=-0.008731|lqb=3592.62|lqs=2238.83",
+          "price": 86.59,
+          "x": 1,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 5,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1775059200|83.79|lvl=84.6|stop=87.57357143|t1=80.37254118|rsn=rr|lvl_src=pdh|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=13|swd=1.01|age_t=4|rt1=0.9|os=1.74|osp=68.5|er=0.09|vz=2.94|dlt=-2353846.41|fr=-0.008731|lqb=3592.62|lqs=2238.83",
+          "price": 86.59,
+          "x": 1,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 6,
+          "text": "JF|1|0.6.0|935851|B|2B|ENT|L|240|1775088000|78.94|lvl=78.77|stop=77.14035714|t1=81.875|rsn=na|reg=C|reg1d=C|age=15|wkp=70|t1co=0|rt1=1.63|oi_d=5.63|q=PD.OU|fp=13|gvb=0.08|swd=0.25|age_t=15|os=-0.67|osp=26|er=0.14|vz=2.46|dlt=-4264150.38|fr=-0.018908|lqb=3052.33|lqs=16066.71",
+          "price": 81.72,
+          "x": 2,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 7,
+          "text": "2B",
+          "price": 78.22,
+          "x": 2,
+          "yloc": "pr",
+          "size": "small",
+          "textColor": 4282726966,
+          "color": 4285982208
+        },
+        {
+          "id": 8,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1775088000|78.94|lvl=78.77|stop=77.14035714|t1=80.39270588|rsn=rr|lvl_src=pwl|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=15|swd=0.25|age_t=na|rt1=0.81|os=-0.67|osp=26|er=0.14|vz=2.46|dlt=-4264150.38|fr=-0.018908|lqb=3052.33|lqs=16066.71",
+          "price": 81.72,
+          "x": 2,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 9,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1775059200|86.59|typ=H",
+          "price": 79.63,
+          "x": 3,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 10,
+          "text": "JF|1|0.6.0|935851|B|2B|SKP|L|240|1775102400|79.59|lvl=78.77|stop=77.48821429|t1=82.68|rsn=rr|reg=C|reg1d=C|age=16|wkp=46|t1co=0|rt1=1.47|oi_d=1.33|q=PD.OU|fp=15|gvb=0.39|swd=0.1|age_t=16|os=-0.23|osp=7.5|er=0.09|vz=0.03|dlt=185519.14|fr=-0.023589|lqb=981.43|lqs=2080.82",
+          "price": 79.63,
+          "x": 3,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 11,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1775102400|79.59|lvl=78.77|stop=77.48821429|t1=80.06927059|rsn=rr|lvl_src=pwl|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=16|swd=0.1|age_t=na|rt1=0.23|os=-0.23|osp=7.5|er=0.09|vz=0.03|dlt=185519.14|fr=-0.023589|lqb=981.43|lqs=2080.82",
+          "price": 79.63,
+          "x": 3,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 12,
+          "text": "JF|1|0.6.0|935851|B|SYS|PING|N|240|1775116800|78.27|reg=D|age=0|reg1d=C",
+          "price": 79.59,
+          "x": 4,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 13,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|S|240|1775131200|79.01|lvl=86.59|stop=na|t1=78.77|rsn=na|reg=D|reg1d=C|age=1|d_atr=0.41|d_pct=11.5|bz=1|mlh=1|rt1=na|oi_d=1.07|oi_t=up|q=PD.OU|fp=87.5|gvb=3.48|os=-0.32|osp=13.5|er=0.27|vz=2.59|dlt=-2442241.69|fr=-0.006325|lqb=7408.21|lqs=15082.7",
+          "price": 79.67,
+          "x": 5,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 14,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1775131200|79.01|lvl=78.77|stop=75.54071429|t1=79.71150588|rsn=rr|lvl_src=pwl|n_lvls=1|align=A|oco=0|reg=D|reg1d=C|age=1|swd=0.98|age_t=na|rt1=0.2|os=-0.32|osp=13.5|er=0.27|vz=2.59|dlt=-2442241.69|fr=-0.006325|lqb=7408.21|lqs=15082.7",
+          "price": 79.67,
+          "x": 5,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 15,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1775145600|78.95|lvl=78.77|stop=77.36035714|t1=79.60607059|rsn=rr|lvl_src=pwl|n_lvls=1|align=A|oco=0|reg=D|reg1d=C|age=2|swd=0.19|age_t=na|rt1=0.41|os=-0.32|osp=13.5|er=0.29|vz=0.09|dlt=335861.55|fr=0.004401|lqb=5866.48|lqs=1002.63",
+          "price": 79.86,
+          "x": 6,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 16,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1775160000|78.91|lvl=78.77|stop=77.61285714|t1=79.5728|rsn=rr|lvl_src=pwl|n_lvls=1|align=A|oco=0|reg=D|reg1d=C|age=3|swd=0.1|age_t=na|rt1=0.51|os=-0.34|osp=14.5|er=0.31|vz=-1.09|dlt=46375.01|fr=-0.000591|lqb=608.8|lqs=300.68",
+          "price": 79.33,
+          "x": 7,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 17,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1775131200|76.63|typ=L",
+          "price": 79.77,
+          "x": 8,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 18,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|S|240|1775174400|78.97|lvl=86.59|stop=na|t1=78.77|rsn=newlow|reg=D|reg1d=C|age=4|d_atr=0.6|d_pct=13.9|bz=1|mlh=2|rt1=na|oi_d=0.2|oi_t=dn|q=PD.OU|fp=22.5|gvb=4.2|os=-0.3|osp=11.5|er=0.21|vz=-0.53|dlt=-64093.96|fr=-0.003505|lqb=344.25|lqs=608.74",
+          "price": 79.77,
+          "x": 8,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 19,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|S|240|1775174400|78.97|lvl=86.59|stop=na|t1=76.63|rsn=na|reg=D|reg1d=C|age=4|d_atr=1.73|d_pct=31.5|bz=1|mlh=1|rt1=na|oi_d=0|oi_t=dn|q=PD.OU|fp=22.5|gvb=4.2|os=-0.3|osp=11.5|er=0.21|vz=-0.53|dlt=-64093.96|fr=-0.003505|lqb=344.25|lqs=608.74",
+          "price": 79.77,
+          "x": 8,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 20,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1775217600|80.9|typ=H",
+          "price": 80.37,
+          "x": 9,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 21,
+          "text": "JF|1|0.6.0|935851|B|SYS|PING|N|240|1775304000|81.05|reg=C|age=0|reg1d=C",
+          "price": 81.64,
+          "x": 10,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 22,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|S|240|1775304000|81.05|lvl=80.9|stop=na|t1=76.63|rsn=choch|reg=C|reg1d=C|age=0|d_atr=3.61|d_pct=100|bz=1|mlh=6|rt1=na|oi_d=-4.92|oi_t=dn|q=PU.OD|fp=98|gvb=0.13|os=1.05|osp=43.5|er=0.23|vz=0.27|dlt=3109746.1|fr=-0.004098|lqb=1930.17|lqs=1388.45",
+          "price": 81.64,
+          "x": 10,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 23,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1775318400|80.8|lvl=80.9|stop=81.86571429|t1=79.89475294|rsn=rr|lvl_src=pdh|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=1|swd=0.35|age_t=4|rt1=0.85|os=0.8|osp=33.5|er=0.22|vz=-0.32|dlt=-2145833.73|fr=0.000685|lqb=1456.37|lqs=574.31",
+          "price": 81.3,
+          "x": 11,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 24,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1775332800|80.79|lvl=80.9|stop=81.49357143|t1=79.87341176|rsn=rr|lvl_src=pdh|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=2|swd=0.13|age_t=5|rt1=1.3|os=0.97|osp=40.5|er=0.25|vz=-1.13|dlt=81425.32|fr=-0.004086|lqb=500.96|lqs=149.51",
+          "price": 81.02,
+          "x": 12,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 25,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1775304000|81.64|typ=H",
+          "price": 80.81,
+          "x": 13,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 26,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1775304000|79.53|typ=L",
+          "price": 80.81,
+          "x": 13,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 27,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1775361600|79.55|lvl=79.53|stop=78.84357143|t1=79.79976471|rsn=rr|lvl_src=pdl|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=4|swd=0.25|age_t=1|rt1=0.35|os=-0.27|osp=10.5|er=0.17|vz=-0.36|dlt=-2838786.13|fr=-0.009381|lqb=0.74|lqs=6028.58",
+          "price": 80.52,
+          "x": 14,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 28,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1775376000|79.86|lvl=79.53|stop=79.02214286|t1=79.68743529|rsn=rr|lvl_src=pdl|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=5|swd=0.07|age_t=2|rt1=na|os=0.19|osp=6|er=0.12|vz=-0.99|dlt=1422883.48|fr=-0.009605|lqb=538.21|lqs=43.14",
+          "price": 80.2,
+          "x": 15,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 29,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1775390400|79.55|lvl=78.77|stop=77.97857143|t1=79.58776471|rsn=rr|lvl_src=pwl|n_lvls=2|align=N|oco=0|reg=C|reg1d=C|age=6|swd=0.34|age_t=na|rt1=0.02|os=-0.04|osp=1|er=0.01|vz=0.54|dlt=1981918.86|fr=-0.007913|lqb=1782.1|lqs=2226.53",
+          "price": 80.31,
+          "x": 16,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 30,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1775404800|79.77|lvl=79.53|stop=78.84785714|t1=79.51032941|rsn=rr|lvl_src=pdl|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=7|swd=0.22|age_t=4|rt1=na|os=0.27|osp=11|er=0.24|vz=-0.82|dlt=-154340.41|fr=-0.008124|lqb=297|lqs=346.37",
+          "price": 80.19,
+          "x": 17,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 31,
+          "text": "JF|1|0.6.0|935851|B|SYS|PING|N|240|1775419200|81.85|reg=U|age=0|reg1d=C",
+          "price": 82.11,
+          "x": 18,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 32,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1775419200|81.85|lvl=79.53|stop=na|t1=81.64|rsn=na|reg=U|reg1d=C|age=0|d_atr=2.51|d_pct=123.2|bz=1|mlh=1|rt1=na|oi_d=0|oi_t=dn|q=PU.OD|fp=93.5|gvb=2.24|os=2.33|osp=87.5|er=0.37|vz=0.45|dlt=3570400.44|fr=-0.001356|lqb=10670.84|lqs=945.22",
+          "price": 82.11,
+          "x": 18,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 33,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|L|240|1775419200|81.85|lvl=79.53|stop=na|t1=81.64|rsn=handoff|reg=U|reg1d=C|age=0|d_atr=2.51|d_pct=123.2|bz=1|mlh=1|rt1=na|oi_d=0|oi_t=dn|q=PU.OD|fp=93.5|gvb=2.24|os=2.33|osp=87.5|er=0.37|vz=0.45|dlt=3570400.44|fr=-0.001356|lqb=10670.84|lqs=945.22",
+          "price": 82.11,
+          "x": 18,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 34,
+          "text": "JF|1|0.6.0|935851|B|2A|SKP|L|240|1775419200|81.85|lvl=79.53|stop=78.52214286|t1=81.64|rsn=rr|reg=U|reg1d=C|age=0|wkp=95|t1co=1|rt1=-0.06|oi_d=-0.89|q=PU.OD|fp=93.5|gvb=2.24|swd=0.47|age_t=0|os=2.33|osp=87.5|er=0.37|vz=0.45|dlt=3570400.44|fr=-0.001356|lqb=10670.84|lqs=945.22",
+          "price": 82.11,
+          "x": 18,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 35,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1775419200|81.85|lvl=79.53|stop=78.52214286|t1=79.43336471|rsn=rr|lvl_src=pdl|n_lvls=1|align=W|oco=1|reg=U|reg1d=C|age=0|swd=0.47|age_t=5|rt1=na|os=2.33|osp=87.5|er=0.37|vz=0.45|dlt=3570400.44|fr=-0.001356|lqb=10670.84|lqs=945.22",
+          "price": 82.11,
+          "x": 18,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 36,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1775390400|78.45|typ=L",
+          "price": 82.95,
+          "x": 19,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 37,
+          "text": "JF|1|0.6.0|935851|B|OS|ENT|S|240|1775433600|82.07|lvl=82.11|stop=83.48607143|t1=79.55964706|rsn=na|lvl_src=pdh|n_lvls=1|align=A|oco=0|reg=U|reg1d=C|age=1|swd=0.78|age_t=0|rt1=1.77|os=2.34|osp=87.5|er=0.4|vz=0.54|dlt=1811006.81|fr=0.01|lqb=4747.9|lqs=376.64",
+          "price": 82.95,
+          "x": 19,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 38,
+          "text": "OS",
+          "price": 82.95,
+          "x": 19,
+          "yloc": "pr",
+          "size": "small",
+          "textColor": 4282726966,
+          "color": 4282726130
+        },
+        {
+          "id": 39,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1775448000|81.77|lvl=78.45|stop=na|t1=81.64|rsn=na|reg=U|reg1d=C|age=2|d_atr=2.32|d_pct=81.5|bz=1|mlh=1|rt1=na|oi_d=-0.25|oi_t=dn|q=PU.OD|fp=93.5|gvb=2.96|os=1.86|osp=72.5|er=0.35|vz=-0.2|dlt=-1464579.78|fr=0.008055|lqb=643.49|lqs=1073.19",
+          "price": 82.37,
+          "x": 20,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 40,
+          "text": "JF|1|0.6.0|935851|B|OS|ENT|S|240|1775448000|81.77|lvl=82.11|stop=82.93142857|t1=79.68628235|rsn=na|lvl_src=pdh|n_lvls=1|align=A|oco=0|reg=U|reg1d=C|age=2|swd=0.23|age_t=1|rt1=1.79|os=1.86|osp=72.5|er=0.35|vz=-0.2|dlt=-1464579.78|fr=0.008055|lqb=643.49|lqs=1073.19",
+          "price": 82.37,
+          "x": 20,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 41,
+          "text": "OS",
+          "price": 82.37,
+          "x": 20,
+          "yloc": "pr",
+          "size": "small",
+          "textColor": 4282726966,
+          "color": 4282726130
+        },
+        {
+          "id": 42,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1775491200|81.86|lvl=82.11|stop=83.10571429|t1=79.99741176|rsn=rr|lvl_src=pdh|n_lvls=1|align=A|oco=0|reg=U|reg1d=C|age=5|swd=0.26|age_t=4|rt1=1.5|os=1.42|osp=54|er=0.22|vz=-0.41|dlt=1286718.48|fr=-0.002175|lqb=475.13|lqs=7223.12",
+          "price": 82.45,
+          "x": 21,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 43,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1775462400|83.18|typ=H",
+          "price": 82.1,
+          "x": 22,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 44,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|L|240|1775505600|79.96|lvl=78.45|stop=na|t1=81.64|rsn=newhigh|reg=U|reg1d=C|age=6|d_atr=1.93|d_pct=81.5|bz=1|mlh=2|rt1=na|oi_d=-1.44|oi_t=dn|q=PD.OD|fp=29|gvb=1.12|os=-0.09|osp=3|er=0.03|vz=-0.07|dlt=-3043801.83|fr=-0.010131|lqb=292.15|lqs=9539.3",
+          "price": 82.1,
+          "x": 22,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 45,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1775505600|79.96|lvl=78.45|stop=na|t1=83.18|rsn=na|reg=U|reg1d=C|age=6|d_atr=2.72|d_pct=77.4|bz=1|mlh=1|rt1=na|oi_d=0|oi_t=dn|q=PD.OD|fp=29|gvb=1.12|os=-0.09|osp=3|er=0.03|vz=-0.07|dlt=-3043801.83|fr=-0.010131|lqb=292.15|lqs=9539.3",
+          "price": 82.1,
+          "x": 22,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 46,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1775520000|79.73|lvl=79.52|stop=78.62285714|t1=79.99538824|rsn=rr|lvl_src=pdl|n_lvls=1|align=W|oco=0|reg=U|reg1d=C|age=7|swd=0.16|age_t=0|rt1=0.24|os=-0.2|osp=7|er=0.04|vz=-0.33|dlt=-991702.96|fr=-0.019607|lqb=116.33|lqs=1191.51",
+          "price": 80.17,
+          "x": 23,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 47,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1775534400|79.81|lvl=79.52|stop=78.53785714|t1=79.88456471|rsn=rr|lvl_src=pdl|n_lvls=1|align=W|oco=0|reg=U|reg1d=C|age=8|swd=0.21|age_t=1|rt1=0.06|os=-0.05|osp=2|er=0.06|vz=-0.66|dlt=-322878.89|fr=-0.021234|lqb=41.99|lqs=852.79",
+          "price": 80.11,
+          "x": 24,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 48,
+          "text": "JF|1|0.6.0|935851|B|2A|ENT|L|240|1775563200|78.82|lvl=78.45|stop=77.57178571|t1=83.18|rsn=na|reg=U|reg1d=C|age=10|wkp=75|t1co=0|rt1=3.49|oi_d=1.28|q=PD.OU|fp=84.5|gvb=0.25|swd=0.1|age_t=9|os=-0.6|osp=26.5|er=0.14|vz=0.4|dlt=-2842175.01|fr=-0.006822|lqb=145.35|lqs=4001.97",
+          "price": 79.34,
+          "x": 25,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 49,
+          "text": "2A",
+          "price": 78.3,
+          "x": 25,
+          "yloc": "pr",
+          "size": "small",
+          "textColor": 4282726966,
+          "color": 4285982208
+        },
+        {
+          "id": 50,
+          "text": "JF|1|0.6.0|935851|B|T1|SKP|L|240|1775577600|81.58|lvl=78.45|stop=77.48214286|t1=83.18|rsn=rr|reg=U|reg1d=C|age=11|d_atr=2.98|d_pct=103.2|bz=1|mlh=5|rt1=0.39|oi_d=-3.9|oi_t=dn|q=PU.OD|fp=96.5|gvb=1.91|os=1.19|osp=46.5|er=0.11|vz=1.76|dlt=5570335.65|fr=0.008394|lqb=7952.28|lqs=570.35",
+          "price": 81.84,
+          "x": 26,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 51,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1775577600|81.58|lvl=79.52|stop=77.78214286|t1=79.62905882|rsn=rr|lvl_src=pdl|n_lvls=1|align=W|oco=0|reg=U|reg1d=C|age=11|swd=0.56|age_t=4|rt1=na|os=1.19|osp=46.5|er=0.11|vz=1.76|dlt=5570335.65|fr=0.008394|lqb=7952.28|lqs=570.35",
+          "price": 81.84,
+          "x": 26,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 52,
+          "text": "JF|1|0.6.0|935851|B|OS|ENT|S|240|1775592000|85.54|lvl=86.59|stop=88.14178571|t1=79.79750588|rsn=na|lvl_src=pwh|n_lvls=1|align=A|oco=0|reg=U|reg1d=C|age=12|swd=0.32|age_t=na|rt1=2.21|os=3.02|osp=94.5|er=0.28|vz=3.96|dlt=13353036.67|fr=0.01|lqb=19655.25|lqs=2538.59",
+          "price": 87.19,
+          "x": 27,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 53,
+          "text": "OS",
+          "price": 87.19,
+          "x": 27,
+          "yloc": "pr",
+          "size": "small",
+          "textColor": 4282726966,
+          "color": 4282726130
+        },
+        {
+          "id": 54,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1775563200|78.3|typ=L",
+          "price": 85.89,
+          "x": 28,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 55,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1775620800|84.47|lvl=78.3|stop=na|t1=83.18|rsn=na|reg=U|reg1d=C|age=14|d_atr=2.68|d_pct=100|bz=1|mlh=1|rt1=na|oi_d=-2.55|oi_t=dn|q=PU.OD|fp=96|gvb=3.38|os=2.11|osp=79|er=0.22|vz=-0.34|dlt=-1591013.56|fr=0.01|lqb=59.04|lqs=2581.44",
+          "price": 85.01,
+          "x": 29,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 56,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1775592000|87.19|typ=H",
+          "price": 84.95,
+          "x": 30,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 57,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|L|240|1775635200|84.42|lvl=78.3|stop=na|t1=83.18|rsn=newhigh|reg=U|reg1d=C|age=15|d_atr=2.73|d_pct=100|bz=1|mlh=1|rt1=na|oi_d=-3.13|oi_t=dn|q=PU.OD|fp=94.5|gvb=3.42|os=1.95|osp=75|er=0.24|vz=-0.7|dlt=-1342770.16|fr=0.01|lqb=935.73|lqs=288.58",
+          "price": 84.95,
+          "x": 30,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 58,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1775649600|83.29|lvl=78.3|stop=na|t1=87.19|rsn=na|reg=U|reg1d=C|age=16|d_atr=2.53|d_pct=53.1|bz=1|mlh=1|rt1=na|oi_d=-2.86|oi_t=dn|q=PU.OD|fp=38.5|gvb=2.68|os=1.07|osp=41.5|er=0.22|vz=1.11|dlt=-2751419.8|fr=0.01|lqb=4048.17|lqs=4790.2",
+          "price": 84.96,
+          "x": 31,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 59,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1775707200|82.23|lvl=82.17|stop=80.84035714|t1=81.89696471|rsn=rr|lvl_src=pdl|n_lvls=1|align=W|oco=0|reg=U|reg1d=C|age=20|swd=0.27|age_t=1|rt1=na|os=0.19|osp=5.5|er=0.02|vz=-0.94|dlt=1040953.89|fr=-0.001265|lqb=432.45|lqs=142.55",
+          "price": 82.44,
+          "x": 32,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 60,
+          "text": "JF|1|0.6.0|935851|B|T1|SKP|L|240|1775736000|83.69|lvl=78.3|stop=80.4475|t1=87.19|rsn=rr|reg=U|reg1d=C|age=22|d_atr=3.19|d_pct=65.6|bz=1|mlh=4|rt1=1.08|oi_d=-4.3|oi_t=dn|q=PU.OD|fp=91|gvb=2.95|os=0.8|osp=33.5|er=0.12|vz=0.76|dlt=3419896.07|fr=0.00259|lqb=3273.14|lqs=1066.04",
+          "price": 83.89,
+          "x": 33,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 61,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1775736000|83.69|lvl=82.17|stop=80.4475|t1=82.22145882|rsn=rr|lvl_src=pdl|n_lvls=1|align=W|oco=0|reg=U|reg1d=C|age=22|swd=0.44|age_t=3|rt1=na|os=0.8|osp=33.5|er=0.12|vz=0.76|dlt=3419896.07|fr=0.00259|lqb=3273.14|lqs=1066.04",
+          "price": 83.89,
+          "x": 33,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 62,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1775764800|83.29|lvl=85.89|stop=86.90928571|t1=82.84416471|rsn=rr|lvl_src=pdh|n_lvls=1|align=A|oco=0|reg=U|reg1d=C|age=24|swd=0.02|age_t=5|rt1=0.12|os=0.23|osp=9.5|er=0.06|vz=0.2|dlt=-1986338.6|fr=0.01|lqb=1275.82|lqs=2523.02",
+          "price": 85.93,
+          "x": 34,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 63,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1775736000|81.36|typ=L",
+          "price": 83.74,
+          "x": 35,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 64,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1775779200|82.84|lvl=81.36|stop=na|t1=87.19|rsn=na|reg=U|reg1d=C|age=25|d_atr=3.23|d_pct=100|bz=1|mlh=1|rt1=na|oi_d=-6.32|oi_t=dn|q=PU.OD|fp=52|gvb=0.82|os=-0.15|osp=4.5|er=0.06|vz=-0.37|dlt=36572.03|fr=0.003007|lqb=120.97|lqs=2992.54",
+          "price": 83.74,
+          "x": 35,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 65,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1775764800|85.93|typ=H",
+          "price": 83.73,
+          "x": 36,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 66,
+          "text": "JF|1|0.6.0|935851|B|T1|SKP|L|240|1775822400|84.2|lvl=81.36|stop=80.61285714|t1=87.19|rsn=rr|reg=U|reg1d=C|age=28|d_atr=3.9|d_pct=100|bz=1|mlh=2|rt1=0.83|oi_d=-5.19|oi_t=up|q=PD.OD|fp=97.5|gvb=1.9|os=0.42|osp=22|er=0.27|vz=0.95|dlt=2649865.55|fr=0.008338|lqb=4521.95|lqs=1191.2",
+          "price": 85.57,
+          "x": 37,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 67,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1775865600|84.35|lvl=81.36|stop=na|t1=87.19|rsn=na|reg=U|reg1d=C|age=31|d_atr=4.24|d_pct=100|bz=1|mlh=1|rt1=na|oi_d=-5.75|oi_t=dn|q=PU.OD|fp=74.5|gvb=2.17|os=0.19|osp=7|er=0.19|vz=-1.1|dlt=-768122.45|fr=0.002169|lqb=35.48|lqs=734.1",
+          "price": 84.89,
+          "x": 38,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 68,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1775851200|85.66|typ=H",
+          "price": 84.76,
+          "x": 39,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 69,
+          "text": "JF|1|0.6.0|935851|B|T1|SKP|L|240|1775908800|84.63|lvl=81.36|stop=80.68357143|t1=87.19|rsn=rr|reg=U|reg1d=C|age=34|d_atr=4.31|d_pct=100|bz=1|mlh=3|rt1=0.65|oi_d=-5.08|oi_t=dn|q=PU.OD|fp=70|gvb=2.42|os=0.21|osp=10|er=0.02|vz=-0.82|dlt=869625.41|fr=-0.001295|lqb=188.14|lqs=166.71",
+          "price": 84.84,
+          "x": 40,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 70,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1775894400|83.75|typ=L",
+          "price": 86.14,
+          "x": 41,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 71,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1775937600|84.89|lvl=83.75|stop=na|t1=87.19|rsn=na|reg=U|reg1d=C|age=36|d_atr=4.28|d_pct=169.5|bz=1|mlh=1|rt1=na|oi_d=-2.46|oi_t=up|q=PU.OU|fp=71.5|gvb=0.84|os=0.14|osp=6|er=0.14|vz=-0.36|dlt=-2912798.91|fr=0.01|lqb=211.44|lqs=2239.81",
+          "price": 86.14,
+          "x": 41,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 72,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1775937600|84.89|lvl=85.66|stop=86.82107143|t1=84.70505882|rsn=rr|lvl_src=pdh|n_lvls=1|align=A|oco=0|reg=U|reg1d=C|age=36|swd=0.35|age_t=5|rt1=0.1|os=0.14|osp=6|er=0.14|vz=-0.36|dlt=-2912798.91|fr=0.01|lqb=211.44|lqs=2239.81",
+          "price": 86.14,
+          "x": 41,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 73,
+          "text": "JF|1|0.6.0|935851|B|SYS|PING|N|240|1775952000|82.27|reg=C|age=0|reg1d=C",
+          "price": 84.97,
+          "x": 42,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 74,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|L|240|1775952000|82.27|lvl=83.75|stop=na|t1=87.19|rsn=choch|reg=C|reg1d=C|age=0|d_atr=4|d_pct=169.5|bz=1|mlh=1|rt1=na|oi_d=-4.71|oi_t=dn|q=PD.OU|fp=18.5|gvb=1.02|os=-1.77|osp=75|er=0.06|vz=0.93|dlt=-2645471.27|fr=-0.002105|lqb=139.71|lqs=19438.09",
+          "price": 84.97,
+          "x": 42,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 75,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1775923200|86.23|typ=H",
+          "price": 82.44,
+          "x": 43,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 76,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1776024000|82.86|typ=H",
+          "price": 82.25,
+          "x": 44,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 77,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1776024000|81.23|typ=L",
+          "price": 82.25,
+          "x": 44,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 78,
+          "text": "JF|1|0.6.0|935851|B|SYS|PING|N|240|1776110400|86.5|reg=U|age=0|reg1d=C",
+          "price": 86.8,
+          "x": 45,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 79,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1776139200|85.87|lvl=81.23|stop=na|t1=86.23|rsn=na|reg=U|reg1d=C|age=2|d_atr=1.76|d_pct=49.2|bz=1|mlh=1|rt1=na|oi_d=1.54|oi_t=up|q=PU.OU|fp=95.5|gvb=3.33|os=1.29|osp=51|er=0.08|vz=-0.45|dlt=-1330843.84|fr=0.01|lqb=354.56|lqs=1373.75",
+          "price": 86.17,
+          "x": 46,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 80,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1776110400|86.8|typ=H",
+          "price": 86.52,
+          "x": 47,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 81,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|L|240|1776153600|85.75|lvl=81.23|stop=na|t1=86.23|rsn=newhigh|reg=U|reg1d=C|age=3|d_atr=1.99|d_pct=49.2|bz=1|mlh=1|rt1=na|oi_d=1.43|oi_t=dn|q=PU.OU|fp=78|gvb=3.65|os=1.2|osp=49.5|er=0.1|vz=-0.48|dlt=-1254315.33|fr=0.01|lqb=3843.52|lqs=932.17",
+          "price": 86.52,
+          "x": 47,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 82,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1776168000|85.92|lvl=81.23|stop=na|t1=86.8|rsn=na|reg=U|reg1d=C|age=4|d_atr=1.18|d_pct=29.3|bz=1|mlh=1|rt1=na|oi_d=1.16|oi_t=up|q=PU.OU|fp=64.5|gvb=3.39|os=1.07|osp=44.5|er=0.12|vz=1.67|dlt=-2095677.1|fr=0.01|lqb=18903.82|lqs=4696.88",
+          "price": 87.64,
+          "x": 48,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 83,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1776168000|85.92|lvl=87.19|stop=88.33214286|t1=84.44072941|rsn=rr|lvl_src=pwh|n_lvls=2|align=A|oco=0|reg=U|reg1d=C|age=4|swd=0.33|age_t=na|rt1=0.61|os=1.07|osp=44.5|er=0.12|vz=1.67|dlt=-2095677.1|fr=0.01|lqb=18903.82|lqs=4696.88",
+          "price": 87.64,
+          "x": 48,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 84,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1776168000|87.64|typ=H",
+          "price": 84.01,
+          "x": 49,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 85,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|L|240|1776211200|83.4|lvl=81.23|stop=na|t1=86.8|rsn=newhigh|reg=U|reg1d=C|age=7|d_atr=2.35|d_pct=63.6|bz=1|mlh=3|rt1=na|oi_d=-0.75|oi_t=dn|q=PU.OU|fp=68|gvb=1.44|os=-0.82|osp=37.5|er=0.18|vz=-0.48|dlt=1229547.92|fr=-0.00637|lqb=186.25|lqs=3623.43",
+          "price": 84.01,
+          "x": 49,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 86,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1776211200|83.4|lvl=81.23|stop=na|t1=87.64|rsn=na|reg=U|reg1d=C|age=7|d_atr=3.03|d_pct=71.3|bz=1|mlh=1|rt1=na|oi_d=0|oi_t=dn|q=PU.OU|fp=68|gvb=1.44|os=-0.82|osp=37.5|er=0.18|vz=-0.48|dlt=1229547.92|fr=-0.00637|lqb=186.25|lqs=3623.43",
+          "price": 84.01,
+          "x": 49,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 87,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1776211200|83.4|lvl=83.26|stop=82.31678571|t1=84.64214118|rsn=rr|lvl_src=pdl|n_lvls=1|align=W|oco=0|reg=U|reg1d=C|age=7|swd=0.13|age_t=0|rt1=1.15|os=-0.82|osp=37.5|er=0.18|vz=-0.48|dlt=1229547.92|fr=-0.00637|lqb=186.25|lqs=3623.43",
+          "price": 84.01,
+          "x": 49,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 88,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1776240000|83.54|lvl=83.26|stop=81.94714286|t1=84.44628235|rsn=rr|lvl_src=pdl|n_lvls=1|align=W|oco=0|reg=U|reg1d=C|age=9|swd=0.4|age_t=2|rt1=0.57|os=-0.62|osp=30.5|er=0.11|vz=-0.3|dlt=896094.16|fr=-0.006778|lqb=981.36|lqs=259",
+          "price": 83.65,
+          "x": 50,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 89,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1776254400|83.94|lvl=83.26|stop=82.39892857|t1=84.32352941|rsn=rr|lvl_src=pdl|n_lvls=1|align=W|oco=0|reg=U|reg1d=C|age=10|swd=0.08|age_t=3|rt1=0.25|os=-0.26|osp=14.5|er=0.14|vz=0.41|dlt=-176042.62|fr=-0.002326|lqb=2185.82|lqs=1253.77",
+          "price": 84.47,
+          "x": 51,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 90,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1776225600|82.6|typ=L",
+          "price": 85.81,
+          "x": 52,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 91,
+          "text": "JF|1|0.6.0|935851|B|T1|SKP|L|240|1776268800|85.48|lvl=82.6|stop=81.81214286|t1=87.64|rsn=rr|reg=U|reg1d=C|age=11|d_atr=3.2|d_pct=100|bz=1|mlh=2|rt1=0.59|oi_d=-0.04|oi_t=dn|q=PU.OU|fp=99|gvb=1.83|os=0.8|osp=36|er=0.25|vz=0.22|dlt=4265692.97|fr=0.01|lqb=7171.6|lqs=41.19",
+          "price": 85.81,
+          "x": 52,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 92,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1776268800|85.81|typ=H",
+          "price": 85.61,
+          "x": 53,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 93,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1776326400|85.02|lvl=82.6|stop=na|t1=87.64|rsn=na|reg=U|reg1d=C|age=15|d_atr=3.92|d_pct=100|bz=1|mlh=1|rt1=na|oi_d=-0.71|oi_t=dn|q=PD.OD|fp=64|gvb=1.88|os=0.53|osp=28|er=0.24|vz=-0.33|dlt=-549800.04|fr=0.003653|lqb=91.05|lqs=376.99",
+          "price": 85.47,
+          "x": 54,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 94,
+          "text": "JF|1|0.6.0|935851|B|T1|SKP|L|240|1776340800|86.57|lvl=82.6|stop=81.8625|t1=87.64|rsn=rr|reg=U|reg1d=C|age=16|d_atr=3.42|d_pct=100|bz=1|mlh=2|rt1=0.23|oi_d=1.43|oi_t=up|q=PU.OU|fp=41|gvb=2.69|os=1.43|osp=59.5|er=0.31|vz=2.15|dlt=2279437.98|fr=0.007243|lqb=9699.62|lqs=16423.7",
+          "price": 87.11,
+          "x": 55,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 95,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1776340800|83.7|typ=L",
+          "price": 89.15,
+          "x": 56,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 96,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1776384000|87.67|lvl=83.7|stop=na|t1=87.64|rsn=na|reg=U|reg1d=C|age=19|d_atr=3.08|d_pct=127.9|bz=1|mlh=1|rt1=na|oi_d=12.55|oi_t=dn|q=PU.OU|fp=61|gvb=2.42|os=1.27|osp=52.5|er=0.2|vz=-0.26|dlt=-3178328.32|fr=0.01|lqb=691.96|lqs=2942.1",
+          "price": 89.15,
+          "x": 56,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 97,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1776369600|90.58|typ=H",
+          "price": 89.48,
+          "x": 57,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 98,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|L|240|1776412800|88.15|lvl=83.7|stop=na|t1=87.64|rsn=newhigh|reg=U|reg1d=C|age=21|d_atr=2.88|d_pct=127.9|bz=1|mlh=2|rt1=na|oi_d=4.31|oi_t=dn|q=PU.OU|fp=33|gvb=2.54|os=1.18|osp=50|er=0.14|vz=0.76|dlt=-1622937.15|fr=-0.002644|lqb=5389.76|lqs=4443.77",
+          "price": 89.48,
+          "x": 57,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 99,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1776412800|88.15|lvl=83.7|stop=na|t1=90.58|rsn=na|reg=U|reg1d=C|age=21|d_atr=1.9|d_pct=48.3|bz=0|mlh=1|rt1=na|oi_d=0|oi_t=dn|q=PU.OU|fp=33|gvb=2.54|os=1.18|osp=50|er=0.14|vz=0.76|dlt=-1622937.15|fr=-0.002644|lqb=5389.76|lqs=4443.77",
+          "price": 89.48,
+          "x": 57,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 100,
+          "text": "JF|1|0.6.0|935851|B|T1|SKP|L|240|1776427200|89.91|lvl=83.7|stop=86.32357143|t1=90.58|rsn=rr|reg=U|reg1d=C|age=22|d_atr=1.77|d_pct=48.3|bz=0|mlh=1|rt1=0.19|oi_d=0.32|oi_t=up|q=PU.OU|fp=76|gvb=3.32|os=1.93|osp=77.5|er=0.24|vz=2.71|dlt=1405463.6|fr=0.001007|lqb=54872.91|lqs=4608.6",
+          "price": 90.71,
+          "x": 58,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 101,
+          "text": "JF|1|0.6.0|935851|B|OS|ENT|S|240|1776427200|89.91|lvl=90.58|stop=91.64642857|t1=86.29512941|rsn=na|lvl_src=pdh|n_lvls=1|align=A|oco=0|reg=U|reg1d=C|age=22|swd=0.07|age_t=3|rt1=2.08|os=1.93|osp=77.5|er=0.24|vz=2.71|dlt=1405463.6|fr=0.001007|lqb=54872.91|lqs=4608.6",
+          "price": 90.71,
+          "x": 58,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 102,
+          "text": "OS",
+          "price": 90.71,
+          "x": 58,
+          "yloc": "pr",
+          "size": "small",
+          "textColor": 4282726966,
+          "color": 4282726130
+        },
+        {
+          "id": 103,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1776412800|87.26|typ=L",
+          "price": 89.43,
+          "x": 59,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 104,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1776456000|88.71|lvl=87.26|stop=na|t1=90.58|rsn=na|reg=U|reg1d=C|age=24|d_atr=1.74|d_pct=100|bz=0|mlh=1|rt1=na|oi_d=-1.17|oi_t=dn|q=PU.OU|fp=0.5|gvb=0.76|os=0.95|osp=39|er=0.16|vz=-0.63|dlt=-528863.45|fr=0.000263|lqb=105.22|lqs=2384.07",
+          "price": 89.43,
+          "x": 59,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 105,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1776427200|90.71|typ=H",
+          "price": 89.11,
+          "x": 60,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 106,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|L|240|1776470400|88.27|lvl=87.26|stop=na|t1=90.58|rsn=newhigh|reg=U|reg1d=C|age=25|d_atr=1.81|d_pct=100|bz=0|mlh=1|rt1=na|oi_d=-2.45|oi_t=dn|q=PU.OU|fp=23|gvb=0.55|os=0.59|osp=27|er=0.27|vz=-0.99|dlt=-247894.62|fr=-0.005117|lqb=119.14|lqs=2508.77",
+          "price": 89.11,
+          "x": 60,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 107,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1776470400|88.27|lvl=87.26|stop=na|t1=90.71|rsn=na|reg=U|reg1d=C|age=25|d_atr=1.39|d_pct=73.6|bz=0|mlh=1|rt1=na|oi_d=0|oi_t=dn|q=PU.OU|fp=23|gvb=0.55|os=0.59|osp=27|er=0.27|vz=-0.99|dlt=-247894.62|fr=-0.005117|lqb=119.14|lqs=2508.77",
+          "price": 89.11,
+          "x": 60,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 108,
+          "text": "JF|1|0.6.0|935851|B|SYS|PING|N|240|1776499200|86.49|reg=C|age=0|reg1d=C",
+          "price": 88.45,
+          "x": 61,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 109,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|L|240|1776499200|86.49|lvl=87.26|stop=na|t1=90.71|rsn=choch|reg=C|reg1d=C|age=0|d_atr=1.42|d_pct=75.7|bz=0|mlh=2|rt1=na|oi_d=-1.3|oi_t=dn|q=PU.OU|fp=18.5|gvb=0.42|os=-0.63|osp=29.5|er=0.17|vz=0.57|dlt=-3353797.44|fr=-0.006804|lqb=279.05|lqs=33881.09",
+          "price": 88.45,
+          "x": 61,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 110,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1776499200|86.49|lvl=87.19|stop=89.37214286|t1=87.64345882|rsn=rr|lvl_src=pwh|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=0|swd=0.68|age_t=na|rt1=na|os=-0.63|osp=29.5|er=0.17|vz=0.57|dlt=-3353797.44|fr=-0.006804|lqb=279.05|lqs=33881.09",
+          "price": 88.45,
+          "x": 61,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 111,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1776600000|86.32|lvl=85.71|stop=84.79285714|t1=87.76162353|rsn=rr|lvl_src=pdl|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=7|swd=0.16|age_t=3|rt1=0.94|os=-1.03|osp=44.5|er=0.07|vz=0.82|dlt=2992227.76|fr=-0.007527|lqb=3275.24|lqs=5159.65",
+          "price": 87.08,
+          "x": 62,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 112,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1776571200|84.28|typ=L",
+          "price": 86.46,
+          "x": 63,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 113,
+          "text": "JF|1|0.6.0|935851|B|SYS|PING|N|240|1776628800|83.41|reg=D|age=0|reg1d=C",
+          "price": 85.31,
+          "x": 64,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 114,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1776600000|87.08|typ=H",
+          "price": 84.58,
+          "x": 65,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 115,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|S|240|1776657600|84.69|lvl=87.08|stop=na|t1=84.28|rsn=na|reg=D|reg1d=C|age=2|d_atr=1.06|d_pct=52.1|bz=1|mlh=1|rt1=na|oi_d=-1.52|oi_t=dn|q=PD.OD|fp=94.5|gvb=1.74|os=-2.1|osp=85|er=0.29|vz=-0.05|dlt=2136010.15|fr=-0.001265|lqb=17994.21|lqs=1790.64",
+          "price": 85.74,
+          "x": 66,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 116,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1776628800|82.77|typ=L",
+          "price": 85.37,
+          "x": 67,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 117,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|S|240|1776672000|85|lvl=87.08|stop=na|t1=84.28|rsn=newlow|reg=D|reg1d=C|age=3|d_atr=1.07|d_pct=52.1|bz=1|mlh=1|rt1=na|oi_d=-1.49|oi_t=up|q=PD.OD|fp=49|gvb=1.52|os=-1.84|osp=74|er=0.19|vz=-0.5|dlt=-235711.93|fr=0.001143|lqb=115.69|lqs=83.98",
+          "price": 85.37,
+          "x": 67,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 118,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|S|240|1776686400|85.82|lvl=87.08|stop=na|t1=82.77|rsn=na|reg=D|reg1d=C|age=4|d_atr=2.14|d_pct=71.5|bz=1|mlh=1|rt1=na|oi_d=0.92|oi_t=up|q=PD.OD|fp=95|gvb=0.88|os=-1.09|osp=45|er=0.16|vz=0.93|dlt=-378407.81|fr=0.00488|lqb=2030.4|lqs=748.75",
+          "price": 85.85,
+          "x": 68,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 119,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1776700800|86.19|typ=H",
+          "price": 85.93,
+          "x": 69,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 120,
+          "text": "JF|1|0.6.0|935851|B|2A|ENT|S|240|1776758400|85.79|lvl=86.19|stop=87.15607143|t1=82.77|rsn=na|reg=D|reg1d=C|age=9|wkp=87|t1co=0|rt1=2.21|oi_d=0.45|q=PU.OU|fp=31.5|gvb=0.29|swd=0.2|age_t=1|os=-0.67|osp=29|er=0.2|vz=-0.59|dlt=1139957.26|fr=-0.003607|lqb=13393.23|lqs=220.89",
+          "price": 86.47,
+          "x": 70,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 121,
+          "text": "2A",
+          "price": 86.47,
+          "x": 70,
+          "yloc": "pr",
+          "size": "small",
+          "textColor": 4294967295,
+          "color": 4282726130
+        },
+        {
+          "id": 122,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1776758400|85.79|lvl=86.19|stop=87.15607143|t1=86.71442353|rsn=rr|lvl_src=pdh|n_lvls=1|align=W|oco=1|reg=D|reg1d=C|age=9|swd=0.2|age_t=2|rt1=na|os=-0.67|osp=29|er=0.2|vz=-0.59|dlt=1139957.26|fr=-0.003607|lqb=13393.23|lqs=220.89",
+          "price": 86.47,
+          "x": 70,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 123,
+          "text": "JF|1|0.6.0|935851|B|2A|ENT|S|240|1776772800|86|lvl=86.19|stop=87.56|t1=82.77|rsn=na|reg=D|reg1d=C|age=10|wkp=92.5|t1co=0|rt1=2.07|oi_d=0.59|q=PU.OU|fp=41.5|gvb=0.14|swd=0.49|age_t=2|os=-0.42|osp=21|er=0.19|vz=0.59|dlt=-701906.4|fr=-0.000073|lqb=6765.94|lqs=3319.54",
+          "price": 86.87,
+          "x": 71,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 124,
+          "text": "2A",
+          "price": 86.87,
+          "x": 71,
+          "yloc": "pr",
+          "size": "small",
+          "textColor": 4294967295,
+          "color": 4282726130
+        },
+        {
+          "id": 125,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1776772800|86|lvl=86.19|stop=87.56|t1=86.57534118|rsn=rr|lvl_src=pdh|n_lvls=1|align=W|oco=1|reg=D|reg1d=C|age=10|swd=0.49|age_t=3|rt1=na|os=-0.42|osp=21|er=0.19|vz=0.59|dlt=-701906.4|fr=-0.000073|lqb=6765.94|lqs=3319.54",
+          "price": 86.87,
+          "x": 71,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 126,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|S|240|1776787200|84.53|lvl=86.19|stop=na|t1=82.77|rsn=handoff|reg=D|reg1d=C|age=11|d_atr=2.87|d_pct=119.9|bz=1|mlh=5|rt1=na|oi_d=2.72|oi_t=dn|q=PD.OU|fp=11|gvb=1.16|os=-1.35|osp=55.5|er=0.16|vz=0.43|dlt=-4569660.19|fr=0.000922|lqb=1957.39|lqs=5548.62",
+          "price": 86.24,
+          "x": 72,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 127,
+          "text": "JF|1|0.6.0|935851|B|2A|SKP|S|240|1776787200|84.53|lvl=86.19|stop=86.95464286|t1=82.77|rsn=rr|reg=D|reg1d=C|age=11|wkp=40|t1co=1|rt1=0.73|oi_d=-0.3|q=PD.OU|fp=11|gvb=1.16|swd=0.03|age_t=3|os=-1.35|osp=55.5|er=0.16|vz=0.43|dlt=-4569660.19|fr=0.000922|lqb=1957.39|lqs=5548.62",
+          "price": 86.24,
+          "x": 72,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 128,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1776787200|84.53|lvl=86.19|stop=86.95464286|t1=86.45371765|rsn=rr|lvl_src=pdh|n_lvls=1|align=W|oco=1|reg=D|reg1d=C|age=11|swd=0.03|age_t=4|rt1=na|os=-1.35|osp=55.5|er=0.16|vz=0.43|dlt=-4569660.19|fr=0.000922|lqb=1957.39|lqs=5548.62",
+          "price": 86.24,
+          "x": 72,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 129,
+          "text": "JF|1|0.6.0|935851|B|SYS|PING|N|240|1776816000|87.21|reg=C|age=0|reg1d=C",
+          "price": 87.86,
+          "x": 73,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 130,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1776787200|84.26|typ=L",
+          "price": 88.33,
+          "x": 74,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 131,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1776888000|86.83|lvl=86.87|stop=88.34928571|t1=86.70230588|rsn=rr|lvl_src=pdh|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=5|swd=0.62|age_t=5|rt1=0.08|os=0.1|osp=4.5|er=0.04|vz=-1.03|dlt=-931572.55|fr=0.008553|lqb=58.53|lqs=681.51",
+          "price": 87.69,
+          "x": 75,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 132,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1776859200|89.29|typ=H",
+          "price": 87.11,
+          "x": 76,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 133,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1776945600|86.3|lvl=85.97|stop=84.82285714|t1=86.34915294|rsn=rr|lvl_src=pdl|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=9|swd=0.35|age_t=3|rt1=0.03|os=-0.04|osp=2|er=0.14|vz=0.33|dlt=2806499.07|fr=0.001813|lqb=726.28|lqs=174.14",
+          "price": 86.61,
+          "x": 77,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 134,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1776974400|86.08|lvl=85.97|stop=84.53607143|t1=86.01743529|rsn=rr|lvl_src=pdl|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=11|swd=0.55|age_t=5|rt1=na|os=0.05|osp=3|er=0.02|vz=-0.9|dlt=1839097.92|fr=-0.007748|lqb=1408.18|lqs=614.81",
+          "price": 86.21,
+          "x": 78,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 135,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1776960000|84.42|typ=L",
+          "price": 85.79,
+          "x": 79,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 136,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1777017600|84.79|typ=L",
+          "price": 86.92,
+          "x": 80,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 137,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1777060800|86.92|typ=H",
+          "price": 86.77,
+          "x": 81,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 138,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1777132800|85.48|typ=L",
+          "price": 86.7,
+          "x": 82,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 139,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1777262400|85.21|lvl=87.42|stop=88.26285714|t1=86.73788235|rsn=rr|lvl_src=pdh|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=31|swd=0.43|age_t=1|rt1=na|os=-1.69|osp=77|er=0.11|vz=1.28|dlt=-5585929.09|fr=-0.001953|lqb=0.38|lqs=15324.16",
+          "price": 87.81,
+          "x": 83,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 140,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1777248000|88.08|typ=H",
+          "price": 85.81,
+          "x": 84,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 141,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1777291200|83.56|typ=L",
+          "price": 84.89,
+          "x": 85,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 142,
+          "text": "JF|1|0.6.0|935851|B|OS|ENT|L|240|1777363200|83.36|lvl=83.27|stop=82.64071429|t1=85.73397647|rsn=na|lvl_src=pwl|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=38|swd=0.05|age_t=na|rt1=3.3|os=-2.09|osp=87.5|er=0.33|vz=-0.82|dlt=-1340083.27|fr=-0.009025|lqb=2.73|lqs=4400.93",
+          "price": 84.15,
+          "x": 86,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 143,
+          "text": "OS",
+          "price": 83.21,
+          "x": 86,
+          "yloc": "pr",
+          "size": "small",
+          "textColor": 4294967295,
+          "color": 4287003512
+        },
+        {
+          "id": 144,
+          "text": "JF|1|0.6.0|935851|B|OS|ENT|L|240|1777377600|83.43|lvl=83.27|stop=82.32928571|t1=85.4788|rsn=na|lvl_src=pwl|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=39|swd=0.31|age_t=na|rt1=1.86|os=-1.76|osp=77|er=0.31|vz=0.18|dlt=-1259186.09|fr=-0.00455|lqb=1019.04|lqs=10455.78",
+          "price": 84.04,
+          "x": 87,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 145,
+          "text": "OS",
+          "price": 82.91,
+          "x": 87,
+          "yloc": "pr",
+          "size": "small",
+          "textColor": 4294967295,
+          "color": 4287003512
+        },
+        {
+          "id": 146,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1777392000|83.85|lvl=83.56|stop=82.67607143|t1=85.23821176|rsn=rr|lvl_src=pdl|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=40|swd=0.24|age_t=4|rt1=1.18|os=-1.17|osp=57|er=0.26|vz=-0.8|dlt=1804259.8|fr=-0.000059|lqb=429.72|lqs=42.2",
+          "price": 83.99,
+          "x": 88,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 147,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1777406400|84.02|lvl=83.56|stop=82.93928571|t1=85.0456|rsn=rr|lvl_src=pdl|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=41|swd=0.03|age_t=5|rt1=0.95|os=-0.87|osp=47|er=0.22|vz=-0.85|dlt=-293052.5|fr=-0.001641|lqb=221.35|lqs=10.46",
+          "price": 84.15,
+          "x": 89,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 148,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1777377600|82.91|typ=L",
+          "price": 84.71,
+          "x": 90,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 149,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1777435200|84.66|lvl=84.89|stop=85.60142857|t1=84.80037647|rsn=rr|lvl_src=pdh|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=43|swd=0.13|age_t=1|rt1=na|os=-0.13|osp=7|er=0.16|vz=-0.32|dlt=261442.11|fr=0.007843|lqb=1600.8|lqs=1028.75",
+          "price": 85.04,
+          "x": 91,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 150,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1777449600|84.87|lvl=84.89|stop=86.07892857|t1=84.69002353|rsn=rr|lvl_src=pdh|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=44|swd=0.58|age_t=2|rt1=0.15|os=0.16|osp=9|er=0.12|vz=0.19|dlt=-969526.14|fr=0.00932|lqb=2606.6|lqs=1109.78",
+          "price": 85.53,
+          "x": 92,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 151,
+          "text": "JF|1|0.6.0|935851|B|SYS|PING|N|240|1777478400|82.13|reg=D|age=0|reg1d=C",
+          "price": 83.59,
+          "x": 93,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 152,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1777449600|85.53|typ=H",
+          "price": 83.2,
+          "x": 94,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 153,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1777492800|83.01|lvl=82.91|stop=81.54642857|t1=84.11098824|rsn=rr|lvl_src=pdl|n_lvls=1|align=A|oco=0|reg=D|reg1d=C|age=1|swd=0.75|age_t=5|rt1=0.75|os=-1.01|osp=53.5|er=0.29|vz=-0.35|dlt=1872107.48|fr=-0.003892|lqb=3036.44|lqs=12.13",
+          "price": 83.2,
+          "x": 94,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 154,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|S|240|1777507200|83.02|lvl=85.53|stop=na|t1=82.77|rsn=na|reg=D|reg1d=C|age=2|d_atr=1.09|d_pct=44.2|bz=1|mlh=1|rt1=na|oi_d=-0.56|oi_t=dn|q=PD.OD|fp=54|gvb=2.24|os=-0.8|osp=46.5|er=0.33|vz=-0.06|dlt=106219.96|fr=0.009699|lqb=2753.96|lqs=3418.32",
+          "price": 83.99,
+          "x": 95,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 155,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1777478400|81.31|typ=L",
+          "price": 83.36,
+          "x": 96,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 156,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|S|240|1777521600|83.32|lvl=85.53|stop=na|t1=82.77|rsn=newlow|reg=D|reg1d=C|age=3|d_atr=1.06|d_pct=44.2|bz=1|mlh=1|rt1=na|oi_d=-1.22|oi_t=dn|q=PD.OD|fp=95|gvb=1.92|os=-0.31|osp=22|er=0.3|vz=-0.63|dlt=1120958.65|fr=0.007453|lqb=759.46|lqs=3835.02",
+          "price": 83.36,
+          "x": 96,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 157,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1777521600|83.32|lvl=83.27|stop=81.52535714|t1=83.67661176|rsn=rr|lvl_src=pwl|n_lvls=1|align=A|oco=0|reg=D|reg1d=C|age=3|swd=1.02|age_t=na|rt1=0.2|os=-0.31|osp=22|er=0.3|vz=-0.63|dlt=1120958.65|fr=0.007453|lqb=759.46|lqs=3835.02",
+          "price": 83.36,
+          "x": 96,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 158,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|S|240|1777536000|82.98|lvl=85.53|stop=na|t1=81.31|rsn=na|reg=D|reg1d=C|age=4|d_atr=1.98|d_pct=53.1|bz=1|mlh=1|rt1=na|oi_d=0.88|oi_t=up|q=PD.OU|fp=67.5|gvb=2.25|os=-0.48|osp=31|er=0.41|vz=-0.79|dlt=223643.56|fr=0.01|lqb=117.69|lqs=877.51",
+          "price": 83.55,
+          "x": 97,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 159,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1777550400|83.3|lvl=83.27|stop=82.05214286|t1=83.39084706|rsn=rr|lvl_src=pwl|n_lvls=1|align=A|oco=0|reg=D|reg1d=C|age=5|swd=0.55|age_t=na|rt1=0.07|os=-0.08|osp=5.5|er=0.2|vz=-0.05|dlt=1581365.62|fr=0.007585|lqb=2411.03|lqs=983",
+          "price": 83.8,
+          "x": 98,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 160,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1777593600|83.85|lvl=83.27|stop=82.45785714|t1=83.21277647|rsn=rr|lvl_src=pwl|n_lvls=1|align=A|oco=0|reg=D|reg1d=C|age=8|swd=0.22|age_t=na|rt1=na|os=0.57|osp=36.5|er=0.03|vz=-0.43|dlt=2428538.65|fr=0.002326|lqb=11043.53|lqs=6.62",
+          "price": 84.37,
+          "x": 99,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 161,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1777593600|83.85|lvl=83.99|stop=84.93214286|t1=83.21277647|rsn=rr|lvl_src=pdh|n_lvls=1|align=W|oco=0|reg=D|reg1d=C|age=8|swd=0.34|age_t=0|rt1=0.59|os=0.57|osp=36.5|er=0.03|vz=-0.43|dlt=2428538.65|fr=0.002326|lqb=11043.53|lqs=6.62",
+          "price": 84.37,
+          "x": 99,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 162,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1777608000|83.9|lvl=83.99|stop=84.76071429|t1=83.20235294|rsn=rr|lvl_src=pdh|n_lvls=1|align=W|oco=0|reg=D|reg1d=C|age=9|swd=0.19|age_t=1|rt1=0.81|os=0.62|osp=40.5|er=0.1|vz=-0.53|dlt=473153.87|fr=0.001717|lqb=11043.53|lqs=926.13",
+          "price": 84.2,
+          "x": 100,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 163,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1777622400|83.98|lvl=83.99|stop=84.82821429|t1=83.18362353|rsn=rr|lvl_src=pdh|n_lvls=1|align=W|oco=0|reg=D|reg1d=C|age=10|swd=0.26|age_t=2|rt1=0.94|os=0.73|osp=45.5|er=0.02|vz=-0.9|dlt=31345.03|fr=0.000372|lqb=154.95|lqs=37.83",
+          "price": 84.28,
+          "x": 101,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 164,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1777651200|83.86|lvl=83.99|stop=85.1475|t1=83.12703529|rsn=rr|lvl_src=pdh|n_lvls=1|align=W|oco=0|reg=D|reg1d=C|age=12|swd=0.56|age_t=4|rt1=0.57|os=0.67|osp=43|er=0.06|vz=-0.6|dlt=-1077014.84|fr=0.01|lqb=150.82|lqs=246.1",
+          "price": 84.6,
+          "x": 102,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 165,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1777636800|84.82|typ=H",
+          "price": 84.16,
+          "x": 103,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 166,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1777665600|83.28|typ=L",
+          "price": 84.11,
+          "x": 104,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 167,
+          "text": "JF|1|0.6.0|935851|B|2A|SKP|S|240|1777752000|84.23|lvl=84.82|stop=85.30071429|t1=83.28|rsn=rr|reg=D|reg1d=C|age=19|wkp=99|t1co=0|rt1=0.89|oi_d=-0.38|q=PU.OD|fp=50|gvb=0.87|swd=0.21|age_t=5|os=1.99|osp=91|er=0.17|vz=-0.55|dlt=-235545.38|fr=0.004335|lqb=7957.05|lqs=273.9",
+          "price": 84.96,
+          "x": 105,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 168,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1777752000|84.23|lvl=84.82|stop=85.30071429|t1=82.87110588|rsn=rr|lvl_src=pdh|n_lvls=1|align=W|oco=1|reg=D|reg1d=C|age=19|swd=0.21|age_t=5|rt1=1.27|os=1.99|osp=91|er=0.17|vz=-0.55|dlt=-235545.38|fr=0.004335|lqb=7957.05|lqs=273.9",
+          "price": 84.96,
+          "x": 105,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 169,
+          "text": "JF|1|0.6.0|935851|B|T1|SKP|S|240|1777766400|83.61|lvl=84.82|stop=85.30642857|t1=81.31|rsn=rr|reg=D|reg1d=C|age=20|d_atr=5.27|d_pct=104|bz=1|mlh=9|rt1=1.36|oi_d=0.35|oi_t=up|q=PU.OD|fp=28.5|gvb=1.75|os=1.01|osp=59.5|er=0.26|vz=-0.67|dlt=-1791692.77|fr=0.006794|lqb=30.24|lqs=9506.45",
+          "price": 84.27,
+          "x": 106,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 170,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1777752000|84.96|typ=H",
+          "price": 84.16,
+          "x": 107,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 171,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|S|240|1777795200|83.9|lvl=84.96|stop=na|t1=81.31|rsn=na|reg=D|reg1d=C|age=22|d_atr=5.77|d_pct=100|bz=1|mlh=1|rt1=na|oi_d=-0.36|oi_t=dn|q=PU.OD|fp=36.5|gvb=1.67|os=1.57|osp=77|er=0.17|vz=-0.88|dlt=1040443.74|fr=-0.007105|lqb=362.34|lqs=65.98",
+          "price": 84.16,
+          "x": 107,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 172,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1777780800|83.52|typ=L",
+          "price": 84.47,
+          "x": 108,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 173,
+          "text": "JF|1|0.6.0|935851|B|T1|ENT|S|240|1777838400|83.87|lvl=84.96|stop=85.27571429|t1=81.31|rsn=na|reg=D|reg1d=C|age=25|d_atr=5.78|d_pct=100|bz=1|mlh=4|rt1=1.82|oi_d=-0.85|oi_t=dn|q=PD.OD|fp=73|gvb=1.73|os=1.3|osp=67.5|er=0.11|vz=0.08|dlt=-493644.46|fr=0.007245|lqb=6149.64|lqs=2368.7",
+          "price": 84.95,
+          "x": 109,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 174,
+          "text": "T1",
+          "price": 84.95,
+          "x": 109,
+          "yloc": "pr",
+          "size": "small",
+          "textColor": 4294967295,
+          "color": 4282726130
+        },
+        {
+          "id": 175,
+          "text": "JF|1|0.6.0|935851|B|SYS|PING|N|240|1777852800|85.38|reg=C|age=0|reg1d=C",
+          "price": 85.62,
+          "x": 110,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 176,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1777852800|85.38|lvl=83.52|stop=82.92142857|t1=83.08167059|rsn=rr|lvl_src=pdl|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=0|swd=0.31|age_t=0|rt1=na|os=3.12|osp=99.5|er=0.38|vz=2.59|dlt=4857706.49|fr=0.01|lqb=14415.94|lqs=2643.6",
+          "price": 85.62,
+          "x": 110,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 177,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1777867200|84.84|lvl=84.95|stop=86.27714286|t1=83.21435294|rsn=rr|lvl_src=pdh|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=1|swd=1.17|age_t=1|rt1=1.13|os=2.05|osp=90.5|er=0.27|vz=1.24|dlt=-863231.06|fr=0.01|lqb=1723.96|lqs=4924.43",
+          "price": 85.88,
+          "x": 111,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 178,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1777881600|83.9|lvl=83.52|stop=82.73964286|t1=83.32607059|rsn=rr|lvl_src=pdl|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=2|swd=0.39|age_t=2|rt1=na|os=0.65|osp=39.5|er=0.01|vz=1.89|dlt=-4547666.66|fr=0.00464|lqb=916.56|lqs=24462.33",
+          "price": 85.16,
+          "x": 112,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 179,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1777881600|83.9|lvl=84.95|stop=85.60035714|t1=83.32607059|rsn=rr|lvl_src=pdh|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=2|swd=0.24|age_t=2|rt1=0.34|os=0.65|osp=39.5|er=0.01|vz=1.89|dlt=-4547666.66|fr=0.00464|lqb=916.56|lqs=24462.33",
+          "price": 85.16,
+          "x": 112,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 180,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1777896000|84.45|lvl=83.52|stop=83.01785714|t1=83.36023529|rsn=rr|lvl_src=pdl|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=3|swd=0.01|age_t=3|rt1=na|os=1.11|osp=62|er=0.07|vz=2.1|dlt=-113560.32|fr=0.002423|lqb=3242.56|lqs=2233.52",
+          "price": 85.3,
+          "x": 113,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 181,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1777896000|84.45|lvl=84.95|stop=85.79214286|t1=83.36023529|rsn=rr|lvl_src=pdh|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=3|swd=0.36|age_t=3|rt1=0.81|os=1.11|osp=62|er=0.07|vz=2.1|dlt=-113560.32|fr=0.002423|lqb=3242.56|lqs=2233.52",
+          "price": 85.3,
+          "x": 113,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 182,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1777867200|85.88|typ=H",
+          "price": 85.17,
+          "x": 114,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 183,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1777910400|84.43|lvl=84.95|stop=85.68357143|t1=83.46790588|rsn=rr|lvl_src=pdh|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=4|swd=0.21|age_t=4|rt1=0.77|os=0.94|osp=55|er=0.06|vz=0.38|dlt=-1518926.02|fr=0.01|lqb=1219.1|lqs=464.57",
+          "price": 85.17,
+          "x": 114,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 184,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1777881600|83.18|typ=L",
+          "price": 84.52,
+          "x": 115,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 185,
+          "text": "JF|1|0.6.0|935851|B|2B|SKP|S|240|1777982400|85.47|lvl=85.88|stop=86.62714286|t1=84.53|rsn=rr|reg=C|reg1d=C|age=9|wkp=88.5|t1co=0|rt1=0.81|oi_d=0.72|q=PU.OU|fp=38.5|gvb=0.37|swd=0.18|age_t=103|os=1.17|osp=65|er=0.23|vz=2.16|dlt=3367766.23|fr=0.01|lqb=8420.07|lqs=702.12",
+          "price": 86.08,
+          "x": 116,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 186,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1777982400|85.47|lvl=85.88|stop=86.62714286|t1=84.19487059|rsn=rr|lvl_src=pdh|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=9|swd=0.18|age_t=3|rt1=1.1|os=1.17|osp=65|er=0.23|vz=2.16|dlt=3367766.23|fr=0.01|lqb=8420.07|lqs=702.12",
+          "price": 86.08,
+          "x": 116,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 187,
+          "text": "JF|1|0.6.0|935851|B|SYS|PING|N|240|1777996800|86.47|reg=U|age=0|reg1d=C",
+          "price": 86.53,
+          "x": 117,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 188,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1778025600|87.29|lvl=83.18|stop=na|t1=85.88|rsn=na|reg=U|reg1d=C|age=2|d_atr=0.69|d_pct=32.2|bz=1|mlh=1|rt1=na|oi_d=2.66|oi_t=up|q=PU.OU|fp=35|gvb=3.28|os=2.01|osp=89.5|er=0.33|vz=0.25|dlt=3215633.44|fr=0.01|lqb=6875.21|lqs=365.15",
+          "price": 87.44,
+          "x": 118,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 189,
+          "text": "JF|1|0.6.0|935851|B|T1|SKP|L|240|1778025600|87.29|lvl=83.18|stop=84.38321429|t1=85.88|rsn=rr|reg=U|reg1d=C|age=2|d_atr=0.69|d_pct=32.2|bz=1|mlh=1|rt1=-0.49|oi_d=2.66|oi_t=up|q=PU.OU|fp=35|gvb=3.28|os=2.01|osp=89.5|er=0.33|vz=0.25|dlt=3215633.44|fr=0.01|lqb=6875.21|lqs=365.15",
+          "price": 87.44,
+          "x": 118,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 190,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1778068800|88.92|lvl=83.18|stop=na|t1=85.88|rsn=na|reg=U|reg1d=C|age=5|d_atr=0.64|d_pct=32.2|bz=1|mlh=1|rt1=na|oi_d=7.41|oi_t=up|q=PU.OU|fp=31|gvb=4.24|os=2.33|osp=95.5|er=0.42|vz=2.76|dlt=-418125.71|fr=0.01|lqb=2384.5|lqs=15087.7",
+          "price": 89.94,
+          "x": 119,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 191,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1778054400|90.13|typ=H",
+          "price": 89.58,
+          "x": 120,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 192,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|L|240|1778097600|89.1|lvl=83.18|stop=na|t1=85.88|rsn=newhigh|reg=U|reg1d=C|age=7|d_atr=0.71|d_pct=32.2|bz=1|mlh=1|rt1=na|oi_d=8.89|oi_t=up|q=PU.OU|fp=49.5|gvb=4.82|os=2.17|osp=92|er=0.41|vz=-0.54|dlt=-273118.14|fr=0.008995|lqb=578.9|lqs=847.52",
+          "price": 89.58,
+          "x": 120,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 193,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1778112000|87.72|lvl=83.18|stop=na|t1=90.13|rsn=na|reg=U|reg1d=C|age=8|d_atr=2.1|d_pct=38.3|bz=0|mlh=1|rt1=na|oi_d=-1.62|oi_t=dn|q=PU.OU|fp=69.5|gvb=3.58|os=0.77|osp=42.5|er=0.25|vz=0.35|dlt=-3427141.28|fr=0.009893|lqb=174.29|lqs=4661.81",
+          "price": 89.23,
+          "x": 121,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 194,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1778112000|87.72|lvl=88.08|stop=89.86321429|t1=86.74988235|rsn=rr|lvl_src=pwh|n_lvls=1|align=A|oco=0|reg=U|reg1d=C|age=8|swd=0.91|age_t=na|rt1=0.45|os=0.77|osp=42.5|er=0.25|vz=0.35|dlt=-3427141.28|fr=0.009893|lqb=174.29|lqs=4661.81",
+          "price": 89.23,
+          "x": 121,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 195,
+          "text": "JF|1|0.6.0|935851|B|T1|SKP|L|240|1778126400|90.12|lvl=83.18|stop=86.75821429|t1=90.13|rsn=rr|reg=U|reg1d=C|age=9|d_atr=1.87|d_pct=38.3|bz=0|mlh=1|rt1=0|oi_d=0.52|oi_t=up|q=PU.OU|fp=59.5|gvb=4.88|os=2.22|osp=93|er=0.41|vz=1.17|dlt=4702271.27|fr=0.008231|lqb=17631.36|lqs=244.12",
+          "price": 90.4,
+          "x": 122,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 196,
+          "text": "JF|1|0.6.0|935851|B|OS|ENT|S|240|1778126400|90.12|lvl=90.13|stop=91.11178571|t1=86.95858824|rsn=na|lvl_src=pdh|n_lvls=1|align=A|oco=0|reg=U|reg1d=C|age=9|swd=0.19|age_t=1|rt1=3.19|os=2.22|osp=93|er=0.41|vz=1.17|dlt=4702271.27|fr=0.008231|lqb=17631.36|lqs=244.12",
+          "price": 90.4,
+          "x": 122,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 197,
+          "text": "OS",
+          "price": 90.4,
+          "x": 122,
+          "yloc": "pr",
+          "size": "small",
+          "textColor": 4282726966,
+          "color": 4282726130
+        },
+        {
+          "id": 198,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1778140800|89.5|lvl=90.13|stop=90.96357143|t1=87.35134118|rsn=rr|lvl_src=pdh|n_lvls=1|align=A|oco=0|reg=U|reg1d=C|age=10|swd=0.07|age_t=2|rt1=1.47|os=1.46|osp=72.5|er=0.29|vz=0.67|dlt=-2491909.32|fr=-0.001976|lqb=340.03|lqs=1831.37",
+          "price": 90.23,
+          "x": 123,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 199,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1778155200|88.28|lvl=83.18|stop=na|t1=90.13|rsn=na|reg=U|reg1d=C|age=11|d_atr=1.67|d_pct=38.3|bz=0|mlh=1|rt1=na|oi_d=-0.82|oi_t=dn|q=PU.OU|fp=93.5|gvb=3.21|os=0.36|osp=19|er=0.23|vz=2.19|dlt=-1815332.59|fr=-0.006004|lqb=723.71|lqs=10063.69",
+          "price": 90.06,
+          "x": 124,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 200,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1778126400|90.4|typ=H",
+          "price": 89.02,
+          "x": 125,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 201,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|L|240|1778169600|88.41|lvl=83.18|stop=na|t1=90.13|rsn=newhigh|reg=U|reg1d=C|age=12|d_atr=1.63|d_pct=38.3|bz=0|mlh=1|rt1=na|oi_d=-0.59|oi_t=up|q=PU.OU|fp=45.5|gvb=3.21|os=0.28|osp=16|er=0.32|vz=0.61|dlt=619420.58|fr=0.003804|lqb=864.16|lqs=2580.83",
+          "price": 89.02,
+          "x": 125,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 202,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1778184000|88.4|lvl=83.18|stop=na|t1=90.4|rsn=na|reg=U|reg1d=C|age=13|d_atr=1.71|d_pct=38.6|bz=0|mlh=1|rt1=na|oi_d=-0.9|oi_t=dn|q=PU.OU|fp=30|gvb=3.21|os=0.12|osp=6.5|er=0.29|vz=-0.35|dlt=-392898.94|fr=0.009448|lqb=282.34|lqs=5182.11",
+          "price": 88.82,
+          "x": 126,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 203,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1778198400|87.56|typ=L",
+          "price": 89.56,
+          "x": 127,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 204,
+          "text": "JF|1|0.6.0|935851|B|T1|SKP|L|240|1778241600|89.55|lvl=87.56|stop=86.77392857|t1=90.4|rsn=rr|reg=U|reg1d=C|age=17|d_atr=1.81|d_pct=100|bz=0|mlh=3|rt1=0.31|oi_d=0.98|oi_t=up|q=PU.OU|fp=61.5|gvb=1.27|os=0.48|osp=27|er=0.33|vz=0.94|dlt=1634438.79|fr=-0.00101|lqb=5634.92|lqs=1845.6",
+          "price": 89.56,
+          "x": 127,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 205,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1778328000|92.94|lvl=87.56|stop=na|t1=90.4|rsn=na|reg=U|reg1d=C|age=23|d_atr=1.93|d_pct=100|bz=1|mlh=1|rt1=na|oi_d=11.68|oi_t=dn|q=PU.OU|fp=64.5|gvb=3.66|os=1.18|osp=60|er=0.31|vz=0.01|dlt=402344.72|fr=0.001495|lqb=5634.03|lqs=3520.81",
+          "price": 93.7,
+          "x": 128,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 206,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1778299200|94.16|typ=H",
+          "price": 93.6,
+          "x": 129,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 207,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|L|240|1778342400|93.45|lvl=87.56|stop=na|t1=90.4|rsn=newhigh|reg=U|reg1d=C|age=24|d_atr=1.99|d_pct=100|bz=1|mlh=1|rt1=na|oi_d=11.04|oi_t=dn|q=PU.OU|fp=21|gvb=4.13|os=1.31|osp=63.5|er=0.24|vz=-0.27|dlt=369759.65|fr=-0.001656|lqb=1428.55|lqs=59.97",
+          "price": 93.6,
+          "x": 129,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 208,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1778371200|93.37|lvl=87.56|stop=na|t1=94.16|rsn=na|reg=U|reg1d=C|age=26|d_atr=1.26|d_pct=24.5|bz=0|mlh=1|rt1=na|oi_d=0.17|oi_t=up|q=PU.OU|fp=46|gvb=4.52|os=0.79|osp=42.5|er=0.28|vz=-0.55|dlt=70271.58|fr=0.000636|lqb=5100.56|lqs=1068.63",
+          "price": 93.46,
+          "x": 130,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 209,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1778400000|93.48|lvl=94.16|stop=95.42821429|t1=93.02658824|rsn=rr|lvl_src=pdh|n_lvls=1|align=A|oco=0|reg=U|reg1d=C|age=28|swd=0.48|age_t=2|rt1=0.23|os=0.35|osp=18.5|er=0.43|vz=1.21|dlt=-57916.22|fr=-0.000225|lqb=11481.78|lqs=2902.56",
+          "price": 94.78,
+          "x": 131,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 210,
+          "text": "JF|1|0.6.0|935851|B|T1|SKP|L|240|1778414400|94.48|lvl=87.56|stop=91.86357143|t1=94.16|rsn=rr|reg=U|reg1d=C|age=29|d_atr=1.2|d_pct=24.5|bz=1|mlh=2|rt1=-0.12|oi_d=-0.18|oi_t=dn|q=PU.OU|fp=32.5|gvb=5.12|os=0.85|osp=46.5|er=0.36|vz=0.38|dlt=2598348.38|fr=-0.000942|lqb=4536.17|lqs=201.59",
+          "price": 94.7,
+          "x": 132,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 211,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1778443200|96.42|lvl=87.56|stop=na|t1=94.16|rsn=na|reg=U|reg1d=C|age=31|d_atr=1|d_pct=24.5|bz=1|mlh=1|rt1=na|oi_d=-2.58|oi_t=dn|q=PU.OU|fp=69.5|gvb=5.45|os=1.38|osp=67.5|er=0.67|vz=2.22|dlt=1402625.83|fr=0.008884|lqb=13358.04|lqs=32462.99",
+          "price": 96.83,
+          "x": 133,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 212,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1778428800|96.88|typ=H",
+          "price": 96.12,
+          "x": 134,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 213,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|L|240|1778472000|95.29|lvl=87.56|stop=na|t1=94.16|rsn=newhigh|reg=U|reg1d=C|age=33|d_atr=1.02|d_pct=24.5|bz=1|mlh=1|rt1=na|oi_d=-2.64|oi_t=dn|q=PU.OD|fp=78.5|gvb=4.86|os=0.2|osp=11.5|er=0.48|vz=-0.01|dlt=261234.5|fr=0.003555|lqb=386.77|lqs=464.98",
+          "price": 96.12,
+          "x": 134,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 214,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1778472000|95.29|lvl=87.56|stop=na|t1=96.88|rsn=na|reg=U|reg1d=C|age=33|d_atr=1.58|d_pct=26.9|bz=0|mlh=1|rt1=na|oi_d=0|oi_t=dn|q=PU.OD|fp=78.5|gvb=4.86|os=0.2|osp=11.5|er=0.48|vz=-0.01|dlt=261234.5|fr=0.003555|lqb=386.77|lqs=464.98",
+          "price": 96.12,
+          "x": 134,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 215,
+          "text": "JF|1|0.6.0|935851|B|T1|SKP|L|240|1778500800|96.76|lvl=87.56|stop=93.4475|t1=96.88|rsn=rr|reg=U|reg1d=C|age=35|d_atr=1.64|d_pct=28.2|bz=0|mlh=2|rt1=0.04|oi_d=2.8|oi_t=up|q=PU.OD|fp=94.5|gvb=5.73|os=0.74|osp=40|er=0.55|vz=2.87|dlt=321685.06|fr=0.006368|lqb=6963.27|lqs=3522.45",
+          "price": 96.78,
+          "x": 135,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 216,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1778500800|94.25|typ=L",
+          "price": 97.63,
+          "x": 136,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 217,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1778544000|96.09|lvl=94.25|stop=na|t1=96.88|rsn=na|reg=U|reg1d=C|age=38|d_atr=1.5|d_pct=100|bz=1|mlh=1|rt1=na|oi_d=2.6|oi_t=dn|q=PU.OD|fp=74|gvb=1.05|os=-0.4|osp=21|er=0.24|vz=0.46|dlt=-1508274.06|fr=-0.004328|lqb=707.18|lqs=22302.73",
+          "price": 97.63,
+          "x": 136,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 218,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1778544000|96.09|lvl=96.88|stop=98.50714286|t1=96.79117647|rsn=rr|lvl_src=pwh|n_lvls=1|align=A|oco=0|reg=U|reg1d=C|age=38|swd=0.43|age_t=na|rt1=na|os=-0.4|osp=21|er=0.24|vz=0.46|dlt=-1508274.06|fr=-0.004328|lqb=707.18|lqs=22302.73",
+          "price": 97.63,
+          "x": 136,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 219,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1778515200|98.36|typ=H",
+          "price": 96.96,
+          "x": 137,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 220,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|L|240|1778558400|95.98|lvl=94.25|stop=na|t1=96.88|rsn=newhigh|reg=U|reg1d=C|age=39|d_atr=1.46|d_pct=100|bz=1|mlh=1|rt1=na|oi_d=2.09|oi_t=dn|q=PU.OD|fp=63.5|gvb=0.96|os=-0.59|osp=32|er=0.28|vz=-0.24|dlt=-741110.16|fr=-0.006064|lqb=647.92|lqs=270.15",
+          "price": 96.96,
+          "x": 137,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 221,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|S|240|1778558400|95.98|lvl=96.88|stop=97.8625|t1=97.04534118|rsn=rr|lvl_src=pwh|n_lvls=1|align=A|oco=0|reg=U|reg1d=C|age=39|swd=0.04|age_t=na|rt1=na|os=-0.59|osp=32|er=0.28|vz=-0.24|dlt=-741110.16|fr=-0.006064|lqb=647.92|lqs=270.15",
+          "price": 96.96,
+          "x": 137,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 222,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|L|240|1778572800|94.92|lvl=94.25|stop=na|t1=98.36|rsn=na|reg=U|reg1d=C|age=40|d_atr=2.07|d_pct=93.4|bz=1|mlh=1|rt1=na|oi_d=-1.34|oi_t=dn|q=PU.OD|fp=83.5|gvb=0.36|os=-1.26|osp=63|er=0.1|vz=0.85|dlt=-2868970.17|fr=0.004131|lqb=19.16|lqs=5486.48",
+          "price": 96.09,
+          "x": 138,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 223,
+          "text": "JF|1|0.6.0|935851|B|SYS|PING|N|240|1778587200|93.82|reg=C|age=0|reg1d=C",
+          "price": 95.52,
+          "x": 139,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 224,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|L|240|1778587200|93.82|lvl=94.25|stop=na|t1=98.36|rsn=choch|reg=C|reg1d=C|age=0|d_atr=1.96|d_pct=93.4|bz=1|mlh=1|rt1=na|oi_d=-1.09|oi_t=up|q=PU.OD|fp=22.5|gvb=0.22|os=-1.82|osp=81.5|er=0.01|vz=1.94|dlt=-2525588.04|fr=0.008047|lqb=3093.74|lqs=25267.08",
+          "price": 95.52,
+          "x": 139,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 225,
+          "text": "JF|1|0.6.0|935851|B|OS|SKP|L|240|1778601600|94.88|lvl=94.25|stop=92.58964286|t1=97.41261176|rsn=rr|lvl_src=pdl|n_lvls=1|align=N|oco=0|reg=C|reg1d=C|age=1|swd=0.36|age_t=4|rt1=1.11|os=-1.32|osp=66|er=0.08|vz=-0.07|dlt=1163118.65|fr=0.01|lqb=1805.31|lqs=514.27",
+          "price": 94.97,
+          "x": 140,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 226,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1778601600|93.55|typ=L",
+          "price": 95.97,
+          "x": 141,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 227,
+          "text": "JF|1|0.6.0|935851|B|SYS|PING|N|240|1778673600|90.37|reg=D|age=0|reg1d=C",
+          "price": 94.58,
+          "x": 142,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 228,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1778644800|95.97|typ=H",
+          "price": 91.36,
+          "x": 143,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 229,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|S|240|1778716800|89.89|lvl=95.97|stop=na|t1=93.55|rsn=na|reg=D|reg1d=C|age=3|d_atr=0.64|d_pct=42.6|bz=1|mlh=1|rt1=na|oi_d=0.17|oi_t=dn|q=PD.OD|fp=57|gvb=3.76|os=-3.99|osp=99.5|er=0.33|vz=1.58|dlt=-4057239.75|fr=-0.007008|lqb=1668.57|lqs=7856.63",
+          "price": 91.38,
+          "x": 144,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 230,
+          "text": "JF|1|0.6.0|935851|B|T1|SKP|S|240|1778716800|89.89|lvl=95.97|stop=95.38785714|t1=93.55|rsn=rr|reg=D|reg1d=C|age=3|d_atr=0.64|d_pct=42.6|bz=1|mlh=1|rt1=-0.67|oi_d=0.17|oi_t=dn|q=PD.OD|fp=57|gvb=3.76|os=-3.99|osp=99.5|er=0.33|vz=1.58|dlt=-4057239.75|fr=-0.007008|lqb=1668.57|lqs=7856.63",
+          "price": 91.38,
+          "x": 144,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 231,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|S|240|1778731200|90.83|lvl=95.97|stop=na|t1=93.55|rsn=na|reg=D|reg1d=C|age=4|d_atr=0.62|d_pct=42.6|bz=1|mlh=1|rt1=na|oi_d=-0.09|oi_t=dn|q=PD.OD|fp=50|gvb=3.11|os=-3.08|osp=96|er=0.27|vz=0.92|dlt=2268791.54|fr=-0.002966|lqb=893.19|lqs=475.95",
+          "price": 91.65,
+          "x": 145,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 232,
+          "text": "JF|1|0.6.0|935851|B|OS|ENT|L|240|1778731200|90.83|lvl=90.2|stop=88.98321429|t1=95.93056471|rsn=na|lvl_src=pdl|n_lvls=1|align=A|oco=0|reg=D|reg1d=C|age=4|swd=0.24|age_t=1|rt1=2.76|os=-3.08|osp=96|er=0.27|vz=0.92|dlt=2268791.54|fr=-0.002966|lqb=893.19|lqs=475.95",
+          "price": 91.65,
+          "x": 145,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 233,
+          "text": "OS",
+          "price": 89.81,
+          "x": 145,
+          "yloc": "pr",
+          "size": "small",
+          "textColor": 4282726966,
+          "color": 4282726130
+        },
+        {
+          "id": 234,
+          "text": "JF|1|0.6.0|935851|B|SYS|PIV|N|240|1778716800|89.73|typ=L",
+          "price": 93.21,
+          "x": 146,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 235,
+          "text": "JF|1|0.6.0|935851|B|T1|CXL|S|240|1778760000|93.1|lvl=95.97|stop=na|t1=93.55|rsn=newlow|reg=D|reg1d=C|age=6|d_atr=0.62|d_pct=42.6|bz=1|mlh=1|rt1=na|oi_d=-1.3|oi_t=dn|q=PD.OD|fp=52.5|gvb=1.73|os=-1.29|osp=59|er=0.1|vz=1.02|dlt=3665852.32|fr=-0.005479|lqb=9521.37|lqs=894.75",
+          "price": 93.21,
+          "x": 146,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        },
+        {
+          "id": 236,
+          "text": "JF|1|0.6.0|935851|B|T1|ARM|S|240|1778760000|93.1|lvl=95.97|stop=na|t1=89.73|rsn=na|reg=D|reg1d=C|age=6|d_atr=2.09|d_pct=55.8|bz=0|mlh=1|rt1=na|oi_d=0|oi_t=dn|q=PD.OD|fp=52.5|gvb=1.73|os=-1.29|osp=59|er=0.1|vz=1.02|dlt=3665852.32|fr=-0.005479|lqb=9521.37|lqs=894.75",
+          "price": 93.21,
+          "x": 146,
+          "yloc": "pr",
+          "size": "tiny",
+          "textColor": 4536886,
+          "color": 8813432
+        }
+      ]
+    }
+  ]
+}
