@@ -18,11 +18,11 @@ AUDITED = {
     ("SOLUSDT.P", 1780200000): "t1_hit",
 }
 
-CFG = "209091"   # v0.5.0 settings_hash (OS knobs + use_1d_gate)
+CFG = "935851"   # v0.6.0 settings_hash (os_use_piv/os_use_roll toggles)
 
 fails = 0
 for sym in ("BTCUSDT.P", "NEARUSDT.P", "SOLUSDT.P"):
-    evs = [json.loads(l) for l in open(HARNESS / "events" / f"{sym}_240_v1_s0.5.0_c{CFG}_B.jsonl")]
+    evs = [json.loads(l) for l in open(HARNESS / "events" / f"{sym}_240_v1_s0.6.0_c{CFG}_B.jsonl")]
     bars = load_bars(HARNESS / "bars" / BARS_MAP[sym])
     eps, ovl = build_episodes(evs, bars)
     epmap = {(e["symbol"], e["ent_ts"]): e for e in eps}

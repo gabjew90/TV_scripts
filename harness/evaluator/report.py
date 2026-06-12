@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from evaluator.episodes import build_episodes, walk_episode
 
 HARNESS = Path(__file__).resolve().parents[1]
-EVENT_GLOB = "*_s0.5.0_*.jsonl"
+EVENT_GLOB = "*_s0.6.0_*.jsonl"
 LQ_SPLIT = 3834.5  # lq_tot inner-band edge = harvested median over sweep ENTs (n=32).
                    # CAVEAT: lq units are feed-native and NOT comparable across symbols —
                    # a global split is a coarse v1; per-symbol normalization is the v2 fix.
@@ -333,7 +333,10 @@ def render_report(eps_all, pseudo_all, overlap_counts, file_list, indep_all=None
 
     # ── Gate questions (pseudo-episodes) ──
     L.append("\n## Gate questions (pseudo-episodes, walked independently)\n")
-    rr_ps = [e for e in pseudo_all if e["pseudo"] == "rr"]
+    # v0.6 artifact fix: rt1=na skips (target on the wrong side of entry at signal
+    # time) grade meaninglessly when walked — they are skipped-on-geometry, not
+    # skipped-on-R, and are EXCLUDED from the rr-gate table.
+    rr_ps = [e for e in pseudo_all if e["pseudo"] == "rr" and fnum(e["factors"], "rt1") is not None]
     L.append("\n### (a) rr gate — skipped-on-R signals, bucketed by their rt1\n")
     L.append(table(FACTOR_HEADER, bucket_rows(rr_ps, "rt1",
              [(None, 0.5), (0.5, 1.0), (1.0, 1.25), (1.25, 1.5)],

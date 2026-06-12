@@ -52,5 +52,5 @@ def test_oriented_q_is_trade_relative():
     assert oriented_q({"dir": "S", "factors": {"q": "PU.OD"}}) == "PA.OD"
 
 
-def test_event_glob_is_s050():
-    assert "s0.5.0" in EVENT_GLOB
+def test_event_glob_is_s060():
+    assert "s0.6.0" in EVENT_GLOB
