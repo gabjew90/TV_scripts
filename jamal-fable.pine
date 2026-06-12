@@ -1,12 +1,12 @@
 //@version=6
-indicator("Jamal Fable v0.6.0", shorttitle = "JFbl0.6.0", overlay = true,
+indicator("Jamal Fable v0.6.1", shorttitle = "JFbl0.6.1", overlay = true,
      max_labels_count = 500, max_lines_count = 500)
 import TradingView/Request/3 as r
 import TradingView/ta/9 as tvta
 
 // ════════════════ Identity (spec §9 provenance) ════════════════
 SCHEMA_V = "1"
-SCRIPT_V = "0.6.0"
+SCRIPT_V = "0.6.1"
 
 // ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
 pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
@@ -433,18 +433,21 @@ f_os_tail(float lvl, float stp, float t1px, string rsn, string src, int nlv, str
      + "|rt1=" + (na(rt1) ? "na" : str.tostring(rt1, "#.##"))
      + "|" + f_cov_tail()
 
-// OS chips: color by ALIGNMENT (green=with-regime, red=against, gray=chop) — spec §14
+// OS chips (v0.6.1 user scheme): with-regime LONG = green, with-regime SHORT = red,
+// AGAINST regime (either side) = yellow warning, chop = gray.
 f_mark_os(string dir, float px, string tail, string align) =>
     if in_window and barstate.isconfirmed
-        color bg = align == "W" ? color.new(color.lime, 0) : align == "A" ? color.new(color.red, 0) : color.new(color.gray, 0)
+        color bg = align == "W" ? (dir == "L" ? color.new(color.lime, 0) : color.new(color.red, 0)) :
+             align == "A" ? color.new(color.yellow, 0) : color.new(color.gray, 0)
+        color tx = align == "W" and dir == "S" ? color.white : align == "N" ? color.white : color.black
         string card = "OS " + (dir == "L" ? "LONG @ " : "SHORT @ ") + str.tostring(px, "#.########")
              + "\n" + str.replace_all(tail, "|", "\n")
         if dir == "L"
             label.new(bar_index, low, "OS", style = label.style_label_up, color = bg,
-                 textcolor = align == "N" ? color.white : color.black, size = size.small, tooltip = card)
+                 textcolor = tx, size = size.small, tooltip = card)
         else
             label.new(bar_index, high, "OS", style = label.style_label_down, color = bg,
-                 textcolor = align == "N" ? color.white : color.black, size = size.small, tooltip = card)
+                 textcolor = tx, size = size.small, tooltip = card)
 
 bool t1l_ent_mark = false
 if barstate.isconfirmed and regime == 1 and not na(hl_ref) and not na(trend_high)
