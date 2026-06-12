@@ -1,12 +1,12 @@
 //@version=6
-indicator("Jamal Fable v0.6.2", shorttitle = "JFbl0.6.2", overlay = true,
+indicator("Jamal Fable v0.7.0", shorttitle = "JFbl0.7.0", overlay = true,
      max_labels_count = 500, max_lines_count = 500)
 import TradingView/Request/3 as r
 import TradingView/ta/9 as tvta
 
 // ════════════════ Identity (spec §9 provenance) ════════════════
 SCHEMA_V = "1"
-SCRIPT_V = "0.6.2"
+SCRIPT_V = "0.7.0"
 
 // ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
 pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
@@ -292,6 +292,18 @@ int age_roll_hi = ta.barssince(roll_hi != roll_hi[1])
 int age_pdl = ta.barssince(pdl != pdl[1])
 int age_pdh = ta.barssince(pdh != pdh[1])
 
+// ════════════════ v0.7 FVG sweep-level zones (spec §14 pinned rules 1-4) ════════════════
+// bull zone [bot=high[2], top=low] = support below price (LONG sweep level, lvl = TOP/near edge);
+// bear zone [bot=high, top=low[2]] = resistance above (SHORT sweep level, lvl = BOT/near edge).
+// MAINTENANCE (retire + push) runs AFTER the OS scan each bar — zones are
+// sweepable only from the bar after formation; close through the FAR edge kills.
+var array<float> fvgb_top  = array.new<float>()   // bull zones (long levels)
+var array<float> fvgb_bot  = array.new<float>()
+var array<int>   fvgb_born = array.new<int>()
+var array<float> fvgs_top  = array.new<float>()   // bear zones (short levels)
+var array<float> fvgs_bot  = array.new<float>()
+var array<int>   fvgs_born = array.new<int>()
+
 // ════════════════ Emission ════════════════
 if ph_new
     f_emit("SYS", "PIV", "N", math.round(time[pivot_right] / 1000), ph_val, "typ=H")
@@ -424,7 +436,7 @@ f_t2_tail(float lvl, float stp, float t1px, string rsn, float wkp, bool t1co, fl
 // fixed tail key order: lvl|stop|t1|rsn|lvl_src|n_lvls|align|oco|reg|reg1d|age|swd|age_t|rt1|tgt|<cov>
 // tgt = target source (v0.6.2 alignment-aware rule): tex=trend extreme (with-regime),
 // fv=fair-value anchor (against-regime), mid=range midpoint (chop).
-f_os_tail(float lvl, float stp, float t1px, string rsn, string src, int nlv, string align, bool oco, float swd, int aget, float rt1, string tgt) =>
+f_os_tail(float lvl, float stp, float t1px, string rsn, string src, int nlv, string align, bool oco, float swd, int aget, float rt1, string tgt, float fsz) =>
     "lvl=" + f_fstr(lvl) + "|stop=" + f_fstr(stp) + "|t1=" + f_fstr(t1px) + "|rsn=" + rsn
      + "|lvl_src=" + src + "|n_lvls=" + str.tostring(nlv) + "|align=" + align
      + "|oco=" + (oco ? "1" : "0")
@@ -434,6 +446,7 @@ f_os_tail(float lvl, float stp, float t1px, string rsn, string src, int nlv, str
      + "|age_t=" + (na(aget) ? "na" : str.tostring(aget))
      + "|rt1=" + (na(rt1) ? "na" : str.tostring(rt1, "#.##"))
      + "|tgt=" + tgt
+     + "|fvg_sz=" + (na(fsz) ? "na" : str.tostring(fsz, "#.##"))
      + "|" + f_cov_tail()
 
 // OS chips (v0.6.1 user scheme): with-regime LONG = green, with-regime SHORT = red,
@@ -642,9 +655,13 @@ if barstate.isconfirmed and regime == 0 and not na(range_hi) and not na(range_lo
 float os_l_lvl = na
 string os_l_src = "na"
 int os_l_n = 0
+float os_l_fsz = na      // chosen-candidate FVG zone height in ATR (na unless src=fvg)
+int os_l_fage = na
 float os_s_lvl = na
 string os_s_src = "na"
 int os_s_n = 0
+float os_s_fsz = na
+int os_s_fage = na
 if barstate.isconfirmed
     if os_use_piv and array.size(piv_lows) > 0      // v0.6: OFF by default (campaign-2 verdict)
         for i = 0 to array.size(piv_lows) - 1
@@ -669,6 +686,16 @@ if barstate.isconfirmed
         if na(os_l_lvl) or roll_lo < os_l_lvl
             os_l_lvl := roll_lo
             os_l_src := "roll"
+    if array.size(fvgb_top) > 0                    // v0.7: bull-FVG sweep (lvl = near edge/top)
+        for i = 0 to array.size(fvgb_top) - 1
+            float ft = array.get(fvgb_top, i)
+            if low < ft and close > ft
+                os_l_n += 1
+                if na(os_l_lvl) or ft < os_l_lvl
+                    os_l_lvl := ft
+                    os_l_src := "fvg"
+                    os_l_fsz := (ft - array.get(fvgb_bot, i)) / atr
+                    os_l_fage := bar_index - array.get(fvgb_born, i)
     if os_use_piv and array.size(piv_highs) > 0
         for i = 0 to array.size(piv_highs) - 1
             float lv = array.get(piv_highs, i)
@@ -692,13 +719,23 @@ if barstate.isconfirmed
         if na(os_s_lvl) or roll_hi > os_s_lvl
             os_s_lvl := roll_hi
             os_s_src := "roll"
+    if array.size(fvgs_bot) > 0                    // v0.7: bear-FVG sweep (lvl = near edge/bottom)
+        for i = 0 to array.size(fvgs_bot) - 1
+            float fb = array.get(fvgs_bot, i)
+            if high > fb and close < fb
+                os_s_n += 1
+                if na(os_s_lvl) or fb > os_s_lvl
+                    os_s_lvl := fb
+                    os_s_src := "fvg"
+                    os_s_fsz := (array.get(fvgs_top, i) - fb) / atr
+                    os_s_fage := bar_index - array.get(fvgs_born, i)
 
 // Same-bar coincidence with the kill-line sweep: emit BOTH, cross-flag oco=1 (dedup offline).
 // 1D opposition = logged SKP only when use_1d_gate (default off — 2026-06-11 ruling, reg1d always stamped).
 float os_mid = not na(range_hi) and not na(range_lo) ? (range_hi + range_lo) / 2.0 : na
 if not na(os_l_lvl)
     string al = regime == 1 ? "W" : regime == -1 ? "A" : "N"
-    int aget = os_l_src == "roll" ? age_roll_lo : os_l_src == "pdl" ? age_pdl : na
+    int aget = os_l_src == "roll" ? age_roll_lo : os_l_src == "pdl" ? age_pdl : os_l_src == "fvg" ? os_l_fage : na
     float stp = low - stop_buffer_atr * atr
     // v0.6.2 alignment-aware target: with-regime -> trend extreme (2A's proven target);
     // against-regime -> fair-value anchor (reversion thesis); chop -> range midpoint (2B's).
@@ -708,17 +745,17 @@ if not na(os_l_lvl)
     float rt1 = close > stp and not na(t1px) and t1px > close ? (t1px - close) / (close - stp) : na
     if use_1d_gate and reg_1d == -1
         f_emit("OS", "SKP", "L", math.round(time / 1000), close,
-             f_os_tail(os_l_lvl, stp, t1px, "1d", os_l_src, os_l_n, al, swp_l, swd, aget, rt1, tgt))
+             f_os_tail(os_l_lvl, stp, t1px, "1d", os_l_src, os_l_n, al, swp_l, swd, aget, rt1, tgt, os_l_fsz))
     else if na(rt1) or rt1 < rr_min
         f_emit("OS", "SKP", "L", math.round(time / 1000), close,
-             f_os_tail(os_l_lvl, stp, t1px, "rr", os_l_src, os_l_n, al, swp_l, swd, aget, rt1, tgt))
+             f_os_tail(os_l_lvl, stp, t1px, "rr", os_l_src, os_l_n, al, swp_l, swd, aget, rt1, tgt, os_l_fsz))
     else
-        string os_ent = f_os_tail(os_l_lvl, stp, t1px, "na", os_l_src, os_l_n, al, swp_l, swd, aget, rt1, tgt)
+        string os_ent = f_os_tail(os_l_lvl, stp, t1px, "na", os_l_src, os_l_n, al, swp_l, swd, aget, rt1, tgt, os_l_fsz)
         f_emit("OS", "ENT", "L", math.round(time / 1000), close, os_ent)
         f_mark_os("L", close, os_ent, al)
 if not na(os_s_lvl)
     string al = regime == -1 ? "W" : regime == 1 ? "A" : "N"
-    int aget = os_s_src == "roll" ? age_roll_hi : os_s_src == "pdh" ? age_pdh : na
+    int aget = os_s_src == "roll" ? age_roll_hi : os_s_src == "pdh" ? age_pdh : os_s_src == "fvg" ? os_s_fage : na
     float stp = high + stop_buffer_atr * atr
     float t1px = regime == -1 ? trend_low : regime == 0 ? os_mid : lr_anchor
     string tgt = regime == -1 ? "tex" : regime == 0 ? "mid" : "fv"
@@ -726,14 +763,47 @@ if not na(os_s_lvl)
     float rt1 = stp > close and not na(t1px) and t1px < close ? (close - t1px) / (stp - close) : na
     if use_1d_gate and reg_1d == 1
         f_emit("OS", "SKP", "S", math.round(time / 1000), close,
-             f_os_tail(os_s_lvl, stp, t1px, "1d", os_s_src, os_s_n, al, swp_s, swd, aget, rt1, tgt))
+             f_os_tail(os_s_lvl, stp, t1px, "1d", os_s_src, os_s_n, al, swp_s, swd, aget, rt1, tgt, os_s_fsz))
     else if na(rt1) or rt1 < rr_min
         f_emit("OS", "SKP", "S", math.round(time / 1000), close,
-             f_os_tail(os_s_lvl, stp, t1px, "rr", os_s_src, os_s_n, al, swp_s, swd, aget, rt1, tgt))
+             f_os_tail(os_s_lvl, stp, t1px, "rr", os_s_src, os_s_n, al, swp_s, swd, aget, rt1, tgt, os_s_fsz))
     else
-        string os_ent_s = f_os_tail(os_s_lvl, stp, t1px, "na", os_s_src, os_s_n, al, swp_s, swd, aget, rt1, tgt)
+        string os_ent_s = f_os_tail(os_s_lvl, stp, t1px, "na", os_s_src, os_s_n, al, swp_s, swd, aget, rt1, tgt, os_s_fsz)
         f_emit("OS", "ENT", "S", math.round(time / 1000), close, os_ent_s)
         f_mark_os("S", close, os_ent_s, al)
+
+// ════════════════ v0.7 FVG zone maintenance — AFTER the scan (pinned rules 2+4) ════════════════
+// retire: a CLOSE through the far edge kills (wicks through keep it alive);
+// push: this bar's new zone enters the list only now (sweepable from next bar).
+if barstate.isconfirmed
+    if array.size(fvgb_top) > 0
+        for i = array.size(fvgb_top) - 1 to 0
+            if close < array.get(fvgb_bot, i)
+                array.remove(fvgb_top, i)
+                array.remove(fvgb_bot, i)
+                array.remove(fvgb_born, i)
+    if array.size(fvgs_bot) > 0
+        for i = array.size(fvgs_bot) - 1 to 0
+            if close > array.get(fvgs_top, i)
+                array.remove(fvgs_top, i)
+                array.remove(fvgs_bot, i)
+                array.remove(fvgs_born, i)
+    if low > high[2]                               // new bull FVG: zone [high[2], low]
+        array.push(fvgb_top, low)
+        array.push(fvgb_bot, high[2])
+        array.push(fvgb_born, bar_index)
+        if array.size(fvgb_top) > 20
+            array.shift(fvgb_top)
+            array.shift(fvgb_bot)
+            array.shift(fvgb_born)
+    if high < low[2]                               // new bear FVG: zone [high, low[2]]
+        array.push(fvgs_top, low[2])
+        array.push(fvgs_bot, high)
+        array.push(fvgs_born, bar_index)
+        if array.size(fvgs_top) > 20
+            array.shift(fvgs_top)
+            array.shift(fvgs_bot)
+            array.shift(fvgs_born)
 
 // ════════════════ Rendering (§11 — minimal by design) ════════════════
 // Two always-on structure lines with seeded continuity across transitions:
