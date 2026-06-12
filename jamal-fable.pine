@@ -1,12 +1,12 @@
 //@version=6
-indicator("Jamal Fable v0.7.0", shorttitle = "JFbl0.7.0", overlay = true,
+indicator("Jamal Fable v0.7.1", shorttitle = "JFbl0.7.1", overlay = true,
      max_labels_count = 500, max_lines_count = 500)
 import TradingView/Request/3 as r
 import TradingView/ta/9 as tvta
 
 // ════════════════ Identity (spec §9 provenance) ════════════════
 SCHEMA_V = "1"
-SCRIPT_V = "0.7.0"
+SCRIPT_V = "0.7.1"
 
 // ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
 pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
@@ -449,20 +449,26 @@ f_os_tail(float lvl, float stp, float t1px, string rsn, string src, int nlv, str
      + "|fvg_sz=" + (na(fsz) ? "na" : str.tostring(fsz, "#.##"))
      + "|" + f_cov_tail()
 
+// v0.7.1: per-class trade codes — OSD (prev-day), OSW (prev-week), OSF (FVG);
+// generic "OS" only for the toggled-off legacy classes (piv/roll).
+f_os_code(string src) =>
+    src == "fvg" ? "OSF" : src == "pdl" or src == "pdh" ? "OSD" :
+     src == "pwl" or src == "pwh" ? "OSW" : "OS"
+
 // OS chips (v0.6.1 user scheme): with-regime LONG = green, with-regime SHORT = red,
 // AGAINST regime (either side) = yellow warning, chop = gray.
-f_mark_os(string dir, float px, string tail, string align) =>
+f_mark_os(string code, string dir, float px, string tail, string align) =>
     if in_window and barstate.isconfirmed
         color bg = align == "W" ? (dir == "L" ? color.new(color.lime, 0) : color.new(color.red, 0)) :
              align == "A" ? color.new(color.yellow, 0) : color.new(color.gray, 0)
         color tx = align == "W" and dir == "S" ? color.white : align == "N" ? color.white : color.black
-        string card = "OS " + (dir == "L" ? "LONG @ " : "SHORT @ ") + str.tostring(px, "#.########")
+        string card = code + (dir == "L" ? " LONG @ " : " SHORT @ ") + str.tostring(px, "#.########")
              + "\n" + str.replace_all(tail, "|", "\n")
         if dir == "L"
-            label.new(bar_index, low, "OS", style = label.style_label_up, color = bg,
+            label.new(bar_index, low, code, style = label.style_label_up, color = bg,
                  textcolor = tx, size = size.small, tooltip = card)
         else
-            label.new(bar_index, high, "OS", style = label.style_label_down, color = bg,
+            label.new(bar_index, high, code, style = label.style_label_down, color = bg,
                  textcolor = tx, size = size.small, tooltip = card)
 
 bool t1l_ent_mark = false
@@ -743,16 +749,17 @@ if not na(os_l_lvl)
     string tgt = regime == 1 ? "tex" : regime == 0 ? "mid" : "fv"
     float swd = (os_l_lvl - low) / atr
     float rt1 = close > stp and not na(t1px) and t1px > close ? (t1px - close) / (close - stp) : na
+    string tc_l = f_os_code(os_l_src)
     if use_1d_gate and reg_1d == -1
-        f_emit("OS", "SKP", "L", math.round(time / 1000), close,
+        f_emit(tc_l, "SKP", "L", math.round(time / 1000), close,
              f_os_tail(os_l_lvl, stp, t1px, "1d", os_l_src, os_l_n, al, swp_l, swd, aget, rt1, tgt, os_l_fsz))
     else if na(rt1) or rt1 < rr_min
-        f_emit("OS", "SKP", "L", math.round(time / 1000), close,
+        f_emit(tc_l, "SKP", "L", math.round(time / 1000), close,
              f_os_tail(os_l_lvl, stp, t1px, "rr", os_l_src, os_l_n, al, swp_l, swd, aget, rt1, tgt, os_l_fsz))
     else
         string os_ent = f_os_tail(os_l_lvl, stp, t1px, "na", os_l_src, os_l_n, al, swp_l, swd, aget, rt1, tgt, os_l_fsz)
-        f_emit("OS", "ENT", "L", math.round(time / 1000), close, os_ent)
-        f_mark_os("L", close, os_ent, al)
+        f_emit(tc_l, "ENT", "L", math.round(time / 1000), close, os_ent)
+        f_mark_os(tc_l, "L", close, os_ent, al)
 if not na(os_s_lvl)
     string al = regime == -1 ? "W" : regime == 1 ? "A" : "N"
     int aget = os_s_src == "roll" ? age_roll_hi : os_s_src == "pdh" ? age_pdh : os_s_src == "fvg" ? os_s_fage : na
@@ -761,16 +768,17 @@ if not na(os_s_lvl)
     string tgt = regime == -1 ? "tex" : regime == 0 ? "mid" : "fv"
     float swd = (high - os_s_lvl) / atr
     float rt1 = stp > close and not na(t1px) and t1px < close ? (close - t1px) / (stp - close) : na
+    string tc_s = f_os_code(os_s_src)
     if use_1d_gate and reg_1d == 1
-        f_emit("OS", "SKP", "S", math.round(time / 1000), close,
+        f_emit(tc_s, "SKP", "S", math.round(time / 1000), close,
              f_os_tail(os_s_lvl, stp, t1px, "1d", os_s_src, os_s_n, al, swp_s, swd, aget, rt1, tgt, os_s_fsz))
     else if na(rt1) or rt1 < rr_min
-        f_emit("OS", "SKP", "S", math.round(time / 1000), close,
+        f_emit(tc_s, "SKP", "S", math.round(time / 1000), close,
              f_os_tail(os_s_lvl, stp, t1px, "rr", os_s_src, os_s_n, al, swp_s, swd, aget, rt1, tgt, os_s_fsz))
     else
         string os_ent_s = f_os_tail(os_s_lvl, stp, t1px, "na", os_s_src, os_s_n, al, swp_s, swd, aget, rt1, tgt, os_s_fsz)
-        f_emit("OS", "ENT", "S", math.round(time / 1000), close, os_ent_s)
-        f_mark_os("S", close, os_ent_s, al)
+        f_emit(tc_s, "ENT", "S", math.round(time / 1000), close, os_ent_s)
+        f_mark_os(tc_s, "S", close, os_ent_s, al)
 
 // ════════════════ v0.7 FVG zone maintenance — AFTER the scan (pinned rules 2+4) ════════════════
 // retire: a CLOSE through the far edge kills (wicks through keep it alive);

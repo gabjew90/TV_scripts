@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from evaluator.episodes import build_episodes, walk_episode
 
 HARNESS = Path(__file__).resolve().parents[1]
-EVENT_GLOB = "*_s0.7.0_*.jsonl"
+EVENT_GLOB = "*_s0.7.1_*.jsonl"
 LQ_SPLIT = 3834.5  # lq_tot inner-band edge = harvested median over sweep ENTs (n=32).
                    # CAVEAT: lq units are feed-native and NOT comparable across symbols â€”
                    # a global split is a coarse v1; per-symbol normalization is the v2 fix.
@@ -305,7 +305,7 @@ def render_report(eps_all, pseudo_all, overlap_counts, file_list, indep_all=None
     L.append(table(FACTOR_HEADER, rows))
 
     # â”€â”€ OS: the new population, judged separately â”€â”€
-    os_eps = [e for e in eps_all if e["trade"] == "OS"]
+    os_eps = [e for e in eps_all if e["trade"].startswith("OS")]   # OSD/OSW/OSF (v0.7.1)
     if os_eps:
         L.append("\n## OS â€” generalized sweeps (NEW population, judge separately)\n")
         for key in ("lvl_src", "align", "tgt"):

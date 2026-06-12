@@ -1,4 +1,4 @@
-﻿"""Full OS audit (s0.7.0): for EVERY OS event on every symbol, recompute from
+﻿"""Full OS audit (s0.7.1): for EVERY OS event on every symbol, recompute from
 raw ccxt bars and assert:
   1. lvl equals the true prev-day / prev-week extreme for its lvl_src
      (TV daily/weekly = UTC midnight / Monday-start week, last CLOSED candle)
@@ -63,10 +63,10 @@ for sym, bf in BARS_MAP.items():
                 if len(bear) > 20:
                     bear.pop(0)
 
-    for f in glob.glob(str(HARNESS / "events" / f"{sym}_*_s0.7.0_*.jsonl")):
+    for f in glob.glob(str(HARNESS / "events" / f"{sym}_*_s0.7.1_*.jsonl")):
         for line in open(f):
             e = json.loads(line)
-            if e["trade"] != "OS":
+            if not e["trade"].startswith("OS"):
                 continue
             fa = e["factors"]
             ts = e["bar_ts"]
