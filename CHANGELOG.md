@@ -556,3 +556,10 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 - OS rt1>3 still inverted (7%/−0.47 — the far-anchor pathology persists while the linreg target stays, per descope); 2A/2B rt1>3 still strong (50%/+1.69, 50%/+1.50). rr 2.0 still worsens the book.
 - Thesis-exit v2 (n=51): net −4.80R ALL; OS −3.38, 2A −3.22, 2B +1.44, T1 +0.36 — evidence for the parked OS/2A third-exit question keeps accumulating.
 **Status:** v0.6.0 COMPLETE — parked designs (unified nearest-structure targets, OS thesis-exit removal, STR marker) remain in spec §14 + v0.6 plan, each with growing evidence.
+
+## Fable v0.6.1 + v0.6.2 — OS chip recolor + alignment-aware targets · campaign 4
+**Date:** 2026-06-12 · **Report:** `harness/reports/campaign_2026-06_s062.md` · cfg 935851 (unchanged; logic carried by script_v).
+**v0.6.1 (display-only, 249b4bb):** OS chips per user scheme — with-regime long=GREEN / short=RED, against-regime=YELLOW, chop=GRAY. Sweep-side rule audited on user question: longs already sweep ONLY pdl/pwl, shorts ONLY pdh/pwh (a prior explanation misstated this; code was always correct).
+**v0.6.2 (37151df, user ruling):** OS target is now ALIGNMENT-AWARE — with-regime → trend extreme (2A's target), against-regime → fair-value anchor, chop → range midpoint; `tgt=` (tex/fv/mid) logged. Re-harvest 16 chunks: same event counts (738/649/716/717), diff PASS (~380 OS retargeted, 146 ENT↔SKP gate flips, one `oi_d` feed restatement on a live-edge SOL event — known ±2% sampling slack). Sanity gate PASS.
+**Campaign 4 (162 episodes): headline 29% / +0.16R** — third consecutive improvement (breakeven → +0.10 → +0.16). The W-aligned OS population TRIPLED (15→50; the trend-extreme target clears the 1.5 gate far more often than the far anchor) and is now profitable at scale (28%/+0.16); `fv` (against-regime) remains the weakest target class (26%/+0.01). osp>85 extreme stretch: 5% win / −0.54R (worst slice, 4th consecutive campaign); pwl longs now 0-for-8.
+**Status:** v0.6.2 COMPLETE.

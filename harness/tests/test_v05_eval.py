@@ -1,4 +1,4 @@
-"""v0.5 evaluator: thesis-exit R-delta, 1D-cohort split, oriented conditioning, glob."""
+﻿"""v0.5 evaluator: thesis-exit R-delta, 1D-cohort split, oriented conditioning, glob."""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -53,4 +53,4 @@ def test_oriented_q_is_trade_relative():
 
 
 def test_event_glob_is_s060():
-    assert "s0.6.0" in EVENT_GLOB
+    assert "s0.6.2" in EVENT_GLOB
