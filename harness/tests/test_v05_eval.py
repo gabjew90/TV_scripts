@@ -50,4 +50,4 @@ def test_oriented_q_is_trade_relative():
 
 
 def test_event_glob_is_s060():
-    assert "s0.6.2" in EVENT_GLOB
+    assert "s0.7.0" in EVENT_GLOB

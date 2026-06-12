@@ -22,7 +22,7 @@ CFG = "935851"   # v0.6.0 settings_hash (os_use_piv/os_use_roll toggles)
 
 fails = 0
 for sym in ("BTCUSDT.P", "NEARUSDT.P", "SOLUSDT.P"):
-    evs = [json.loads(l) for l in open(HARNESS / "events" / f"{sym}_240_v1_s0.6.2_c{CFG}_B.jsonl")]
+    evs = [json.loads(l) for l in open(HARNESS / "events" / f"{sym}_240_v1_s0.7.0_c{CFG}_B.jsonl")]
     bars = load_bars(HARNESS / "bars" / BARS_MAP[sym])
     eps, ovl = build_episodes(evs, bars)
     epmap = {(e["symbol"], e["ent_ts"]): e for e in eps}

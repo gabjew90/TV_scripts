@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from evaluator.episodes import build_episodes, walk_episode
 
 HARNESS = Path(__file__).resolve().parents[1]
-EVENT_GLOB = "*_s0.6.2_*.jsonl"
+EVENT_GLOB = "*_s0.7.0_*.jsonl"
 LQ_SPLIT = 3834.5  # lq_tot inner-band edge = harvested median over sweep ENTs (n=32).
                    # CAVEAT: lq units are feed-native and NOT comparable across symbols â€”
                    # a global split is a coarse v1; per-symbol normalization is the v2 fix.
