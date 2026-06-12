@@ -571,3 +571,10 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Campaign 5 (3,943 events, 233 episodes): 34% / +0.10R** — held campaign 4's level while adding 50% more trades. **FVG instantly the largest OS class (n=126): 32%/+0.01R raw — flat, neither edge nor drag.** Sharpened with n: align W 38%/+0.33 and N 43%/+0.33 vs **A 21%/−0.39 (yellow chips = the book's drag, 5 campaigns consistent)**; osp gradient cleanest yet (<50: 47%/+0.57; >85: 12%/−0.59); pwl longs now 0-for-5 at −1.00R avg.
 **Demotion candidates with convergent multi-campaign evidence: align=A (yellow), osp>85, pwl-longs.**
 **Status:** v0.7.0 COMPLETE — awaiting user review.
+
+## Fable v0.7.1 — per-class OS trade codes (OSD/OSW/OSF) · yellow-chip study
+**Date:** 2026-06-12 · **Report:** `harness/reports/campaign_2026-06_s071.md` · cfg 935851.
+**Yellow study (user question "what separates a good yellow from a bad one", 132 independent A-aligned entries):** the separator is the LEVEL CLASS — calendar-level yellows are GOOD (pdh 50%/+0.54, pwh 42%/+0.31, pdl 39%/+0.22; pooled non-FVG ~38%/+0.18) while **FVG yellows are the poison (20%/−0.35, n=87 = 2/3 of all yellows)** — fading a gap-retest against a fresh trend fights the most crowded continuation setup. Secondary: osp>85, rt1>3, stacked-levels all degrade yellows further; only large zones (>0.8 ATR) hold up within FVG-yellow.
+**v0.7.1 (eba385e):** OS split into per-class trade codes — **OSD** (prev-day), **OSW** (prev-week), **OSF** (FVG); chips show the class; deepest-dedup unchanged (one entry per bar/dir, named by winning class); generic "OS" reserved for the toggled-off piv/roll. Evaluator: OS-prefix filters; per-class rt1 tables now automatic.
+**Verification:** rename-diff PASS (mapped OSD/OSW/OSF→OS: all 3,943 events bit-identical to s0.7.0); OS audit 1,817/1,817 PASS; sanity gate PASS; counts identical per symbol.
+**Status:** v0.7.1 COMPLETE — open ruling: demote OSF×yellow (keep calendar yellows), osp>85, pwl-longs.
