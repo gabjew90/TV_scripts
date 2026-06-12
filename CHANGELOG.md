@@ -578,3 +578,11 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **v0.7.1 (eba385e):** OS split into per-class trade codes — **OSD** (prev-day), **OSW** (prev-week), **OSF** (FVG); chips show the class; deepest-dedup unchanged (one entry per bar/dir, named by winning class); generic "OS" reserved for the toggled-off piv/roll. Evaluator: OS-prefix filters; per-class rt1 tables now automatic.
 **Verification:** rename-diff PASS (mapped OSD/OSW/OSF→OS: all 3,943 events bit-identical to s0.7.0); OS audit 1,817/1,817 PASS; sanity gate PASS; counts identical per symbol.
 **Status:** v0.7.1 COMPLETE — open ruling: demote OSF×yellow (keep calendar yellows), osp>85, pwl-longs.
+
+## Fable v0.7.2 — yellow-OSF suppression (first evidence-earned entry gate) · HYPE · studies · campaign 6
+**Date:** 2026-06-12 · **Report:** `harness/reports/campaign_2026-06_s072.md` · **cfg 11295**.
+**Studies this cycle (all committed with writeups):** waterfall-fallback (option-3 chain REJECTED: 18 unlocked trades 28%/−0.05R; blind spot is protective); single-use FVG (REJECTED: touch count = noise; REAL finding = zone-freshness gradient, registered); prev-candle-sweep requirement (REJECTED/inverted: higher-low reclaims at daily levels outperform, registered); cap-10 (immaterial: 4% of entries, flat). **HYPEUSDT.P added** (1,044 events aligned; deep bars to Jun-2025 after the audit caught months-old zones predating the file).
+**v0.7.2 (de8677e):** `osf_skip_against` hashed knob default ON — OSF entries with align=A emit `SKP rsn=aln` (full levels logged) instead of trading. Evaluator: aln pseudo-episodes + standing (b2) scoreboard (CORRECTED to rt1≥1.5 would-have-been-entries only — the raw pool includes sub-gate skips that grade trivially), OSF freshness standing table (in-sample flag).
+**Verification:** diff PASS (only OSF-A designation/rsn changes, 493 events across 5 symbols); OS audit 2,284 PASS; gate PASS.
+**Campaign 6 (5 symbols, 254 episodes): 36% win / +0.17R — best book yet** (was 33%/+0.06 pre-suppression). Ruling-watch: suppressed cohort as-if-taken = 28%/−0.11R (n=130) — the gate removes a verified-losing population.
+**Open:** osp>85 + pwl-long demotions; campaign-6 hypothesis docket (zone freshness, re-test rhythm, higher-low reclaim — in-sample until post-registration data accrues).

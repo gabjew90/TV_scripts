@@ -356,7 +356,10 @@ def render_report(eps_all, pseudo_all, overlap_counts, file_list, indep_all=None
     L.append("\n### (b) 1D gate â€” blocked sweeps, graded as if taken\n")
     L.append(f"n={s['n']} closed={s['closed']} win%={fmt(s['win%'],0)} avgR={fmt(s['avg_r'])} "
              f"medMFE={fmt(s['med_mfe'])}\n")
-    aln_ps = [e for e in pseudo_all if e["pseudo"] == "aln"]
+    # only suppressed events that would have PASSED the rr gate are true
+    # counterfactual entries (the rest would have been rr-skips regardless)
+    aln_ps = [e for e in pseudo_all if e["pseudo"] == "aln"
+              and (v := fnum(e["factors"], "rt1")) is not None and v >= 1.5]
     s = stats_row(aln_ps)
     L.append("\n### (b2) OSF alignment gate (v0.7.2 ruling) — suppressed yellow OSF, graded as if taken\n")
     L.append(f"n={s['n']} closed={s['closed']} win%={fmt(s['win%'],0)} avgR={fmt(s['avg_r'])} "
