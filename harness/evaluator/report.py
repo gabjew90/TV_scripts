@@ -50,6 +50,9 @@ PREREG = """## Pre-registered annotations (read FIRST â€” discovering these
   without surviving this campaign's pre-registered test.
 - The 1D gate is OFF by user ruling (2026-06-11, AGAINST the n=9 campaign-1 evidence);
   the blocked-cohort table below is that ruling's standing scoreboard.
+- The THIRD EXIT is REMOVED by user ruling (2026-06-12): trades run to stop or target.
+  Campaigns 2-4 priced the rule net-negative (OS/2A strongly; 2B/T1 mildly positive,
+  overruled). thesis_exit rows below this date are zero by construction.
 - OS roll-class rt1 correlates with os by construction (target = the stretch anchor).
 """
 

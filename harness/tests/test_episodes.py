@@ -37,10 +37,22 @@ def test_ambiguous_bar_grades_stop_first():
 
 
 def test_thesis_exit_long_with_counterfactual():
-    e = walk_episode(_ev(0, "L", 100, 99.0, 89, 200), BARS)  # bar 3 CLOSES 96 < 99
-    assert e["exit_code"] == "thesis_exit" and e["exit_ts"] == 3
-    assert abs(e["r"] - (96 - 100) / (100 - 89)) < 1e-9
-    assert e["counterfactual"] == "open"             # stop 89 never hit, t1 never hit
+    # legacy section-7 grading, testable via the reversibility flag (removed
+    # as the default by the 2026-06-12 ruling)
+    import evaluator.episodes as epmod
+    epmod.APPLY_THESIS_EXIT = True
+    try:
+        e = walk_episode(_ev(0, "L", 100, 99.0, 89, 200), BARS)  # bar 3 CLOSES 96 < 99
+        assert e["exit_code"] == "thesis_exit" and e["exit_ts"] == 3
+        assert abs(e["r"] - (96 - 100) / (100 - 89)) < 1e-9
+        assert e["counterfactual"] == "open"         # stop 89 never hit, t1 never hit
+    finally:
+        epmod.APPLY_THESIS_EXIT = False
+
+
+def test_third_exit_off_by_default():
+    e = walk_episode(_ev(0, "L", 100, 99.0, 89, 200), BARS)  # close through lvl ignored
+    assert e["exit_code"] == "open"                  # neither stop 89 nor t1 200 hit
 
 
 def test_short_mirror_t1_hit():

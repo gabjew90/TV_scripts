@@ -12,24 +12,21 @@ def _ent(lvl, stop, t1, ts=1000):
                                      "rt1": "2.0", "reg1d": "D"}}
 
 
-def test_thesis_exit_carries_rule_delta_r():
-    # entry 100, stop 95, t1 110; bar2 closes below lvl 98 (thesis exit at 97),
-    # then price recovers to t1 -> cf=recovered, cf_r=+2.0
+def test_third_exit_removed_runs_to_target():
+    # 2026-06-12 ruling: a close through lvl no longer exits; the trade runs on.
+    # entry 100, stop 95, t1 110; bar2 closes below lvl 98; bar3 reaches t1.
     bars = [(1000, 100, 101, 99, 100), (2000, 99, 99.5, 96.5, 97),
             (3000, 97, 111, 96.9, 110)]
     ep = walk_episode(_ent(98, 95, 110), bars)
-    assert ep["exit_code"] == "thesis_exit" and ep["counterfactual"] == "recovered"
-    assert ep["cf_r"] == 2.0
-    assert abs(ep["rule_delta_r"] - (ep["r"] - 2.0)) < 1e-9
+    assert ep["exit_code"] == "t1_hit" and ep["r"] == 2.0
+    assert ep["counterfactual"] is None and ep["rule_delta_r"] is None
 
 
-def test_thesis_exit_stopped_cf_r_minus_one():
+def test_third_exit_removed_runs_to_stop():
     bars = [(1000, 100, 101, 99, 100), (2000, 99, 99.5, 96.5, 97),
             (3000, 97, 97.5, 94.0, 94.5)]
     ep = walk_episode(_ent(98, 95, 110), bars)
-    assert ep["exit_code"] == "thesis_exit" and ep["counterfactual"] == "stopped"
-    assert ep["cf_r"] == -1.0
-    assert abs(ep["rule_delta_r"] - (ep["r"] + 1.0)) < 1e-9
+    assert ep["exit_code"] == "stop_out" and ep["r"] == -1.0
 
 
 def test_oneD_blocked_cohort_rule():

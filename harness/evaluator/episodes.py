@@ -14,7 +14,14 @@ reconstructed). Pre-registered rules:
     open episode's exit bar -> skip_overlap.
 
 Bars: list of (ts, o, h, l, c) tuples sorted ascending (CSV loaders adapt).
+
+THIRD EXIT REMOVED (user ruling 2026-06-12): trades run to stop or target only.
+Evidence: campaigns 2-4 net rule_delta_r was negative (OS/2A strongly negative;
+2B/T1 mildly positive but overruled for one-rule simplicity). Flag retained for
+reversibility - flipping it restores section-7 thesis-exit grading exactly.
 """
+
+APPLY_THESIS_EXIT = False
 
 
 def _f(factors, key):
@@ -82,7 +89,7 @@ def walk_episode(ev, bars):
                 r = rt1 if rt1 is not None else abs(t1 - ent) / risk
                 ep.update(exit_code="t1_hit", exit_ts=ts, exit_px=t1, r=r, mfe_r=mfe)
                 return ep
-            thesis_dead = (c < lvl) if is_long else (c > lvl)
+            thesis_dead = APPLY_THESIS_EXIT and ((c < lvl) if is_long else (c > lvl))
             if thesis_dead:
                 r = (c - ent) / risk if is_long else (ent - c) / risk
                 ep.update(exit_code="thesis_exit", exit_ts=ts, exit_px=c, r=r,
