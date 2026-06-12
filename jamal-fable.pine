@@ -1,12 +1,12 @@
 //@version=6
-indicator("Jamal Fable v0.5.0", shorttitle = "JFbl0.5.0", overlay = true,
+indicator("Jamal Fable v0.6.0", shorttitle = "JFbl0.6.0", overlay = true,
      max_labels_count = 500, max_lines_count = 500)
 import TradingView/Request/3 as r
 import TradingView/ta/9 as tvta
 
 // ════════════════ Identity (spec §9 provenance) ════════════════
 SCHEMA_V = "1"
-SCRIPT_V = "0.5.0"
+SCRIPT_V = "0.6.0"
 
 // ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
 pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
@@ -26,6 +26,8 @@ roll_k                = input.int(20,   "OS: rolling extreme window", minval = 5
 os_m                  = input.int(5,    "OS: stretch lookback (bars)", minval = 1)
 os_gate_atr           = input.float(1.5, "OS: roll-class stretch gate (ATR)", step = 0.1)
 use_1d_gate           = input.bool(false, "Use 1D regime gate (campaign-era behavior)")
+os_use_piv            = input.bool(false, "OS: sweep last-N pivots (campaign-2: 23%/-0.07R)")
+os_use_roll           = input.bool(false, "OS: sweep rolling extreme (campaign-2: 22%/-0.10R)")
 
 // Transport-layer inputs — EXCLUDED from settings_hash (they chunk the label
 // budget; they change which events are emitted, never what an event means).
@@ -61,6 +63,8 @@ if barstate.isfirst
     h := f_mix(h, os_m)
     h := f_mix(h, math.round(os_gate_atr * 1000))
     h := f_mix(h, use_1d_gate ? 1 : 0)
+    h := f_mix(h, os_use_piv ? 1 : 0)
+    h := f_mix(h, os_use_roll ? 1 : 0)
     cfg_i := h
 
 // ════════════════ ATR (SMA of TR — cross-language reproducible) ════════════════
@@ -636,7 +640,7 @@ float os_s_lvl = na
 string os_s_src = "na"
 int os_s_n = 0
 if barstate.isconfirmed
-    if array.size(piv_lows) > 0
+    if os_use_piv and array.size(piv_lows) > 0      // v0.6: OFF by default (campaign-2 verdict)
         for i = 0 to array.size(piv_lows) - 1
             float lv = array.get(piv_lows, i)
             if low < lv and close > lv
@@ -654,12 +658,12 @@ if barstate.isconfirmed
         if na(os_l_lvl) or pwl < os_l_lvl
             os_l_lvl := pwl
             os_l_src := "pwl"
-    if not na(roll_lo) and low < roll_lo and close > roll_lo and not na(os_min_m) and os_min_m <= -os_gate_atr
+    if os_use_roll and not na(roll_lo) and low < roll_lo and close > roll_lo and not na(os_min_m) and os_min_m <= -os_gate_atr
         os_l_n += 1
         if na(os_l_lvl) or roll_lo < os_l_lvl
             os_l_lvl := roll_lo
             os_l_src := "roll"
-    if array.size(piv_highs) > 0
+    if os_use_piv and array.size(piv_highs) > 0
         for i = 0 to array.size(piv_highs) - 1
             float lv = array.get(piv_highs, i)
             if high > lv and close < lv
@@ -677,7 +681,7 @@ if barstate.isconfirmed
         if na(os_s_lvl) or pwh > os_s_lvl
             os_s_lvl := pwh
             os_s_src := "pwh"
-    if not na(roll_hi) and high > roll_hi and close < roll_hi and not na(os_max_m) and os_max_m >= os_gate_atr
+    if os_use_roll and not na(roll_hi) and high > roll_hi and close < roll_hi and not na(os_max_m) and os_max_m >= os_gate_atr
         os_s_n += 1
         if na(os_s_lvl) or roll_hi > os_s_lvl
             os_s_lvl := roll_hi

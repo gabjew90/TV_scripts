@@ -1,5 +1,7 @@
 # Jamal Fable v0.6.0 — Unified Structural Targets Implementation Plan
 
+> **SCOPE OVERRIDE (user ruling at plan review, 2026-06-12):** v0.6.0 ships ONLY the OS level-set cut (Task 1 Step 6's toggles, hashed) + version bump + the rt1=na report-artifact fix + re-harvest/campaign 3. **rr_min stays 1.5; all target logic unchanged; OS keeps its thesis exit.** Tasks 1 Steps 2–5/7–8, Task 3 Steps 2 and the tgt_src/lq_pct work are PARKED — the designs below remain authoritative for whenever they're re-activated.
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Every trade targets the nearest overhead structure (midpoint / opposing kill line / trend extreme / prev D-W extremes / weekly VWAP / opposite FVG) with the gate at ≥1.0R and `tgt_src` logged; OS sweeps prev-day/week levels only; OS loses the thesis exit; stretch becomes pure instrumentation with a once-per-episode `SYS|STR` marker.

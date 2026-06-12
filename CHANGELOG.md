@@ -540,3 +540,8 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 - rr sensitivity: rr 2.0 would WORSEN the book (−0.07R) — 1.5 stays. skip-overlap sensitivity: independent 29%/+0.12 vs sequential 25%/0.00 (mild shaping, noted).
 - KNOWN ARTIFACT (fix in v0.6 report): the rr-gate pseudo table's `rt1=na` row (757 anchor-wrong-side OS skips) grades meaninglessly (target already passed at entry) — exclude from that table.
 **Status:** v0.5.0 COMPLETE — awaiting user review (v0.6 directions: OS selector study (W-align + chop + quiet + pdl), OS thesis-exit reconsideration, per-symbol lq normalization).
+
+## Fable v0.6.0 — OS levels: daily/weekly only (DESCOPED release)
+**Date:** 2026-06-12 · **On-chart:** "Jamal Fable v0.6.0" (`JFbl0.6.0`) · **cfg 935851** · plan `docs/superpowers/plans/2026-06-11-jamal-fable-v0.6.md` (scope-override header).
+**USER DESCOPE at plan review:** the full v0.6 design (unified nearest-structure targets + 1.0R gate, OS thesis-exit removal, SYS|STR stretch marker, wVWAP/FVG machinery) is PARKED in spec §14 + the plan. Shipped: **OS sweeps prev DAY/WEEK extremes only** — `os_use_piv`/`os_use_roll` hashed toggles, default OFF (campaign-2 verdicts: piv 23%/−0.07R, roll 22%/−0.10R; daily levels best 32%/+0.18R). rr_min STAYS 1.5; all targets unchanged (OS keeps the linreg anchor); OS keeps its thesis exit. Pivot/roll machinery retained behind the toggles (one-line re-enable; their s0.5.0 data remains minable offline). Report fix: rr-pseudo table excludes the meaningless `rt1=na` rows (anchor-wrong-side skips).
+**Status:** Pine live; evaluator bump + deep re-harvest + campaign 3 next.
