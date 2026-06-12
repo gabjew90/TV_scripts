@@ -48,7 +48,7 @@ def walk_episode(ev, bars):
           "exit_ts": None, "exit_px": None, "r": None, "mfe_r": None,
           "mfe30_r": None, "ambiguous": 0, "counterfactual": None,
           "cf_r": None, "rule_delta_r": None,
-          "pseudo": factors.get("rsn") if factors.get("rsn") in ("rr", "1d") else None}
+          "pseudo": factors.get("rsn") if factors.get("rsn") in ("rr", "1d", "aln") else None}
     if lvl is None or stop is None or t1 is None:
         ep["exit_code"] = None
         ep["drop_reason"] = "no_levels"

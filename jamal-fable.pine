@@ -1,12 +1,12 @@
 //@version=6
-indicator("Jamal Fable v0.7.1", shorttitle = "JFbl0.7.1", overlay = true,
+indicator("Jamal Fable v0.7.2", shorttitle = "JFbl0.7.2", overlay = true,
      max_labels_count = 500, max_lines_count = 500)
 import TradingView/Request/3 as r
 import TradingView/ta/9 as tvta
 
 // ════════════════ Identity (spec §9 provenance) ════════════════
 SCHEMA_V = "1"
-SCRIPT_V = "0.7.1"
+SCRIPT_V = "0.7.2"
 
 // ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
 pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
@@ -28,6 +28,7 @@ os_gate_atr           = input.float(1.5, "OS: roll-class stretch gate (ATR)", st
 use_1d_gate           = input.bool(false, "Use 1D regime gate (campaign-era behavior)")
 os_use_piv            = input.bool(false, "OS: sweep last-N pivots (campaign-2: 23%/-0.07R)")
 os_use_roll           = input.bool(false, "OS: sweep rolling extreme (campaign-2: 22%/-0.10R)")
+osf_skip_against      = input.bool(true,  "OSF: suppress against-regime (campaign-5: 20%/-0.35R, n=87)")
 
 // Transport-layer inputs — EXCLUDED from settings_hash (they chunk the label
 // budget; they change which events are emitted, never what an event means).
@@ -65,6 +66,7 @@ if barstate.isfirst
     h := f_mix(h, use_1d_gate ? 1 : 0)
     h := f_mix(h, os_use_piv ? 1 : 0)
     h := f_mix(h, os_use_roll ? 1 : 0)
+    h := f_mix(h, osf_skip_against ? 1 : 0)
     cfg_i := h
 
 // ════════════════ ATR (SMA of TR — cross-language reproducible) ════════════════
@@ -753,6 +755,9 @@ if not na(os_l_lvl)
     if use_1d_gate and reg_1d == -1
         f_emit(tc_l, "SKP", "L", math.round(time / 1000), close,
              f_os_tail(os_l_lvl, stp, t1px, "1d", os_l_src, os_l_n, al, swp_l, swd, aget, rt1, tgt, os_l_fsz))
+    else if osf_skip_against and tc_l == "OSF" and al == "A"    // v0.7.2 ruling: no gap-fades against the regime
+        f_emit(tc_l, "SKP", "L", math.round(time / 1000), close,
+             f_os_tail(os_l_lvl, stp, t1px, "aln", os_l_src, os_l_n, al, swp_l, swd, aget, rt1, tgt, os_l_fsz))
     else if na(rt1) or rt1 < rr_min
         f_emit(tc_l, "SKP", "L", math.round(time / 1000), close,
              f_os_tail(os_l_lvl, stp, t1px, "rr", os_l_src, os_l_n, al, swp_l, swd, aget, rt1, tgt, os_l_fsz))
@@ -772,6 +777,9 @@ if not na(os_s_lvl)
     if use_1d_gate and reg_1d == 1
         f_emit(tc_s, "SKP", "S", math.round(time / 1000), close,
              f_os_tail(os_s_lvl, stp, t1px, "1d", os_s_src, os_s_n, al, swp_s, swd, aget, rt1, tgt, os_s_fsz))
+    else if osf_skip_against and tc_s == "OSF" and al == "A"    // v0.7.2 ruling (mirror)
+        f_emit(tc_s, "SKP", "S", math.round(time / 1000), close,
+             f_os_tail(os_s_lvl, stp, t1px, "aln", os_s_src, os_s_n, al, swp_s, swd, aget, rt1, tgt, os_s_fsz))
     else if na(rt1) or rt1 < rr_min
         f_emit(tc_s, "SKP", "S", math.round(time / 1000), close,
              f_os_tail(os_s_lvl, stp, t1px, "rr", os_s_src, os_s_n, al, swp_s, swd, aget, rt1, tgt, os_s_fsz))

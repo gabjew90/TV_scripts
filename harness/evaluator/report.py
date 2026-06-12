@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from evaluator.episodes import build_episodes, walk_episode
 
 HARNESS = Path(__file__).resolve().parents[1]
-EVENT_GLOB = "*_s0.7.1_*.jsonl"
+EVENT_GLOB = "*_s0.7.2_*.jsonl"
 LQ_SPLIT = 3834.5  # lq_tot inner-band edge = harvested median over sweep ENTs (n=32).
                    # CAVEAT: lq units are feed-native and NOT comparable across symbols â€”
                    # a global split is a coarse v1; per-symbol normalization is the v2 fix.
@@ -316,6 +316,12 @@ def render_report(eps_all, pseudo_all, overlap_counts, file_list, indep_all=None
         L.append(table(FACTOR_HEADER, bucket_rows(os_eps, "osp", [(None, 50), (50, 85), (85, None)], ["<50", "50-85", ">85"])))
         L.append("\n### OS by `vz` (the campaign-1 quiet-bar lead, tested out-of-population)\n")
         L.append(table(FACTOR_HEADER, bucket_rows(os_eps, "vz", [(None, 0), (0, 1.5), (1.5, None)], ["<0", "0-1.5", ">1.5"])))
+        osf_eps = [e for e in os_eps if e["trade"] == "OSF"]
+        if osf_eps:
+            L.append("\n### OSF by zone age `age_t` (FRESHNESS hypothesis — IN-SAMPLE until post-registration data accrues)\n")
+            L.append(table(FACTOR_HEADER, bucket_rows(osf_eps, "age_t",
+                     [(None, 6), (6, 30), (30, 90), (90, None)],
+                     ["<6 bars (fresh)", "6-30", "30-90", ">90 (stale)"])))
 
     # â”€â”€ Sensitivity appendices (s046 review) â”€â”€
     L.append("\n## Sensitivity appendices\n")
@@ -350,7 +356,13 @@ def render_report(eps_all, pseudo_all, overlap_counts, file_list, indep_all=None
     L.append("\n### (b) 1D gate â€” blocked sweeps, graded as if taken\n")
     L.append(f"n={s['n']} closed={s['closed']} win%={fmt(s['win%'],0)} avgR={fmt(s['avg_r'])} "
              f"medMFE={fmt(s['med_mfe'])}\n")
-    L.append("\n### (c) thesis-exit v2 â€” net R saved by the third exit (per trade type)\n")
+    aln_ps = [e for e in pseudo_all if e["pseudo"] == "aln"]
+    s = stats_row(aln_ps)
+    L.append("\n### (b2) OSF alignment gate (v0.7.2 ruling) — suppressed yellow OSF, graded as if taken\n")
+    L.append(f"n={s['n']} closed={s['closed']} win%={fmt(s['win%'],0)} avgR={fmt(s['avg_r'])} "
+             f"medMFE={fmt(s['med_mfe'])} — _if this cohort turns profitable as n grows, flip "
+             f"`osf_skip_against` off._\n")
+    L.append("\n### (c) thesis-exit v2 — net R saved by the third exit (per trade type)\n")
     tx = [e for e in eps_all if e["exit_code"] == "thesis_exit"]
     rows = []
     groups = sorted(group_by(tx, lambda e: e["trade"]).items())
@@ -396,7 +408,7 @@ def main():
                 p = walk_episode(ev, bars)
                 if not p.get("drop_reason"):
                     indep_all.append(p)
-            if ev["event"] == "SKP" and ev["factors"].get("rsn") in ("rr", "1d"):
+            if ev["event"] == "SKP" and ev["factors"].get("rsn") in ("rr", "1d", "aln"):
                 p = walk_episode(ev, bars)
                 if not p.get("drop_reason"):
                     pseudo_all.append(p)
@@ -409,3 +421,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
