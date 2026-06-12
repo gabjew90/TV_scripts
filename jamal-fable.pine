@@ -1,12 +1,12 @@
 //@version=6
-indicator("Jamal Fable v0.6.1", shorttitle = "JFbl0.6.1", overlay = true,
+indicator("Jamal Fable v0.6.2", shorttitle = "JFbl0.6.2", overlay = true,
      max_labels_count = 500, max_lines_count = 500)
 import TradingView/Request/3 as r
 import TradingView/ta/9 as tvta
 
 // ════════════════ Identity (spec §9 provenance) ════════════════
 SCHEMA_V = "1"
-SCRIPT_V = "0.6.1"
+SCRIPT_V = "0.6.2"
 
 // ════════════════ Knobs (§12) — semantic; ALL feed settings_hash ════════════════
 pivot_left            = input.int(3,    "Pivot left bars",          minval = 1)
@@ -421,8 +421,10 @@ f_t2_tail(float lvl, float stp, float t1px, string rsn, float wkp, bool t1co, fl
      + "|age_t=" + (na(aget) ? "na" : str.tostring(aget))
      + "|" + f_cov_tail()
 
-// fixed tail key order: lvl|stop|t1|rsn|lvl_src|n_lvls|align|oco|reg|reg1d|age|swd|age_t|rt1|<cov>
-f_os_tail(float lvl, float stp, float t1px, string rsn, string src, int nlv, string align, bool oco, float swd, int aget, float rt1) =>
+// fixed tail key order: lvl|stop|t1|rsn|lvl_src|n_lvls|align|oco|reg|reg1d|age|swd|age_t|rt1|tgt|<cov>
+// tgt = target source (v0.6.2 alignment-aware rule): tex=trend extreme (with-regime),
+// fv=fair-value anchor (against-regime), mid=range midpoint (chop).
+f_os_tail(float lvl, float stp, float t1px, string rsn, string src, int nlv, string align, bool oco, float swd, int aget, float rt1, string tgt) =>
     "lvl=" + f_fstr(lvl) + "|stop=" + f_fstr(stp) + "|t1=" + f_fstr(t1px) + "|rsn=" + rsn
      + "|lvl_src=" + src + "|n_lvls=" + str.tostring(nlv) + "|align=" + align
      + "|oco=" + (oco ? "1" : "0")
@@ -431,6 +433,7 @@ f_os_tail(float lvl, float stp, float t1px, string rsn, string src, int nlv, str
      + "|swd=" + (na(swd) ? "na" : str.tostring(swd, "#.##"))
      + "|age_t=" + (na(aget) ? "na" : str.tostring(aget))
      + "|rt1=" + (na(rt1) ? "na" : str.tostring(rt1, "#.##"))
+     + "|tgt=" + tgt
      + "|" + f_cov_tail()
 
 // OS chips (v0.6.1 user scheme): with-regime LONG = green, with-regime SHORT = red,
@@ -692,38 +695,43 @@ if barstate.isconfirmed
 
 // Same-bar coincidence with the kill-line sweep: emit BOTH, cross-flag oco=1 (dedup offline).
 // 1D opposition = logged SKP only when use_1d_gate (default off — 2026-06-11 ruling, reg1d always stamped).
+float os_mid = not na(range_hi) and not na(range_lo) ? (range_hi + range_lo) / 2.0 : na
 if not na(os_l_lvl)
     string al = regime == 1 ? "W" : regime == -1 ? "A" : "N"
     int aget = os_l_src == "roll" ? age_roll_lo : os_l_src == "pdl" ? age_pdl : na
     float stp = low - stop_buffer_atr * atr
-    float t1px = lr_anchor                       // entry-snapshotted fair-value anchor (§14 doctrine exception)
+    // v0.6.2 alignment-aware target: with-regime -> trend extreme (2A's proven target);
+    // against-regime -> fair-value anchor (reversion thesis); chop -> range midpoint (2B's).
+    float t1px = regime == 1 ? trend_high : regime == 0 ? os_mid : lr_anchor
+    string tgt = regime == 1 ? "tex" : regime == 0 ? "mid" : "fv"
     float swd = (os_l_lvl - low) / atr
     float rt1 = close > stp and not na(t1px) and t1px > close ? (t1px - close) / (close - stp) : na
     if use_1d_gate and reg_1d == -1
         f_emit("OS", "SKP", "L", math.round(time / 1000), close,
-             f_os_tail(os_l_lvl, stp, t1px, "1d", os_l_src, os_l_n, al, swp_l, swd, aget, rt1))
+             f_os_tail(os_l_lvl, stp, t1px, "1d", os_l_src, os_l_n, al, swp_l, swd, aget, rt1, tgt))
     else if na(rt1) or rt1 < rr_min
         f_emit("OS", "SKP", "L", math.round(time / 1000), close,
-             f_os_tail(os_l_lvl, stp, t1px, "rr", os_l_src, os_l_n, al, swp_l, swd, aget, rt1))
+             f_os_tail(os_l_lvl, stp, t1px, "rr", os_l_src, os_l_n, al, swp_l, swd, aget, rt1, tgt))
     else
-        string os_ent = f_os_tail(os_l_lvl, stp, t1px, "na", os_l_src, os_l_n, al, swp_l, swd, aget, rt1)
+        string os_ent = f_os_tail(os_l_lvl, stp, t1px, "na", os_l_src, os_l_n, al, swp_l, swd, aget, rt1, tgt)
         f_emit("OS", "ENT", "L", math.round(time / 1000), close, os_ent)
         f_mark_os("L", close, os_ent, al)
 if not na(os_s_lvl)
     string al = regime == -1 ? "W" : regime == 1 ? "A" : "N"
     int aget = os_s_src == "roll" ? age_roll_hi : os_s_src == "pdh" ? age_pdh : na
     float stp = high + stop_buffer_atr * atr
-    float t1px = lr_anchor
+    float t1px = regime == -1 ? trend_low : regime == 0 ? os_mid : lr_anchor
+    string tgt = regime == -1 ? "tex" : regime == 0 ? "mid" : "fv"
     float swd = (high - os_s_lvl) / atr
     float rt1 = stp > close and not na(t1px) and t1px < close ? (close - t1px) / (stp - close) : na
     if use_1d_gate and reg_1d == 1
         f_emit("OS", "SKP", "S", math.round(time / 1000), close,
-             f_os_tail(os_s_lvl, stp, t1px, "1d", os_s_src, os_s_n, al, swp_s, swd, aget, rt1))
+             f_os_tail(os_s_lvl, stp, t1px, "1d", os_s_src, os_s_n, al, swp_s, swd, aget, rt1, tgt))
     else if na(rt1) or rt1 < rr_min
         f_emit("OS", "SKP", "S", math.round(time / 1000), close,
-             f_os_tail(os_s_lvl, stp, t1px, "rr", os_s_src, os_s_n, al, swp_s, swd, aget, rt1))
+             f_os_tail(os_s_lvl, stp, t1px, "rr", os_s_src, os_s_n, al, swp_s, swd, aget, rt1, tgt))
     else
-        string os_ent_s = f_os_tail(os_s_lvl, stp, t1px, "na", os_s_src, os_s_n, al, swp_s, swd, aget, rt1)
+        string os_ent_s = f_os_tail(os_s_lvl, stp, t1px, "na", os_s_src, os_s_n, al, swp_s, swd, aget, rt1, tgt)
         f_emit("OS", "ENT", "S", math.round(time / 1000), close, os_ent_s)
         f_mark_os("S", close, os_ent_s, al)
 
