@@ -29,6 +29,7 @@ BARS_MAP = {
     "ETHUSDT.P": "binanceusdm_ETHUSDT_4h.csv",
     "SOLUSDT.P": "binanceusdm_SOLUSDT_4h.csv",
     "NEARUSDT.P": "binanceusdm_NEARUSDT_4h.csv",
+    "HYPEUSDT.P": "binanceusdm_HYPEUSDT_4h.csv",
 }
 
 PREREG = """## Pre-registered annotations (read FIRST â€” discovering these is not a finding)
