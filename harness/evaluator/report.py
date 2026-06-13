@@ -64,14 +64,17 @@ def load_bars(path):
              float(r["close"])) for r in rows]
 
 
-def load_events(allow_mixed=False):
-    files = sorted(glob.glob(str(HARNESS / "events" / EVENT_GLOB)))
+def load_events(allow_mixed=False, tf="240"):
+    # tf in the glob: _240_ (4H, default) vs _60_ (1h) — NEVER pool timeframes.
+    # EVENT_GLOB tail is "_s0.7.2_*.jsonl"; prepend symbol + tf.
+    glob_tf = f"*_{tf}_v*" + EVENT_GLOB.lstrip("*")
+    files = sorted(glob.glob(str(HARNESS / "events" / glob_tf)))
     by_symbol = defaultdict(list)
     provenance = set()
     for f in files:
         for line in open(f):
             e = json.loads(line)
-            provenance.add((e["schema_v"], e["cfg"]))
+            provenance.add((e["schema_v"], e["cfg"], e.get("tf", "240")))   # tf in no-pool key
             # lq_tot synthesized at load: a missing SIDE legitimately means 0
             # liquidations on that side (unlike OI, where nz fabricates state);
             # BOTH sides missing -> key absent -> "na" bucket.
@@ -394,11 +397,13 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", default=str(HARNESS / "reports" / "campaign.md"))
     ap.add_argument("--allow-mixed", action="store_true")
+    ap.add_argument("--tf", default="240", help="240 (4H, default) or 60 (1h)")
     args = ap.parse_args()
-    by_symbol, files = load_events(args.allow_mixed)
+    bars_suffix = "1h" if args.tf == "60" else "4h"
+    by_symbol, files = load_events(args.allow_mixed, args.tf)
     eps_all, pseudo_all, overlap_counts, indep_all = [], [], {}, []
     for sym, evs in sorted(by_symbol.items()):
-        bars_file = HARNESS / "bars" / BARS_MAP.get(sym, "")
+        bars_file = HARNESS / "bars" / BARS_MAP.get(sym, "").replace("_4h.csv", f"_{bars_suffix}.csv")
         if not bars_file.exists():
             print(f"WARN: no bars for {sym} â€” symbol skipped ({len(evs)} events)")
             continue
