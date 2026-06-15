@@ -22,7 +22,30 @@ skip against the prior-day low (61,344); 59,800 was never on the radar. Secondar
 blocks: a long there is counter-trend (regime DOWN → yellow-OSF suppression), and
 the counter-trend pivot-long class was a campaign-killed loser (9%/−0.76R).
 
-### Part 2 — would catching it have been an EDGE? (measured, BTC 4H, Dec–Jun)
+### Part 2 — would catching it have been an EDGE?
+
+**POOLED VERDICT (5 symbols, ~12 months each, n=138 — the real answer):**
+
+| major-low def | n | 2:1 win | expR | medMFE | reach1R | reach2R |
+|---|---|---|---|---|---|---|
+| pivot(24,24) ~4-day | **138** | 24% | **−0.28** | 0.68R | 41% | 24% |
+| pivot(48,48) ~8-day | 67 | 18% | **−0.45** | 0.46R | 33% | 18% |
+
+EVERY slice loses: deep-sweep −0.38, shallow −0.24, strong-reclaim −0.35, and
+even the quiet filter (swd<0.3 & rcl≥0.3) −0.38. Bigger/older lows worse (−0.45).
+**No quality filter rescues it.**
+
+Critically, the bigger sample KILLED the BTC-only optimism: BTC alone (n=10) had
+medMFE 1.27R / reach1R 60% — looked like a scalp edge. Pooled across 5 symbols
+it's medMFE 0.68R / reach1R 41% — the bounce is far weaker and less reliable than
+BTC alone suggested. The n=10 read was favorable small-sample luck; June 5 itself
+was a top-decile draw inside a losing population.
+
+---
+
+#### (first-pass BTC-only table, kept for the record — superseded by the pool above)
+
+measured, BTC 4H, Dec–Jun:
 
 Raw-bar SFP-reclaim longs of major lows (pivot(L,L)), entry=close,
 stop=wick−0.5·ATR, walked:
@@ -45,16 +68,19 @@ pulse is a **scalp** — ~1R target, take the bounce, don't let it run (1:1 at 6
 draw, NOT typical (median 1.27R). We'd have caught a good-looking instance of a
 class that loses on average.
 
-## Verdict
+## Verdict (FINAL — multi-symbol confirmed)
 
 The miss is a real radar gap (short level memory) — a longer-memory "major level"
-class WOULD see these. But the pattern is a **losing swing trade / marginal scalp**,
-same family as every counter-trend/violent setup the project has killed. **Do not
-auto-trade it.** If pursued, the only defensible form is a tight-target scalp,
-and it needs the deeper + multi-symbol test (blocked now by a transient Binance
-451) before any conviction.
+class WOULD see these. But the pattern is **NOT an edge**: counter-trend major-low
+SFP longs lose as a 2:1 swing (−0.28R pooled, −0.45R for bigger lows), no quality
+filter helps, and the bounce isn't even reliable enough for a clean scalp (only
+41% reach +1R pooled). Same family as every counter-trend/violent setup the
+project has killed. **Do not auto-trade it.** June 5 was a beautiful-looking
+member of a losing population, and the BTC-only n=10 that hinted at a scalp edge
+did not survive pooling. Closed.
 
 ## Caveats
 
-n=10/7, BTC only, 6-month window, longs only. Deep-history + multi-symbol
-extension pending exchange access. Script: `harness/evaluator/sfp_study.py`.
+138/67 events, 5 symbols, ~12-month window, longs only, mechanical 2:1 + MFE
+(no trail/discretion). Scripts: `harness/evaluator/sfp_study.py` (single, with
+Jun-5 trace), `sfp_study_pooled.py` (multi-symbol verdict).
