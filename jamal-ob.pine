@@ -25,14 +25,34 @@ f_walkback_bull(int maxlb) =>
         break                                       // green-that-held or doji → stop
     best_open
 
+// ════════════════ Bearish walk-back (upper line = open_R) ════════════════
+// Mirror of bullish: from sweep bar T (a green new-high), walk back the
+// contiguous up-leg and return the lowest green open (open_R). Mid-leg red
+// pause — bar toward T made a new high AND this red didn't break down — is
+// skipped; red-that-held / doji stops the walk.
+f_walkback_bear(int maxlb) =>
+    float best_open = open                          // T is green — seed with its open
+    for i = 1 to maxlb
+        if close[i] > open[i]                       // green → in leg
+            best_open := math.min(best_open, open[i])
+            continue
+        if close[i] < open[i]                       // red → pause or stop
+            if high[i - 1] > high[i] and low[i] >= low[i + 1]
+                continue                            // mid-leg pause: skip
+        break                                       // red-that-held or doji → stop
+    best_open
+
 // ════════════════ Sweep triggers + line state ════════════════
-bool bull_sweep = close < open and low < low[1]    // red, new low
+bool bull_sweep = close < open and low  < low[1]    // red, new low
+bool bear_sweep = close > open and high > high[1]    // green, new high
 
 var float lower_line = na
 var float upper_line = na
 
 if barstate.isconfirmed and bull_sweep
     lower_line := f_walkback_bull(max_lookback)
+if barstate.isconfirmed and bear_sweep
+    upper_line := f_walkback_bear(max_lookback)
 
 // ════════════════ Render ════════════════
 plot(lower_line, "OB lower (demand open_R)", color.green, 2, plot.style_stepline)

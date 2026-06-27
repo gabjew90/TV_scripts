@@ -416,6 +416,15 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** `OB lower (demand open_R)` = **1.407** (May 4, Apr-25 open) and **1.607** (May 16, May-13 open) — both EXACT vs the parked-spec oracle. Compiles 0/0; binding re-verified (nameButton "Jamal OB") before save.
 **Status:** bullish side complete; bearish next.
 
+## OB v0.1.0 — bearish side (upper line = open_R); v0.1.0 feature-complete
+**Date:** 2026-06-27 · **On-chart:** "Jamal OB v0.1.0"
+**Code changes**
+- `bear_sweep = close>open and high>high[1]`; `f_walkback_bear()` mirror (lowest-open-green R, mid-leg red-pause skip via `high[i-1]>high[i] and low[i]>=low[i+1]`); `upper_line := open_R` on each confirmed bearish sweep.
+**Rationale:** the supply line per spec §4.2; exact mirror of bullish; coexists independently with the demand line.
+**Tests run:** NEAR daily via replay — May-12 green sweep; coexistence + by-hand OHLC trace.
+**Results:** `OB upper (supply open_R)` = **1.547** (May 12 open) — EXACT vs oracle; lower line simultaneously = 1.596 (independent May 9–11 bullish leg, R = May-9 open), confirming coexistence. Compiles 0/0; binding re-verified before save.
+**Replay-timing note (important for future MCP verification):** `replay_start(D)` makes **D−1 the *forming* (unconfirmed) bar**, so confirmed-bar-gated state reflects bars through **D−2**. First read of the bearish line at replay 2026-05-13 gave 1.261 (May-8's sweep, since May 12 was still forming) — NOT a bug. Re-read at 2026-05-14 (May 12 then confirmed) gave the correct 1.547. The bullish reads matched the oracle at D−1 only because both candidate sweep bars share the same leg/R.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 
