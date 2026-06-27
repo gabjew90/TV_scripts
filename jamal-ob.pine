@@ -1,0 +1,21 @@
+//@version=6
+indicator("Jamal OB v0.1.0", shorttitle = "JOB0.1.0", overlay = true)
+
+// ════════════════ Identity ════════════════
+SCRIPT_V = "0.1.0"
+
+// ════════════════ Inputs ════════════════
+max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
+
+// ════════════════ Sweep triggers + line state ════════════════
+var float lower_line = na
+var float upper_line = na
+
+// ════════════════ Render ════════════════
+plot(lower_line, "OB lower (demand open_R)", color.green, 2, plot.style_stepline)
+plot(upper_line, "OB upper (supply open_R)", color.red,   2, plot.style_stepline)
+
+// ════════════════ Version tag ════════════════
+var table vt = table.new(position.top_right, 1, 1)
+if barstate.islast
+    table.cell(vt, 0, 0, "Jamal OB v" + SCRIPT_V, text_color = color.white, bgcolor = color.new(color.black, 20))

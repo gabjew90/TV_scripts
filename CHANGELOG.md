@@ -398,6 +398,15 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 
 **PARKED (2026-06-09) at user request — full resume state saved to `docs/superpowers/specs/2026-06-09-jamal-ob-parked-state.md`.** Spec-validation phase: formation + confirmation rules LOCKED and user-validated on NEAR/BTC/ASTER daily, including two critical corrections — (1) confirm level = swing extreme over `[stop-candle…T]` *including* the walk-back stop-candle; (2) walk-back terminates only on STRUCTURE (green-that-held/doji/breakout), never on red-open monotonicity (the open-stop falsely truncated NEAR's Apr-24→May-4 leg). Scope: tag/invalidation DEFERRED; bullish+bearish coexist independently. No code written for the new algorithm yet; design doc pending. Next effort: **Jamal Fable** (separate indicator, own build log below when started).
 
+## OB v0.1.0 — skeleton (sweep-driven two-line rebuild)
+**Date:** 2026-06-27 · **On-chart:** "Jamal OB v0.1.0" (shorttitle "JOB0.1.0") · TV script "Jamal OB" (id USER;2ee1e9512ad04f5fb1aca04b07e3078d, pivot v0.1 overwritten)
+**Code changes**
+- New `jamal-ob.pine`: indicator decl, `SCRIPT_V`, `max_lookback` input, two `na` stepline plots (lower demand / upper supply), version table. No logic yet.
+**Rationale:** verify file + TV target + render scaffold before adding sweep/walk-back logic. Note: targeting the existing "Jamal OB" TV script required opening it via the editor's script menu with a real CDP click — `pine_open` alone does NOT rebind the editor's save target (see memory `pine-editor-save-target-binding`; an earlier subagent attempt clobbered live Fable via this exact gotcha, since restored).
+**Tests run:** `pine_smart_compile` on NEAR daily; clobber-check via `pine_open` line counts; `data_get_study_values`; screenshot.
+**Results:** Compiles 0/0. Clobber-check: Jamal OB = 22 lines (skeleton saved correctly), Fable untouched. Version cell shows "Jamal OB v0.1.0"; both lines `na` (nothing drawn) as expected.
+**Status:** scaffold for v0.1.0 bullish/bearish logic.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 
