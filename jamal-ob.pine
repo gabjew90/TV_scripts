@@ -7,9 +7,32 @@ SCRIPT_V = "0.1.0"
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
 
+// ════════════════ Bullish walk-back (lower line = open_R) ════════════════
+// From sweep bar T (offset 0, a red new-low), walk backward over the
+// contiguous down-leg and return the highest red open (open_R). Termination
+// is STRUCTURE-ONLY (green-that-held / doji). A mid-leg green pause — the bar
+// toward T made a new low AND this green didn't break out up — is skipped.
+// The running max selects R; it never stops the walk.
+f_walkback_bull(int maxlb) =>
+    float best_open = open                          // T is red — seed with its open
+    for i = 1 to maxlb
+        if close[i] < open[i]                       // red → in leg
+            best_open := math.max(best_open, open[i])
+            continue
+        if close[i] > open[i]                       // green → pause or stop
+            if low[i - 1] < low[i] and high[i] <= high[i + 1]
+                continue                            // mid-leg pause: skip
+        break                                       // green-that-held or doji → stop
+    best_open
+
 // ════════════════ Sweep triggers + line state ════════════════
+bool bull_sweep = close < open and low < low[1]    // red, new low
+
 var float lower_line = na
 var float upper_line = na
+
+if barstate.isconfirmed and bull_sweep
+    lower_line := f_walkback_bull(max_lookback)
 
 // ════════════════ Render ════════════════
 plot(lower_line, "OB lower (demand open_R)", color.green, 2, plot.style_stepline)

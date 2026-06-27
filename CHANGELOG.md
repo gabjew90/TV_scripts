@@ -407,6 +407,15 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** Compiles 0/0. Clobber-check: Jamal OB = 22 lines (skeleton saved correctly), Fable untouched. Version cell shows "Jamal OB v0.1.0"; both lines `na` (nothing drawn) as expected.
 **Status:** scaffold for v0.1.0 bullish/bearish logic.
 
+## OB v0.1.0 — bullish side (lower line = open_R)
+**Date:** 2026-06-27 · **On-chart:** "Jamal OB v0.1.0"
+**Code changes**
+- `bull_sweep = close<open and low<low[1]`; `f_walkback_bull()` backward loop (structure-only termination, mid-leg green-pause skip via `low[i-1]<low[i] and high[i]<=high[i+1]`, highest-open-red R); `lower_line := open_R` on each confirmed bullish sweep.
+**Rationale:** the demand line per spec §4.1; sweep-driven (moves on every new same-side sweep), self-prune achieved statelessly (each sweep re-walks from scratch).
+**Tests run:** NEAR daily via replay — May-4 sweep (replay 2026-05-05) and May-16 sweep (replay 2026-05-17), read `data_get_study_values`.
+**Results:** `OB lower (demand open_R)` = **1.407** (May 4, Apr-25 open) and **1.607** (May 16, May-13 open) — both EXACT vs the parked-spec oracle. Compiles 0/0; binding re-verified (nameButton "Jamal OB") before save.
+**Status:** bullish side complete; bearish next.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 
