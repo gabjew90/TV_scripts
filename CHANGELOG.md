@@ -444,6 +444,16 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** OFF = **1.596 / 1.547** at replay 2026-05-14 — byte-identical to v0.1 (regression clean). ON at the same bar = 1.596 / 1.547 (no longer 0.845/13.515 — degeneracy gone). Realtime side-by-side same bar: **OFF lower 1.867 vs ON lower 2.392** — sticky correctly HOLDS the deeper unswept demand OB while default re-anchors to a shallow recent one. Compiles 0/0; binding re-verified before save; toggle left at OFF default.
 **Status:** v0.2.0 shipped. Still deferred (spec §7): confirmation gates (displacement / down-move), full invalidation/kill, multiplicity/fallback stack, OB boxes.
 
+## OB v0.2.1 — intrabar wick-sweep relocation (sticky mode)
+**Date:** 2026-06-27 · **On-chart:** "Jamal OB v0.2.1" (shorttitle "JOB0.2.1")
+**Code changes**
+- The sticky wick-sweep trigger (`low < bull_anchor_low` / `high > bear_anchor_high`) now fires **intrabar** — the moment the forming bar's low/high breaks the anchor, the line relocates live, instead of waiting for the bar to close. Split the old single `if barstate.isconfirmed` block into `*_wick` (every-bar, sticky only) and `*_conf` (confirmed-gated: bootstrap / post-break new sweep / default mode). Structure-break flag (`close > bull_bos`) stays confirmed.
+**Rationale:** a wick sweep is inherently an intrabar event; waiting for the close just delays showing something that already happened. Colour-based triggers stay confirmed since they must know the candle is red/green.
+**Repaint note:** the forming bar now repaints (line is provisional until close). **Closed-bar history is unchanged** — the wick is already in the bar's final low/high, so the committed value at close is identical to v0.2.0. Also confirmed: the sweep **counts even if the candle closes back above the anchor** (the trigger is the bar's LOW, not its close), and that relocation persists (the new anchor becomes the wicked low) — this was already true in v0.2.0; v0.2.1 just surfaces it live.
+**Tests run:** NEAR daily replay, `data_get_study_values`, toggle both states.
+**Results:** OFF = 1.596/1.547 and sticky ON = 1.596/1.547 at replay 2026-05-14 — both byte-identical to v0.2.0 (closed-bar regression clean). Compiles 0/0; binding re-verified; toggle left OFF.
+**Status:** v0.2.1 shipped.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 
