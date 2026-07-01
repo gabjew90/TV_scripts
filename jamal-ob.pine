@@ -1,58 +1,98 @@
 //@version=6
-indicator("Jamal OB v0.1.0", shorttitle = "JOB0.1.0", overlay = true)
+indicator("Jamal OB v0.2.0", shorttitle = "JOB0.2.0", overlay = true)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.1.0"
+SCRIPT_V = "0.2.0"
 
 // ════════════════ Inputs ════════════════
-max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
+max_lookback     = input.int(200,    "Walk-back max lookback (bars)", minval = 10)
+hold_until_swept = input.bool(false, "Hold OB until its low/high is swept (sticky)")
 
 // ════════════════ Bullish walk-back (lower line = open_R) ════════════════
-// From sweep bar T (offset 0, a red new-low), walk backward over the
-// contiguous down-leg and return the highest red open (open_R). Termination
-// is STRUCTURE-ONLY (green-that-held / doji). A mid-leg green pause — the bar
-// toward T made a new low AND this green didn't break out up — is skipped.
-// The running max selects R; it never stops the walk.
-f_walkback_bull(int maxlb) =>
-    float best_open = open                          // T is red — seed with its open
-    for i = 1 to maxlb
+// From the anchor bar at offset s0 (the sweep candle if it is RED; the bar
+// BEFORE it if the sweep candle is green), walk backward over the contiguous
+// down-leg. Returns [open_R, leg_hi]:
+//   open_R = highest red open in the leg (the demand line level; when the
+//            anchor is red it may be the anchor's own open),
+//   leg_hi = swing high over [stop-candle .. s0] (the bullish BOS / structure
+//            level whose close-through resets a sticky OB).
+// Termination is STRUCTURE-ONLY (green-that-held / doji); a mid-leg green pause
+// (bar toward the anchor made a new low AND this green didn't break out up) is
+// skipped. The running max selects R; it never stops the walk.
+f_walkback_bull(int maxlb, int s0) =>
+    float best_open = close[s0] < open[s0] ? open[s0] : na   // seed R only if anchor bar is red
+    float leg_hi    = high[s0]
+    for i = s0 + 1 to s0 + maxlb
+        leg_hi := math.max(leg_hi, high[i])
         if close[i] < open[i]                       // red → in leg
-            best_open := math.max(best_open, open[i])
+            best_open := na(best_open) ? open[i] : math.max(best_open, open[i])
             continue
         if close[i] > open[i]                       // green → pause or stop
             if low[i - 1] < low[i] and high[i] <= high[i + 1]
                 continue                            // mid-leg pause: skip
         break                                       // green-that-held or doji → stop
-    best_open
+    [best_open, leg_hi]
 
 // ════════════════ Bearish walk-back (upper line = open_R) ════════════════
-// Mirror of bullish: from sweep bar T (a green new-high), walk back the
-// contiguous up-leg and return the lowest green open (open_R). Mid-leg red
-// pause — bar toward T made a new high AND this red didn't break down — is
-// skipped; red-that-held / doji stops the walk.
-f_walkback_bear(int maxlb) =>
-    float best_open = open                          // T is green — seed with its open
-    for i = 1 to maxlb
+// Mirror: anchor at s0 (the sweep candle if GREEN; the bar before if red).
+// Returns [open_R, leg_lo]: open_R = lowest green open (supply line);
+// leg_lo = swing low over [stop-candle .. s0] (bearish BOS level).
+f_walkback_bear(int maxlb, int s0) =>
+    float best_open = close[s0] > open[s0] ? open[s0] : na   // seed R only if anchor bar is green
+    float leg_lo    = low[s0]
+    for i = s0 + 1 to s0 + maxlb
+        leg_lo := math.min(leg_lo, low[i])
         if close[i] > open[i]                       // green → in leg
-            best_open := math.min(best_open, open[i])
+            best_open := na(best_open) ? open[i] : math.min(best_open, open[i])
             continue
         if close[i] < open[i]                       // red → pause or stop
             if high[i - 1] > high[i] and low[i] >= low[i + 1]
                 continue                            // mid-leg pause: skip
         break                                       // red-that-held or doji → stop
-    best_open
+    [best_open, leg_lo]
 
 // ════════════════ Sweep triggers + line state ════════════════
+// Default (hold_until_swept = false): every same-side sweep re-anchors the
+// line — the v0.1 behavior. Sticky (true): the line LOCKS at the current OB and
+// relocates only when (a) its anchor low/high is wicked out, or (b) after a
+// structure break (a close beyond the leg origin `*_bos`) the NEXT sweep forms
+// a fresh OB. A green bullish anchor (or red bearish anchor) starts its
+// walk-back one bar earlier (s0 = 1).
 bool bull_sweep = close < open and low  < low[1]    // red, new low
 bool bear_sweep = close > open and high > high[1]    // green, new high
 
-var float lower_line = na
-var float upper_line = na
+var float lower_line       = na
+var float upper_line       = na
+var float bull_anchor_low  = na    // low of the sweep candle currently holding lower_line
+var float bull_bos         = na    // bullish structure level (down-leg origin)
+var bool  bull_broken      = false // has price closed above bull_bos since anchoring?
+var float bear_anchor_high = na
+var float bear_bos         = na
+var bool  bear_broken      = false
 
-if barstate.isconfirmed and bull_sweep
-    lower_line := f_walkback_bull(max_lookback)
-if barstate.isconfirmed and bear_sweep
-    upper_line := f_walkback_bear(max_lookback)
+if barstate.isconfirmed
+    // Bullish (lower / demand)
+    if hold_until_swept and not na(bull_bos) and close > bull_bos
+        bull_broken := true
+    bool bull_fire = hold_until_swept ? (na(bull_anchor_low) ? bull_sweep : (low < bull_anchor_low) or (bull_broken and bull_sweep)) : bull_sweep
+    if bull_fire
+        int s0b = close < open ? 0 : 1
+        [oRb, swb] = f_walkback_bull(max_lookback, s0b)
+        lower_line      := oRb
+        bull_anchor_low := low
+        bull_bos        := swb
+        bull_broken     := false
+    // Bearish (upper / supply)
+    if hold_until_swept and not na(bear_bos) and close < bear_bos
+        bear_broken := true
+    bool bear_fire = hold_until_swept ? (na(bear_anchor_high) ? bear_sweep : (high > bear_anchor_high) or (bear_broken and bear_sweep)) : bear_sweep
+    if bear_fire
+        int s0s = close > open ? 0 : 1
+        [oRs, sws] = f_walkback_bear(max_lookback, s0s)
+        upper_line       := oRs
+        bear_anchor_high := high
+        bear_bos         := sws
+        bear_broken      := false
 
 // ════════════════ Render ════════════════
 plot(lower_line, "OB lower (demand open_R)", color.green, 2, plot.style_stepline)

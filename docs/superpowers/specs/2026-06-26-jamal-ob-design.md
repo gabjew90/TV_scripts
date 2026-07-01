@@ -102,6 +102,10 @@ Deferred, in rough priority order for later versions:
 3. **Multiplicity / fallback stack** — tracking multiple live OBs per side and choosing among them (most-recent vs nearest-below-price) when the active one is killed.
 4. **OB boxes / tags** — drawing the full zone and wick-touch mitigation (the parked spec's deferred TAG behavior).
 
+### v0.2.0 addendum (2026-06-27) — `hold_until_swept` sticky mode
+
+An optional input (default OFF = v1 behavior). When ON, each line locks at its current OB and relocates only when its anchor low/high is wicked out **or**, after a **structure break** (a close beyond the down-/up-leg origin), on the next sweep. This pulls a slice of item 1 forward: the walk-back now also returns the leg swing high/low (the BOS level). Two testing-found corrections are baked in: (a) a pure "hold until swept" rule is degenerate — it ratchets to the all-time low/high and sticks — so an opposite-side structure break is required to relocate the line back toward price; (b) a green bullish anchor (red bearish anchor) starts its walk-back one bar earlier so a green candle's open is never the OB level. Still deferred: the displacement / down-move gates, full invalidation, multiplicity, and boxes. See CHANGELOG "OB v0.2.0".
+
 ## 8. References
 
 - Parked rule-set + validated worked examples: `docs/superpowers/specs/2026-06-09-jamal-ob-parked-state.md`.
