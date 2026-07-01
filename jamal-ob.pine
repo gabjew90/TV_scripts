@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.2.1", shorttitle = "JOB0.2.1", overlay = true)
+indicator("Jamal OB v0.2.2", shorttitle = "JOB0.2.2", overlay = true)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.2.1"
+SCRIPT_V = "0.2.2"
 
 // ════════════════ Inputs ════════════════
 max_lookback     = input.int(200,    "Walk-back max lookback (bars)", minval = 10)
@@ -103,9 +103,27 @@ if bear_wick or bear_conf
     bear_bos         := sws
     bear_broken      := false
 
+// ════════════════ Demand-line freshness (render state only) ════════════════
+// The green line is BRIGHT only once (a) a bar AFTER the one that set the line
+// has CONFIRMED a close above it, AND (b) the level is UNTOUCHED — no later
+// bar's low has come back to the level. On relocation both flags reset, so a
+// fresh line always starts DULL (the reloc bar's own close doesn't count, and
+// its low is below open_R by construction). A touch dims it until relocation.
+var bool bull_touched      = false
+var bool bull_closed_above = false
+if bull_wick or bull_conf
+    bull_touched      := false
+    bull_closed_above := false
+else if not na(lower_line)
+    if low <= lower_line
+        bull_touched := true
+    if barstate.isconfirmed and close > lower_line
+        bull_closed_above := true
+color lower_col = bull_closed_above and not bull_touched ? color.new(color.green, 0) : color.new(color.green, 60)
+
 // ════════════════ Render ════════════════
-plot(lower_line, "OB lower (demand open_R)", color.green, 2, plot.style_stepline)
-plot(upper_line, "OB upper (supply open_R)", color.red,   2, plot.style_stepline)
+plot(lower_line, "OB lower (demand open_R)", lower_col, 2, plot.style_stepline)
+plot(upper_line, "OB upper (supply open_R)", color.red, 2, plot.style_stepline)
 
 // ════════════════ Version tag ════════════════
 var table vt = table.new(position.top_right, 1, 1)

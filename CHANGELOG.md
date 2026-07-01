@@ -454,6 +454,16 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** OFF = 1.596/1.547 and sticky ON = 1.596/1.547 at replay 2026-05-14 — both byte-identical to v0.2.0 (closed-bar regression clean). Compiles 0/0; binding re-verified; toggle left OFF.
 **Status:** v0.2.1 shipped.
 
+## OB v0.2.2 — demand-line freshness dimming (render-only)
+**Date:** 2026-06-27 · **On-chart:** "Jamal OB v0.2.2" (shorttitle "JOB0.2.2")
+**Code changes**
+- Green line now renders BRIGHT (`color.new(green, 0)`) only once BOTH: (a) a bar **after** the one that set the line has **confirmed a close above it** (`bull_closed_above`), and (b) the level is **untouched** — no later bar's low has come back to it (`low <= lower_line` → `bull_touched`; the setting bar is excluded since its own low is below `open_R` by construction). Otherwise DULL (`color.new(green, 60)`, the fable passive-line idiom). Both flags reset on relocation, so **a fresh line always starts dull** (user-specified: on relocation, condition (a) is not yet true — even a green breaking candle closing above its own new level does not count). Touch detection is intrabar (a live wick dims immediately); the close-above arm is confirmed-bar only. Red line unchanged.
+- State: `bull_touched`, `bull_closed_above` — render-only; line VALUES unchanged in both modes.
+**Rationale:** brightness = "unmitigated + respected" demand (price accepted above the level and hasn't retested it); dull = untested-below, already-tagged, or not-yet-reclaimed. Visual triage without changing level logic.
+**Tests run:** compile 0/0; BTC + NEAR realtime value reads (unchanged vs v0.2.1 logic); screenshots (dull segments render across BTC/NEAR downtrends; bright path = legacy full-green color); hand-trace of flag transitions on the NEAR May sequence (May-4 reloc → dull; May-6 confirmed close 1.488 > 1.407 → bright; May-13+ relocations reset).
+**Results:** shipped; binding re-verified after a Pine-editor panel reopen (editor had closed mid-session — reopened via ui_open_panel, still bound to Jamal OB).
+**Status:** v0.2.2 shipped. Red-line mirror of the freshness dimming NOT built (green only, as requested).
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 
