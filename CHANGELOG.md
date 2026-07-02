@@ -495,6 +495,16 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** 2026-05-08: 1.407 fresh 1 locked **0** (May-6 reclaim 1.488 also cleared bos 1.432 → escape pre-armed) ✓. 2026-05-12: 1.596 fresh 0 locked 0 (relocations fire when unlocked) ✓. 2026-05-14: 1.596 fresh 1 locked **1** (May-12 reclaim 1.607 < bos 1.631 → FROZEN) ✓. 2026-05-15: locked 0 (May-13 touch released it) ✓.
 **Status:** v0.3.0 shipped.
 
+## OB v0.4.0 — single mode (sticky) + bright-freeze without BOS escape
+**Date:** 2026-07-02 · **On-chart:** "Jamal OB v0.4.0" (shorttitle "JOB0.4.0")
+**Code changes**
+- **`hold_until_swept` input REMOVED — sticky is the only mode.** The old default (re-anchor on every same-side sweep) is gone. Relocation = anchor wick-out (intrabar) or post-BOS-break sweep, bootstrap by plain sweep — the v0.2.x sticky core, now unconditional.
+- **BOS escape REMOVED from the bright-freeze** (v0.3.0's unlock #2). `*_locked = closed_beyond and not prev_touched` — while bright, ALL relocation is suppressed and the ONLY unlock is a touch of the level. A never-retested bright line holds indefinitely (user-accepted, chosen against the HYPE example). `*_broken`/`*_bos` retained — they still gate the post-BOS sweep relocation path when the line is not bright. DW `locked` plots dropped (locked ≡ bright now).
+**Rationale:** user expectation on HYPE weekly: the Jan-26 candle (close 30.573) brightens the 26.865 line and it must HOLD there until the Feb-23 candle touches it — v0.3.0 instead let the Feb-9 sweep relocate to 32.441 because the Jan-26 close also cleared the 28.4 leg origin (escape pre-armed). Also: one mode, not two.
+**Tests run:** compile 0/0; HYPE weekly (BINANCE:HYPEUSDT.P 1W) replay ×3 via DW fresh flags.
+**Results:** replay 2026-02-18 (post-Feb-9 sweep): lower **26.865 fresh 1** — freeze HELD (v0.3.0 gave 32.441) ✓. Replay 2026-03-04 (post-Feb-23 touch, low 25.613): 26.865 fresh 0 ✓. Replay 2026-04-01 (post-Mar-23 sweep, first after unlock): relocated to **38.342** ✓. Note: sticky-from-genesis changes ALL line history vs old default mode (e.g. HYPE upper now 22.193 where v0.3.0 default showed 37.399 at Feb-9) — expected, whole-mode change.
+**Status:** v0.4.0 shipped.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 
