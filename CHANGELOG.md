@@ -464,6 +464,17 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** shipped; binding re-verified after a Pine-editor panel reopen (editor had closed mid-session — reopened via ui_open_panel, still bound to Jamal OB).
 **Status:** v0.2.2 shipped. Red-line mirror of the freshness dimming NOT built (green only, as requested).
 
+## OB v0.2.3 — freshness FIX (reclaim pass-through bug) + red mirror + DW flags
+**Date:** 2026-06-27 · **On-chart:** "Jamal OB v0.2.3" (shorttitle "JOB0.2.3")
+**Code changes**
+- **Bug fix (user-reported "brightness isn't working"):** v0.2.2's touch check `low <= lower_line` counted the RECLAIM bar's own pass-through wick as a touch — a bar closing above the line necessarily wicks through it first (crypto perps don't gap), so `bull_touched` latched on the very bar that reclaimed, and brightness effectively NEVER fired (NEAR May-6: closed 1.488 > 1.407 but low 1.287 tripped the latch).
+- **Corrected semantics: touches only count FROM ABOVE.** The touch latch is armed only while `bull_closed_above` is already true; the arming bar's own wick and all wicks from below (pre-reclaim) are ignored. Bright = reclaimed (confirmed close above on a bar after the setting bar) AND not yet retested; first low back at the line → dull until relocation (no re-arm).
+- **Red mirror added** (user request): arms on a confirmed close BELOW the upper line; a later `high >= line` latches touched. Dull red = `color.new(red, 60)`.
+- **DW plots** `DW lower/upper fresh (1=bright)` — freshness verifiable numerically via data_get_study_values.
+**Tests run:** compile 0/0; NEAR daily replay ×3 reading DW flags.
+**Results:** replay 2026-05-08 (last bar May 7): lower 1.407 fresh **1** — the previously-broken reclaim case now bright ✓. Replay 2026-05-12 (May 10 reloc): 1.596 fresh **0** ✓. Replay 2026-05-14 (May 12 armed 1.607>1.596; May 13 low 1.549 retested the line): fresh **0** — touch-from-above latch ✓ (OHLCV-verified May-13 low). All three state transitions confirmed.
+**Status:** v0.2.3 shipped. (Session note: a platform permission-classifier outage paused this increment mid-flight; resumed cleanly, binding still Jamal OB.)
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 

@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.2.2", shorttitle = "JOB0.2.2", overlay = true)
+indicator("Jamal OB v0.2.3", shorttitle = "JOB0.2.3", overlay = true)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.2.2"
+SCRIPT_V = "0.2.3"
 
 // ════════════════ Inputs ════════════════
 max_lookback     = input.int(200,    "Walk-back max lookback (bars)", minval = 10)
@@ -103,27 +103,47 @@ if bear_wick or bear_conf
     bear_bos         := sws
     bear_broken      := false
 
-// ════════════════ Demand-line freshness (render state only) ════════════════
-// The green line is BRIGHT only once (a) a bar AFTER the one that set the line
-// has CONFIRMED a close above it, AND (b) the level is UNTOUCHED — no later
-// bar's low has come back to the level. On relocation both flags reset, so a
-// fresh line always starts DULL (the reloc bar's own close doesn't count, and
-// its low is below open_R by construction). A touch dims it until relocation.
+// ════════════════ Line freshness (render state only) ════════════════
+// BRIGHT = the level has been RECLAIMED and not RETESTED since.
+//   Green: arms when a bar AFTER the setting bar CONFIRMS a close above the
+//   line. The reclaim bar's own pass-through wick does NOT count as a touch,
+//   and wicks from BELOW (before any reclaim) don't count either. Once armed,
+//   the first bar whose low comes back to the line (low <= line, intrabar)
+//   latches "touched" → dull until the line relocates (no re-arm).
+//   Red: exact mirror — arms on a confirmed close BELOW the upper line; a
+//   later high back at the line (high >= line) latches touched.
 var bool bull_touched      = false
 var bool bull_closed_above = false
 if bull_wick or bull_conf
     bull_touched      := false
     bull_closed_above := false
 else if not na(lower_line)
-    if low <= lower_line
+    if bull_closed_above and low <= lower_line
         bull_touched := true
-    if barstate.isconfirmed and close > lower_line
+    else if not bull_touched and barstate.isconfirmed and close > lower_line
         bull_closed_above := true
-color lower_col = bull_closed_above and not bull_touched ? color.new(color.green, 0) : color.new(color.green, 60)
+
+var bool bear_touched      = false
+var bool bear_closed_below = false
+if bear_wick or bear_conf
+    bear_touched      := false
+    bear_closed_below := false
+else if not na(upper_line)
+    if bear_closed_below and high >= upper_line
+        bear_touched := true
+    else if not bear_touched and barstate.isconfirmed and close < upper_line
+        bear_closed_below := true
+
+bool  bull_bright = bull_closed_above and not bull_touched
+bool  bear_bright = bear_closed_below and not bear_touched
+color lower_col   = bull_bright ? color.new(color.green, 0) : color.new(color.green, 60)
+color upper_col   = bear_bright ? color.new(color.red, 0)   : color.new(color.red, 60)
 
 // ════════════════ Render ════════════════
 plot(lower_line, "OB lower (demand open_R)", lower_col, 2, plot.style_stepline)
-plot(upper_line, "OB upper (supply open_R)", color.red, 2, plot.style_stepline)
+plot(upper_line, "OB upper (supply open_R)", upper_col, 2, plot.style_stepline)
+plot(bull_bright ? 1 : 0, "DW lower fresh (1=bright)", display = display.data_window)
+plot(bear_bright ? 1 : 0, "DW upper fresh (1=bright)", display = display.data_window)
 
 // ════════════════ Version tag ════════════════
 var table vt = table.new(position.top_right, 1, 1)
