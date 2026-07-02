@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.2.4", shorttitle = "JOB0.2.4", overlay = true)
+indicator("Jamal OB v0.3.0", shorttitle = "JOB0.3.0", overlay = true)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.2.4"
+SCRIPT_V = "0.3.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback     = input.int(200,    "Walk-back max lookback (bars)", minval = 10)
@@ -14,8 +14,8 @@ hold_until_swept = input.bool(false, "Hold OB until its low/high is swept (stick
 // down-leg. Returns [open_R, leg_hi]:
 //   open_R = highest red open in the leg (the demand line level; when the
 //            anchor is red it may be the anchor's own open),
-//   leg_hi = swing high over [stop-candle .. s0] (the bullish BOS / structure
-//            level whose close-through resets a sticky OB).
+//   leg_hi = swing high over [stop-candle .. s0] (the leg-origin / BOS level:
+//            a close through it means price outran the whole leg).
 // Termination is STRUCTURE-ONLY (green-that-held / doji); a mid-leg green pause
 // (bar toward the anchor made a new low AND this green didn't break out up) is
 // skipped. The running max selects R; it never stops the walk.
@@ -53,36 +53,44 @@ f_walkback_bear(int maxlb, int s0) =>
 
 // ════════════════ Sweep triggers + line state ════════════════
 // Default (hold_until_swept = false): every same-side sweep re-anchors the
-// line — the v0.1 behavior, confirmed-bar gated (no repaint). Sticky (true):
-// the line LOCKS at the current OB and relocates only when (a) its anchor
-// low/high is wicked out, or (b) after a structure break (close beyond the leg
-// origin `*_bos`) the next sweep forms a fresh OB. A green bullish anchor (red
+// line — confirmed-bar gated. Sticky (true): the line locks at the current OB
+// and relocates only on an anchor wick-out (intrabar) or, after a structure
+// break (close beyond `*_bos`), the next sweep. A green bullish anchor (red
 // bearish anchor) starts its walk-back one bar earlier (s0 = 1).
 //
-// The (a) WICK sweep fires INTRABAR — the moment the forming bar's low/high
-// breaks the anchor — so it relocates live. It repaints on the forming bar but
-// is identical to the confirmed result once the bar closes (the wick is already
-// in the bar's final low/high), so all CLOSED-bar history is unchanged. The
-// colour-based triggers (bootstrap / post-break new sweep / default mode) stay
-// confirmed-gated since they must know the candle is red/green.
+// v0.3.0 BRIGHT-FREEZE (both modes): while a line is BRIGHT — reclaimed
+// (confirmed close beyond it after the setting bar) and untested since — ALL
+// relocation is suppressed. It unlocks when either
+//   (1) the level gets TOUCHED (the retest that also starts the dulling), or
+//   (2) ESCAPE: a confirmed close beyond the leg-origin BOS level (`*_bos`) —
+//       price outran the whole leg, so the line may move on the next sweep
+//       instead of going stale. If the reclaim close itself already cleared
+//       the BOS level, the escape is pre-armed and the freeze never engages.
 bool bull_sweep = close < open and low  < low[1]    // red, new low
 bool bear_sweep = close > open and high > high[1]    // green, new high
 
 var float lower_line       = na
 var float upper_line       = na
 var float bull_anchor_low  = na    // low of the sweep candle currently holding lower_line
-var float bull_bos         = na    // bullish structure level (down-leg origin)
+var float bull_bos         = na    // bullish leg-origin / structure level
 var bool  bull_broken      = false // has price closed above bull_bos since anchoring?
 var float bear_anchor_high = na
 var float bear_bos         = na
 var bool  bear_broken      = false
+var bool  bull_touched      = false   // level retested from above (latched until reloc)
+var bool  bull_closed_above = false   // level reclaimed (armed)
+var bool  bear_touched      = false
+var bool  bear_closed_below = false
 
 // Bullish (lower / demand)
-if barstate.isconfirmed and hold_until_swept and not na(bull_bos) and close > bull_bos
+if barstate.isconfirmed and not na(bull_bos) and close > bull_bos
     bull_broken := true
+bool bull_prev_touched = bull_touched   // state before this bar's touch
+bool bull_locked = bull_closed_above and not bull_prev_touched and not bull_broken   // bright-freeze
 bool bull_wick = hold_until_swept and not na(bull_anchor_low) and low < bull_anchor_low          // intrabar
 bool bull_conf = barstate.isconfirmed and (hold_until_swept ? (na(bull_anchor_low) ? bull_sweep : (bull_broken and bull_sweep)) : bull_sweep)
-if bull_wick or bull_conf
+bool bull_reloc = (bull_wick or bull_conf) and not bull_locked
+if bull_reloc
     int s0b = close < open ? 0 : 1
     [oRb, swb] = f_walkback_bull(max_lookback, s0b)
     lower_line      := oRb
@@ -91,11 +99,14 @@ if bull_wick or bull_conf
     bull_broken     := false
 
 // Bearish (upper / supply)
-if barstate.isconfirmed and hold_until_swept and not na(bear_bos) and close < bear_bos
+if barstate.isconfirmed and not na(bear_bos) and close < bear_bos
     bear_broken := true
+bool bear_prev_touched = bear_touched   // state before this bar's touch
+bool bear_locked = bear_closed_below and not bear_prev_touched and not bear_broken   // bright-freeze
 bool bear_wick = hold_until_swept and not na(bear_anchor_high) and high > bear_anchor_high        // intrabar
 bool bear_conf = barstate.isconfirmed and (hold_until_swept ? (na(bear_anchor_high) ? bear_sweep : (bear_broken and bear_sweep)) : bear_sweep)
-if bear_wick or bear_conf
+bool bear_reloc = (bear_wick or bear_conf) and not bear_locked
+if bear_reloc
     int s0s = close > open ? 0 : 1
     [oRs, sws] = f_walkback_bear(max_lookback, s0s)
     upper_line       := oRs
@@ -103,21 +114,14 @@ if bear_wick or bear_conf
     bear_bos         := sws
     bear_broken      := false
 
-// ════════════════ Line freshness (render state only) ════════════════
-// BRIGHT = the level has been RECLAIMED and not RETESTED since.
-//   Green: arms when a bar AFTER the setting bar CONFIRMS a close above the
-//   line. The reclaim bar's own pass-through wick does NOT count as a touch,
-//   and wicks from BELOW (before any reclaim) don't count either. Once armed,
-//   the first bar whose low comes back to the line (low <= line, intrabar)
-//   latches "touched" → dull until the line relocates (no re-arm).
-//   Red: exact mirror — arms on a confirmed close BELOW the upper line; a
-//   later high back at the line (high >= line) latches touched.
-//   The FIRST touch bar itself stays BRIGHT — the colour reads the touched
-//   state as of the PRIOR bar, so dimming takes effect on the next bar.
-var bool bull_touched      = false
-var bool bull_closed_above = false
-bool bull_prev_touched     = bull_touched   // state before this bar's touch
-if bull_wick or bull_conf
+// ════════════════ Line freshness (render state) ════════════════
+// BRIGHT = reclaimed and not retested since. Green: arms when a bar AFTER the
+// setting bar CONFIRMS a close above the line (the arming bar's pass-through
+// wick doesn't count, nor do pre-reclaim wicks from below). Once armed, the
+// first low back at the line latches "touched" → dull until relocation (no
+// re-arm). The FIRST touch bar itself stays bright (colour reads the prior
+// bar's touched state). Red: exact mirror.
+if bull_reloc
     bull_touched      := false
     bull_closed_above := false
 else if not na(lower_line)
@@ -126,10 +130,7 @@ else if not na(lower_line)
     else if not bull_touched and barstate.isconfirmed and close > lower_line
         bull_closed_above := true
 
-var bool bear_touched      = false
-var bool bear_closed_below = false
-bool bear_prev_touched     = bear_touched   // state before this bar's touch
-if bear_wick or bear_conf
+if bear_reloc
     bear_touched      := false
     bear_closed_below := false
 else if not na(upper_line)
@@ -146,8 +147,10 @@ color upper_col   = bear_bright ? color.new(color.red, 0)   : color.new(color.re
 // ════════════════ Render ════════════════
 plot(lower_line, "OB lower (demand open_R)", lower_col, 2, plot.style_stepline)
 plot(upper_line, "OB upper (supply open_R)", upper_col, 2, plot.style_stepline)
-plot(bull_bright ? 1 : 0, "DW lower fresh (1=bright)", display = display.data_window)
-plot(bear_bright ? 1 : 0, "DW upper fresh (1=bright)", display = display.data_window)
+plot(bull_bright ? 1 : 0, "DW lower fresh (1=bright)",  display = display.data_window)
+plot(bear_bright ? 1 : 0, "DW upper fresh (1=bright)",  display = display.data_window)
+plot(bull_locked ? 1 : 0, "DW lower locked (1=frozen)", display = display.data_window)
+plot(bear_locked ? 1 : 0, "DW upper locked (1=frozen)", display = display.data_window)
 
 // ════════════════ Version tag ════════════════
 var table vt = table.new(position.top_right, 1, 1)

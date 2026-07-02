@@ -484,6 +484,17 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** replay 2026-05-14 (May-13 first-touch bar): lower fresh **1** (was 0 in v0.2.3) ✓. Replay 2026-05-15 (bar after touch): **0** ✓. Replay 2026-05-08 (reclaim regression): **1** ✓.
 **Status:** v0.2.4 shipped.
 
+## OB v0.3.0 — bright-freeze: a reclaimed line holds until retested (or BOS escape)
+**Date:** 2026-07-02 · **On-chart:** "Jamal OB v0.3.0" (shorttitle "JOB0.3.0")
+**Code changes**
+- **Bright-freeze (both modes):** while a line is BRIGHT (reclaimed + untested), ALL relocation is suppressed — `*_reloc = (wick or conf) and not *_locked`, `*_locked = closed_beyond and not prev_touched and not broken`. Unlocks on either (1) **touch** — the retest that also starts the dulling; relocation resumes on the next sweep (the touch bar itself never relocates: lock reads prior-bar state), or (2) **escape** — a confirmed close beyond the leg-origin BOS level `*_bos` (price outran the whole leg; prevents the sticky-style staleness of a frozen line while price runs away). `*_broken` arming is no longer gated on `hold_until_swept` (needed in default mode for the escape; sticky semantics unchanged).
+- Freshness state vars hoisted above the relocation blocks (lock needs them); freshness reset keyed to the gated `*_reloc`. New DW plots `DW lower/upper locked (1=frozen)`.
+- **Emergent nuance:** if the reclaim close itself already clears the BOS level (strong reversal), the escape is pre-armed and the freeze never engages — behavior identical to v0.2.4. The freeze bites exactly when the reclaim close lands BETWEEN the line (open_R) and the leg origin (a tentative reclaim inside the leg's range).
+**Rationale:** user request — "only reset the walk-back once the brightened OB line gets touched," with an escape hatch chosen over the literal freeze-forever variant (which reproduces the sticky staleness problem when price never retests).
+**Tests run:** compile 0/0; NEAR daily replay ×4 via DW fresh/locked flags (default mode).
+**Results:** 2026-05-08: 1.407 fresh 1 locked **0** (May-6 reclaim 1.488 also cleared bos 1.432 → escape pre-armed) ✓. 2026-05-12: 1.596 fresh 0 locked 0 (relocations fire when unlocked) ✓. 2026-05-14: 1.596 fresh 1 locked **1** (May-12 reclaim 1.607 < bos 1.631 → FROZEN) ✓. 2026-05-15: locked 0 (May-13 touch released it) ✓.
+**Status:** v0.3.0 shipped.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 
