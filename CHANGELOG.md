@@ -475,6 +475,15 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** replay 2026-05-08 (last bar May 7): lower 1.407 fresh **1** — the previously-broken reclaim case now bright ✓. Replay 2026-05-12 (May 10 reloc): 1.596 fresh **0** ✓. Replay 2026-05-14 (May 12 armed 1.607>1.596; May 13 low 1.549 retested the line): fresh **0** — touch-from-above latch ✓ (OHLCV-verified May-13 low). All three state transitions confirmed.
 **Status:** v0.2.3 shipped. (Session note: a platform permission-classifier outage paused this increment mid-flight; resumed cleanly, binding still Jamal OB.)
 
+## OB v0.2.4 — first-touch bar stays bright (render-only)
+**Date:** 2026-06-27 · **On-chart:** "Jamal OB v0.2.4" (shorttitle "JOB0.2.4")
+**Code changes**
+- The colour now reads the touched-state **as of the prior bar** (`*_prev_touched` snapshot taken before the freshness update): the first retest bar itself still renders BRIGHT; dimming takes effect on the NEXT bar. The latch itself is unchanged (still sets on the touch bar, still blocks re-arming, still resets on relocation). Both lines. Live nuance: a forming candle wicking into the line stays bright until that bar closes.
+**Rationale:** user request — the candle that first tags the level is the retest itself; the visual downgrade belongs after it.
+**Tests run:** compile 0/0; NEAR daily replay ×3 via DW fresh flags.
+**Results:** replay 2026-05-14 (May-13 first-touch bar): lower fresh **1** (was 0 in v0.2.3) ✓. Replay 2026-05-15 (bar after touch): **0** ✓. Replay 2026-05-08 (reclaim regression): **1** ✓.
+**Status:** v0.2.4 shipped.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 

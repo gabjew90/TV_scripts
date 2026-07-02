@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.2.3", shorttitle = "JOB0.2.3", overlay = true)
+indicator("Jamal OB v0.2.4", shorttitle = "JOB0.2.4", overlay = true)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.2.3"
+SCRIPT_V = "0.2.4"
 
 // ════════════════ Inputs ════════════════
 max_lookback     = input.int(200,    "Walk-back max lookback (bars)", minval = 10)
@@ -112,8 +112,11 @@ if bear_wick or bear_conf
 //   latches "touched" → dull until the line relocates (no re-arm).
 //   Red: exact mirror — arms on a confirmed close BELOW the upper line; a
 //   later high back at the line (high >= line) latches touched.
+//   The FIRST touch bar itself stays BRIGHT — the colour reads the touched
+//   state as of the PRIOR bar, so dimming takes effect on the next bar.
 var bool bull_touched      = false
 var bool bull_closed_above = false
+bool bull_prev_touched     = bull_touched   // state before this bar's touch
 if bull_wick or bull_conf
     bull_touched      := false
     bull_closed_above := false
@@ -125,6 +128,7 @@ else if not na(lower_line)
 
 var bool bear_touched      = false
 var bool bear_closed_below = false
+bool bear_prev_touched     = bear_touched   // state before this bar's touch
 if bear_wick or bear_conf
     bear_touched      := false
     bear_closed_below := false
@@ -134,8 +138,8 @@ else if not na(upper_line)
     else if not bear_touched and barstate.isconfirmed and close < upper_line
         bear_closed_below := true
 
-bool  bull_bright = bull_closed_above and not bull_touched
-bool  bear_bright = bear_closed_below and not bear_touched
+bool  bull_bright = bull_closed_above and not bull_prev_touched
+bool  bear_bright = bear_closed_below and not bear_prev_touched
 color lower_col   = bull_bright ? color.new(color.green, 0) : color.new(color.green, 60)
 color upper_col   = bear_bright ? color.new(color.red, 0)   : color.new(color.red, 60)
 
