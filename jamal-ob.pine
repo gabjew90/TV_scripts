@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.5.0", shorttitle = "JOB0.5.0", overlay = true)
+indicator("Jamal OB v0.6.0", shorttitle = "JOB0.6.0", overlay = true)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.5.0"
+SCRIPT_V = "0.6.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -17,22 +17,28 @@ start_ts     = input.time(timestamp("1 Jul 2025 00:00 +0000"), "State start date
 //            anchor is red it may be the anchor's own open),
 //   leg_hi = swing high over [stop-candle .. s0] (the leg-origin / BOS level:
 //            a close through it re-enables sweep-driven relocation).
-// Termination is STRUCTURE-ONLY (green-that-held / doji); a mid-leg green pause
-// (bar toward the anchor made a new low AND this green didn't break out up) is
-// skipped. The running max selects R; it never stops the walk.
+// Termination is STRUCTURE-ONLY (green-that-held / doji). v0.6.0: a green
+// "held" only if NO bar later in the leg (toward the anchor) ever traded below
+// its low — judged against the leg's running low (`lo_seen`), not just the
+// single next bar (the old one-bar test read a deep mid-leg wick as a hold).
+// A pausing green must also not have broken out up vs the earlier bar. The
+// running max of red opens selects R; it never stops the walk.
 f_walkback_bull(int maxlb, int s0, int t0) =>
     float best_open = close[s0] < open[s0] ? open[s0] : na   // seed R only if anchor bar is red
     float leg_hi    = high[s0]
+    float lo_seen   = low[s0]                       // lowest low of bars already in the leg
     for i = s0 + 1 to s0 + maxlb
         if time[i] < t0
             break                                   // determinism clamp: never walk before the start date
-        leg_hi := math.max(leg_hi, high[i])
-        if close[i] < open[i]                       // red → in leg
+        bool is_red      = close[i] < open[i]
+        bool green_pause = close[i] > open[i] and lo_seen < low[i] and high[i] <= high[i + 1]
+        leg_hi  := math.max(leg_hi, high[i])        // BOS extreme includes every scanned bar, incl. the stop-candle
+        lo_seen := math.min(lo_seen, low[i])
+        if is_red                                   // red → in leg
             best_open := na(best_open) ? open[i] : math.max(best_open, open[i])
             continue
-        if close[i] > open[i]                       // green → pause or stop
-            if low[i - 1] < low[i] and high[i] <= high[i + 1]
-                continue                            // mid-leg pause: skip
+        if green_pause
+            continue                                // mid-leg pause: skip
         break                                       // green-that-held or doji → stop
     [best_open, leg_hi]
 
@@ -40,19 +46,24 @@ f_walkback_bull(int maxlb, int s0, int t0) =>
 // Mirror: anchor at s0 (the sweep candle if GREEN; the bar before if red).
 // Returns [open_R, leg_lo]: open_R = lowest green open (supply line);
 // leg_lo = swing low over [stop-candle .. s0] (bearish BOS level).
+// (v0.6.0 mirror: a red "held" only if no later bar in the leg ever traded
+// above its high — judged against the leg's running high `hi_seen`.)
 f_walkback_bear(int maxlb, int s0, int t0) =>
     float best_open = close[s0] > open[s0] ? open[s0] : na   // seed R only if anchor bar is green
     float leg_lo    = low[s0]
+    float hi_seen   = high[s0]                      // highest high of bars already in the leg
     for i = s0 + 1 to s0 + maxlb
         if time[i] < t0
             break                                   // determinism clamp: never walk before the start date
-        leg_lo := math.min(leg_lo, low[i])
-        if close[i] > open[i]                       // green → in leg
+        bool is_green  = close[i] > open[i]
+        bool red_pause = close[i] < open[i] and hi_seen > high[i] and low[i] >= low[i + 1]
+        leg_lo  := math.min(leg_lo, low[i])         // BOS extreme includes every scanned bar, incl. the stop-candle
+        hi_seen := math.max(hi_seen, high[i])
+        if is_green                                 // green → in leg
             best_open := na(best_open) ? open[i] : math.min(best_open, open[i])
             continue
-        if close[i] < open[i]                       // red → pause or stop
-            if high[i - 1] > high[i] and low[i] >= low[i + 1]
-                continue                            // mid-leg pause: skip
+        if red_pause
+            continue                                // mid-leg pause: skip
         break                                       // red-that-held or doji → stop
     [best_open, leg_lo]
 

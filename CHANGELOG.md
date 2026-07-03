@@ -523,6 +523,16 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** BTC.P 1D: lower **60,224.7 BRIGHT** (June-2026 OB, standing reclaimed demand) vs v0.4.1's 9,139.8 relic; upper 108,934.6 unchanged (its lifecycle was already post-start — clamp is a no-op there, good consistency signal). HYPE 1W: 26.865/59.714 — byte-identical to v0.4.1 (regression clean; histories converge at shared reloc bars).
 **Status:** v0.5.0 shipped. Mobile/desktop will now agree once mobile syncs; the start date is a per-chart input (move it forward for lower TFs if desired).
 
+## OB v0.6.0 — walk-back pause test vs the leg's running extreme (wick-myopia fix)
+**Date:** 2026-07-03 · **On-chart:** "Jamal OB v0.6.0" (shorttitle "JOB0.6.0")
+**Problem (user-surfaced, BTC 1D Aug-2025):** the mid-leg pause test compared a candidate stop-candle only against the SINGLE next bar toward the anchor. Aug-11's 122,450 upper wick exceeded Aug-12's high → read as "red-that-held" → the bear walk from the Aug-13 sweep stopped immediately, R = Aug-12 (118,641.8) — even though Aug-13 itself took the wick out one bar later. User's structural read: the leg runs from the Aug-3 bottom.
+**Code changes**
+- Pause clause 1 now judges against the **leg's running extreme**: bear — a red "held" only if NO bar later in the leg traded above its high (`hi_seen > high[i]` where `hi_seen` = max high of bars already walked); bull mirror — a green "held" only if no later bar traded below its low (`lo_seen`). Clause 2 (break-down/out vs the earlier bar) unchanged. Strictly more permissive → walks only get longer, never shorter. Loop restructured so the BOS extreme still includes the stop-candle.
+- Chosen over the fuller "swept-swing/leg-origin" redesign (which would have reached Aug-3 / 112,508.8) — that option remains open.
+**Tests run:** compile 0/0; BTC.P 1D replay 2025-08-21; NEAR 1D replay 2026-05-14; HYPE 1W realtime.
+**Results:** BTC Aug fixture: upper **114,069.6** (R = Aug-6; walk passes Aug-11's wick + Aug-8/9, stops at Aug-5's true breakdown vs Aug-4 low) — exactly as hand-traced ✓. HYPE 1W: 26.865/59.714 **byte-identical** (clean legs unaffected) ✓. NEAR 1D 2026-05-14: lower 1.200 (was 1.596), upper 2.625 (was 1.547) — walks now reach true leg origins; the June-2026 hand-validated oracles no longer bind (expected & warned; values anchor to deeper structure). User should eyeball NEAR/BTC dailies.
+**Status:** v0.6.0 shipped.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 
