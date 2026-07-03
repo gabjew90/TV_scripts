@@ -505,6 +505,15 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** replay 2026-02-18 (post-Feb-9 sweep): lower **26.865 fresh 1** — freeze HELD (v0.3.0 gave 32.441) ✓. Replay 2026-03-04 (post-Feb-23 touch, low 25.613): 26.865 fresh 0 ✓. Replay 2026-04-01 (post-Mar-23 sweep, first after unlock): relocated to **38.342** ✓. Note: sticky-from-genesis changes ALL line history vs old default mode (e.g. HYPE upper now 22.193 where v0.3.0 default showed 37.399 at Feb-9) — expected, whole-mode change.
 **Status:** v0.4.0 shipped.
 
+## OB v0.4.1 — brightened lines never sweep-relocate (anchor wick-out only)
+**Date:** 2026-07-02 · **On-chart:** "Jamal OB v0.4.1" (shorttitle "JOB0.4.1")
+**Code changes**
+- Removed the post-touch sweep relocation for lines that have EVER brightened: `*_conf` gains `and not *_closed_above/below` (the armed flag persists until relocation, so it doubles as "has brightened since set"). A brightened line: freeze while bright → touch dulls it → then it HOLDS its level; only an **anchor wick-out** (price violating the OB extreme, `low < anchor_low` / `high > anchor_high`) can relocate it. The BOS+sweep reset now applies only to never-reclaimed lines. One condition per side; everything else unchanged.
+**Rationale:** user request ("remove the reset after brighten rule", clarified as the post-touch sweep relocation). A reclaimed level stays meaningful after one retest; it should only move when the OB is actually violated.
+**Tests run:** compile 0/0; HYPE 1W replay + realtime via DW flags.
+**Results:** replay 2026-04-01 (post-Mar-23 sweep): lower **26.865 held** (v0.4.0 relocated to 38.342) ✓. Same replay, upper 44.284 vs v0.4.0's 29.016 — the gate binds on the mirrored bear side too (bear had brightened during the earlier downtrend) ✓. Realtime: lower **26.865** — the January demand line still standing (v0.4.0: 66.936), dull (touched Feb-23, anchor 20.475 never violated); upper **59.714** — identical to v0.4.0, proving wick-out relocation still functions (the May/June highs wicked the bear anchors; histories reconverge after a shared reloc bar) ✓.
+**Status:** v0.4.1 shipped.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 

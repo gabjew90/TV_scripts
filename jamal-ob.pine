@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.4.0", shorttitle = "JOB0.4.0", overlay = true)
+indicator("Jamal OB v0.4.1", shorttitle = "JOB0.4.1", overlay = true)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.4.0"
+SCRIPT_V = "0.4.1"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -63,6 +63,11 @@ f_walkback_bear(int maxlb, int s0) =>
 //     relocation is suppressed. The ONLY unlock is a TOUCH of the level (the
 //     retest that also starts the dulling). No BOS escape: a never-retested
 //     bright line holds indefinitely.
+//   • v0.4.1: once a line has EVER brightened (`*_closed_above/below`, which
+//     persists until relocation), the post-BOS SWEEP path is permanently dead
+//     for it — after the touch it holds its level, and only an anchor
+//     wick-out (a true violation of the OB extreme) can relocate it. The
+//     BOS+sweep reset applies only to lines that never got reclaimed.
 bool bull_sweep = close < open and low  < low[1]    // red, new low
 bool bear_sweep = close > open and high > high[1]    // green, new high
 
@@ -85,7 +90,7 @@ if barstate.isconfirmed and not na(bull_bos) and close > bull_bos
 bool bull_prev_touched = bull_touched   // state before this bar's touch
 bool bull_locked = bull_closed_above and not bull_prev_touched   // bright = frozen (touch is the only unlock)
 bool bull_wick = not na(bull_anchor_low) and low < bull_anchor_low                     // intrabar
-bool bull_conf = barstate.isconfirmed and (na(bull_anchor_low) ? bull_sweep : (bull_broken and bull_sweep))
+bool bull_conf = barstate.isconfirmed and (na(bull_anchor_low) ? bull_sweep : (bull_broken and bull_sweep and not bull_closed_above))
 bool bull_reloc = (bull_wick or bull_conf) and not bull_locked
 if bull_reloc
     int s0b = close < open ? 0 : 1
@@ -101,7 +106,7 @@ if barstate.isconfirmed and not na(bear_bos) and close < bear_bos
 bool bear_prev_touched = bear_touched   // state before this bar's touch
 bool bear_locked = bear_closed_below and not bear_prev_touched   // bright = frozen
 bool bear_wick = not na(bear_anchor_high) and high > bear_anchor_high                  // intrabar
-bool bear_conf = barstate.isconfirmed and (na(bear_anchor_high) ? bear_sweep : (bear_broken and bear_sweep))
+bool bear_conf = barstate.isconfirmed and (na(bear_anchor_high) ? bear_sweep : (bear_broken and bear_sweep and not bear_closed_below))
 bool bear_reloc = (bear_wick or bear_conf) and not bear_locked
 if bear_reloc
     int s0s = close > open ? 0 : 1
