@@ -514,6 +514,15 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** replay 2026-04-01 (post-Mar-23 sweep): lower **26.865 held** (v0.4.0 relocated to 38.342) ✓. Same replay, upper 44.284 vs v0.4.0's 29.016 — the gate binds on the mirrored bear side too (bear had brightened during the earlier downtrend) ✓. Realtime: lower **26.865** — the January demand line still standing (v0.4.0: 66.936), dull (touched Feb-23, anchor 20.475 never violated); upper **59.714** — identical to v0.4.0, proving wick-out relocation still functions (the May/June highs wicked the bear anchors; histories reconverge after a shared reloc bar) ✓.
 **Status:** v0.4.1 shipped.
 
+## OB v0.5.0 — deterministic anchor-start (`State start date` input)
+**Date:** 2026-07-03 · **On-chart:** "Jamal OB v0.5.0" (shorttitle "JOB0.5.0")
+**Problem (user-surfaced):** the sticky state machine bootstraps on the first sweep of LOADED history and (post-v0.4.1 immortality) can pin there forever → (a) **path-dependence across devices** — user's mobile (short history) showed an Aug-12-2025 R candle on BTC daily while desktop (long history) showed a line frozen at 9,139.8 from 2020 (spot: 3,446 from 2018!); (b) unbounded staleness on long histories.
+**Code changes**
+- New `start_ts = input.time(timestamp("1 Jul 2025"), "State start date")`. `active = time >= start_ts` gates all relocation triggers (wick + conf, both sides), and the walk-backs take `t0` and **clamp** (`if time[i] < t0 → break`) so a leg can never reach pre-start bars. Every device computes identical lines from the same starting bar; a line can never anchor before the start date.
+**Tests run:** compile 0/0; BTC.P 1D + HYPE 1W reads.
+**Results:** BTC.P 1D: lower **60,224.7 BRIGHT** (June-2026 OB, standing reclaimed demand) vs v0.4.1's 9,139.8 relic; upper 108,934.6 unchanged (its lifecycle was already post-start — clamp is a no-op there, good consistency signal). HYPE 1W: 26.865/59.714 — byte-identical to v0.4.1 (regression clean; histories converge at shared reloc bars).
+**Status:** v0.5.0 shipped. Mobile/desktop will now agree once mobile syncs; the start date is a per-chart input (move it forward for lower TFs if desired).
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 

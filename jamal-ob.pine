@@ -1,11 +1,13 @@
 //@version=6
-indicator("Jamal OB v0.4.1", shorttitle = "JOB0.4.1", overlay = true)
+indicator("Jamal OB v0.5.0", shorttitle = "JOB0.5.0", overlay = true)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.4.1"
+SCRIPT_V = "0.5.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
+start_ts     = input.time(timestamp("1 Jul 2025 00:00 +0000"), "State start date",
+     tooltip = "The OB state machine ignores all bars before this date: no sweeps fire and walk-backs clamp here. Makes the lines DETERMINISTIC across devices (otherwise they depend on how much history the chart loads) and caps how stale a line can be.")
 
 // ════════════════ Bullish walk-back (lower line = open_R) ════════════════
 // From the anchor bar at offset s0 (the sweep candle if it is RED; the bar
@@ -18,10 +20,12 @@ max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
 // Termination is STRUCTURE-ONLY (green-that-held / doji); a mid-leg green pause
 // (bar toward the anchor made a new low AND this green didn't break out up) is
 // skipped. The running max selects R; it never stops the walk.
-f_walkback_bull(int maxlb, int s0) =>
+f_walkback_bull(int maxlb, int s0, int t0) =>
     float best_open = close[s0] < open[s0] ? open[s0] : na   // seed R only if anchor bar is red
     float leg_hi    = high[s0]
     for i = s0 + 1 to s0 + maxlb
+        if time[i] < t0
+            break                                   // determinism clamp: never walk before the start date
         leg_hi := math.max(leg_hi, high[i])
         if close[i] < open[i]                       // red → in leg
             best_open := na(best_open) ? open[i] : math.max(best_open, open[i])
@@ -36,10 +40,12 @@ f_walkback_bull(int maxlb, int s0) =>
 // Mirror: anchor at s0 (the sweep candle if GREEN; the bar before if red).
 // Returns [open_R, leg_lo]: open_R = lowest green open (supply line);
 // leg_lo = swing low over [stop-candle .. s0] (bearish BOS level).
-f_walkback_bear(int maxlb, int s0) =>
+f_walkback_bear(int maxlb, int s0, int t0) =>
     float best_open = close[s0] > open[s0] ? open[s0] : na   // seed R only if anchor bar is green
     float leg_lo    = low[s0]
     for i = s0 + 1 to s0 + maxlb
+        if time[i] < t0
+            break                                   // determinism clamp: never walk before the start date
         leg_lo := math.min(leg_lo, low[i])
         if close[i] > open[i]                       // green → in leg
             best_open := na(best_open) ? open[i] : math.min(best_open, open[i])
@@ -68,6 +74,7 @@ f_walkback_bear(int maxlb, int s0) =>
 //     for it — after the touch it holds its level, and only an anchor
 //     wick-out (a true violation of the OB extreme) can relocate it. The
 //     BOS+sweep reset applies only to lines that never got reclaimed.
+bool active     = time >= start_ts                   // state machine is dead before the start date
 bool bull_sweep = close < open and low  < low[1]    // red, new low
 bool bear_sweep = close > open and high > high[1]    // green, new high
 
@@ -89,12 +96,12 @@ if barstate.isconfirmed and not na(bull_bos) and close > bull_bos
     bull_broken := true
 bool bull_prev_touched = bull_touched   // state before this bar's touch
 bool bull_locked = bull_closed_above and not bull_prev_touched   // bright = frozen (touch is the only unlock)
-bool bull_wick = not na(bull_anchor_low) and low < bull_anchor_low                     // intrabar
-bool bull_conf = barstate.isconfirmed and (na(bull_anchor_low) ? bull_sweep : (bull_broken and bull_sweep and not bull_closed_above))
+bool bull_wick = active and not na(bull_anchor_low) and low < bull_anchor_low          // intrabar
+bool bull_conf = active and barstate.isconfirmed and (na(bull_anchor_low) ? bull_sweep : (bull_broken and bull_sweep and not bull_closed_above))
 bool bull_reloc = (bull_wick or bull_conf) and not bull_locked
 if bull_reloc
     int s0b = close < open ? 0 : 1
-    [oRb, swb] = f_walkback_bull(max_lookback, s0b)
+    [oRb, swb] = f_walkback_bull(max_lookback, s0b, start_ts)
     lower_line      := oRb
     bull_anchor_low := low
     bull_bos        := swb
@@ -105,12 +112,12 @@ if barstate.isconfirmed and not na(bear_bos) and close < bear_bos
     bear_broken := true
 bool bear_prev_touched = bear_touched   // state before this bar's touch
 bool bear_locked = bear_closed_below and not bear_prev_touched   // bright = frozen
-bool bear_wick = not na(bear_anchor_high) and high > bear_anchor_high                  // intrabar
-bool bear_conf = barstate.isconfirmed and (na(bear_anchor_high) ? bear_sweep : (bear_broken and bear_sweep and not bear_closed_below))
+bool bear_wick = active and not na(bear_anchor_high) and high > bear_anchor_high       // intrabar
+bool bear_conf = active and barstate.isconfirmed and (na(bear_anchor_high) ? bear_sweep : (bear_broken and bear_sweep and not bear_closed_below))
 bool bear_reloc = (bear_wick or bear_conf) and not bear_locked
 if bear_reloc
     int s0s = close > open ? 0 : 1
-    [oRs, sws] = f_walkback_bear(max_lookback, s0s)
+    [oRs, sws] = f_walkback_bear(max_lookback, s0s, start_ts)
     upper_line       := oRs
     bear_anchor_high := high
     bear_bos         := sws
