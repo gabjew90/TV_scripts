@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.7.0", shorttitle = "JOB0.7.0", overlay = true)
+indicator("Jamal OB v0.8.0", shorttitle = "JOB0.8.0", overlay = true)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.7.0"
+SCRIPT_V = "0.8.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -17,23 +17,31 @@ start_ts     = input.time(timestamp("1 Jul 2025 00:00 +0000"), "State start date
 //            anchor is red it may be the anchor's own open),
 //   leg_hi = swing high over [stop-candle .. s0] (the leg-origin / BOS level:
 //            a close through it re-enables sweep-driven relocation).
-// Termination is STRUCTURE-ONLY (green-that-held / doji). v0.6.0: a green
-// "held" only if NO bar later in the leg (toward the anchor) ever traded below
-// its low — judged against the leg's running low (`lo_seen`), not just the
-// single next bar (the old one-bar test read a deep mid-leg wick as a hold).
-// A pausing green must also not have broken out up vs the earlier bar. The
-// running max of red opens selects R; it never stops the walk.
+// Termination is STRUCTURE-ONLY (green-that-held / doji). v0.8.0
+// FIRST-VIOLATION rule: for a counter-leg (green) candle, scan the bars AFTER
+// it (chronological, j = i-1 .. s0). If the leg direction broke through it
+// first (some low < the green's low before any high > the green's high) →
+// mid-leg PAUSE, keep walking. If price broke out the other way first (a high
+// above the green's high before any low below it) → the green is the leg
+// origin → STOP. An outside bar breaking both sides at once counts as a
+// pause; a green never violated on either side counts as a stop (it held).
+// The running max of red opens selects R; it never stops the walk.
 f_walkback_bull(int maxlb, int s0, int t0) =>
     float best_open = close[s0] < open[s0] ? open[s0] : na   // seed R only if anchor bar is red
     float leg_hi    = high[s0]
-    float lo_seen   = low[s0]                       // lowest low of bars already in the leg
     for i = s0 + 1 to s0 + maxlb
         if time[i] < t0
             break                                   // determinism clamp: never walk before the start date
         bool is_red      = close[i] < open[i]
-        bool green_pause = close[i] > open[i] and lo_seen < low[i] and high[i] <= high[i + 1]
-        leg_hi  := math.max(leg_hi, high[i])        // BOS extreme includes every scanned bar, incl. the stop-candle
-        lo_seen := math.min(lo_seen, low[i])
+        bool green_pause = false
+        if close[i] > open[i]
+            for j = i - 1 to s0                     // chronological scan of the bars after the green
+                if low[j] < low[i]
+                    green_pause := true             // leg ran through it first (ties → pause)
+                    break
+                if high[j] > high[i]
+                    break                           // upside breakout first → leg origin
+        leg_hi := math.max(leg_hi, high[i])         // BOS extreme includes every scanned bar, incl. the stop-candle
         if is_red                                   // red → in leg
             best_open := na(best_open) ? open[i] : math.max(best_open, open[i])
             continue
@@ -46,19 +54,25 @@ f_walkback_bull(int maxlb, int s0, int t0) =>
 // Mirror: anchor at s0 (the sweep candle if GREEN; the bar before if red).
 // Returns [open_R, leg_lo]: open_R = lowest green open (supply line);
 // leg_lo = swing low over [stop-candle .. s0] (bearish BOS level).
-// (v0.6.0 mirror: a red "held" only if no later bar in the leg ever traded
-// above its high — judged against the leg's running high `hi_seen`.)
+// (v0.8.0 first-violation mirror: a red is a PAUSE if the up-leg broke above
+// its high before anything broke below its low; a downside break first → leg
+// origin → STOP. Ties → pause; never violated → stop.)
 f_walkback_bear(int maxlb, int s0, int t0) =>
     float best_open = close[s0] > open[s0] ? open[s0] : na   // seed R only if anchor bar is green
     float leg_lo    = low[s0]
-    float hi_seen   = high[s0]                      // highest high of bars already in the leg
     for i = s0 + 1 to s0 + maxlb
         if time[i] < t0
             break                                   // determinism clamp: never walk before the start date
         bool is_green  = close[i] > open[i]
-        bool red_pause = close[i] < open[i] and hi_seen > high[i] and low[i] >= low[i + 1]
-        leg_lo  := math.min(leg_lo, low[i])         // BOS extreme includes every scanned bar, incl. the stop-candle
-        hi_seen := math.max(hi_seen, high[i])
+        bool red_pause = false
+        if close[i] < open[i]
+            for j = i - 1 to s0                     // chronological scan of the bars after the red
+                if high[j] > high[i]
+                    red_pause := true               // leg ran through it first (ties → pause)
+                    break
+                if low[j] < low[i]
+                    break                           // downside breakout first → leg origin
+        leg_lo := math.min(leg_lo, low[i])          // BOS extreme includes every scanned bar, incl. the stop-candle
         if is_green                                 // green → in leg
             best_open := na(best_open) ? open[i] : math.min(best_open, open[i])
             continue
