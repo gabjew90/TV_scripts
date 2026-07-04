@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.6.0", shorttitle = "JOB0.6.0", overlay = true)
+indicator("Jamal OB v0.7.0", shorttitle = "JOB0.7.0", overlay = true)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.6.0"
+SCRIPT_V = "0.7.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -164,11 +164,59 @@ bool  bear_bright = bear_closed_below and not bear_prev_touched
 color lower_col   = bull_bright ? color.new(color.green, 0) : color.new(color.green, 60)
 color upper_col   = bear_bright ? color.new(color.red, 0)   : color.new(color.red, 60)
 
+// ════════════════ FVG identification (v0.7.0 — state only, NOT drawn) ════════════════
+// 3-candle fair value gap on COMPLETED bars (pattern = bars [3][2][1]; the
+// values are known from the open of the bar after the pattern completes, so
+// detection is stable intrabar and leak-free):
+//   bull: low[1] > high[3]  → gap [bot = high[3] .. top = low[1]]  (support below)
+//   bear: high[1] < low[3]  → gap [bot = high[1] .. top = low[3]]  (resistance above)
+// Four timeframes: the chart's own TF (local call) + D / W / M via
+// request.security with internal [1..3] offsets + lookahead_on (the standard
+// non-repaint idiom). The latest-gap latch lives INSIDE the function (each
+// security context keeps its own `var` state on its own series), so requesting
+// a LOWER timeframe than the chart still returns the current latest gap —
+// detection pulses can't be lost to per-chart-bar sampling. No mitigation
+// tracking, no size filter, no arrays — those come when this feeds the line
+// logic. Exposed in the Data Window only.
+f_fvg_latest() =>
+    var float bb = na    // latest bull gap bot / top
+    var float bt = na
+    var float sb = na    // latest bear gap bot / top
+    var float st = na
+    if low[1] > high[3]
+        bb := high[3]
+        bt := low[1]
+    if high[1] < low[3]
+        sb := high[1]
+        st := low[3]
+    [bb, bt, sb, st]
+
+[fvg_c_bull_bot, fvg_c_bull_top, fvg_c_bear_bot, fvg_c_bear_top] = f_fvg_latest()
+[fvg_d_bull_bot, fvg_d_bull_top, fvg_d_bear_bot, fvg_d_bear_top] = request.security(syminfo.tickerid, "D", f_fvg_latest(), lookahead = barmerge.lookahead_on)
+[fvg_w_bull_bot, fvg_w_bull_top, fvg_w_bear_bot, fvg_w_bear_top] = request.security(syminfo.tickerid, "W", f_fvg_latest(), lookahead = barmerge.lookahead_on)
+[fvg_m_bull_bot, fvg_m_bull_top, fvg_m_bear_bot, fvg_m_bear_top] = request.security(syminfo.tickerid, "M", f_fvg_latest(), lookahead = barmerge.lookahead_on)
+
 // ════════════════ Render ════════════════
 plot(lower_line, "OB lower (demand open_R)", lower_col, 2, plot.style_stepline)
 plot(upper_line, "OB upper (supply open_R)", upper_col, 2, plot.style_stepline)
 plot(bull_bright ? 1 : 0, "DW lower fresh (1=bright)", display = display.data_window)
 plot(bear_bright ? 1 : 0, "DW upper fresh (1=bright)", display = display.data_window)
+plot(fvg_c_bull_top, "DW FVG chart bull top", display = display.data_window)
+plot(fvg_c_bull_bot, "DW FVG chart bull bot", display = display.data_window)
+plot(fvg_c_bear_top, "DW FVG chart bear top", display = display.data_window)
+plot(fvg_c_bear_bot, "DW FVG chart bear bot", display = display.data_window)
+plot(fvg_d_bull_top, "DW FVG D bull top", display = display.data_window)
+plot(fvg_d_bull_bot, "DW FVG D bull bot", display = display.data_window)
+plot(fvg_d_bear_top, "DW FVG D bear top", display = display.data_window)
+plot(fvg_d_bear_bot, "DW FVG D bear bot", display = display.data_window)
+plot(fvg_w_bull_top, "DW FVG W bull top", display = display.data_window)
+plot(fvg_w_bull_bot, "DW FVG W bull bot", display = display.data_window)
+plot(fvg_w_bear_top, "DW FVG W bear top", display = display.data_window)
+plot(fvg_w_bear_bot, "DW FVG W bear bot", display = display.data_window)
+plot(fvg_m_bull_top, "DW FVG M bull top", display = display.data_window)
+plot(fvg_m_bull_bot, "DW FVG M bull bot", display = display.data_window)
+plot(fvg_m_bear_top, "DW FVG M bear top", display = display.data_window)
+plot(fvg_m_bear_bot, "DW FVG M bear bot", display = display.data_window)
 
 // ════════════════ Version tag ════════════════
 var table vt = table.new(position.top_right, 1, 1)

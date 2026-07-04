@@ -533,6 +533,16 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** BTC Aug fixture: upper **114,069.6** (R = Aug-6; walk passes Aug-11's wick + Aug-8/9, stops at Aug-5's true breakdown vs Aug-4 low) — exactly as hand-traced ✓. HYPE 1W: 26.865/59.714 **byte-identical** (clean legs unaffected) ✓. NEAR 1D 2026-05-14: lower 1.200 (was 1.596), upper 2.625 (was 1.547) — walks now reach true leg origins; the June-2026 hand-validated oracles no longer bind (expected & warned; values anchor to deeper structure). User should eyeball NEAR/BTC dailies.
 **Status:** v0.6.0 shipped.
 
+## OB v0.7.0 — FVG identification, 4 timeframes (state only, NOT drawn)
+**Date:** 2026-07-03 · **On-chart:** "Jamal OB v0.7.0" (shorttitle "JOB0.7.0")
+**Code changes**
+- 3-candle FVG detection on COMPLETED bars `[3][2][1]`: bull `low[1] > high[3]` → `[high[3]..low[1]]` (support below); bear `high[1] < low[3]` → `[high[1]..low[3]]` (resistance above). Leak-free/non-repaint: internal `[1..3]` offsets + `lookahead_on`; a gap is known from the open of the bar after the pattern completes.
+- Four TFs: chart (local call) + D/W/M via `request.security`. **The latest-gap latch lives INSIDE `f_fvg_latest()`** — each security context keeps its own `var` state on its own series, so requesting a TF lower than the chart still returns the current latest gap. (First cut latched OUTSIDE from detection pulses; on a 1W chart the D pulses got lost to per-chart-bar sampling → stale Feb values. Caught in verification, rewritten.)
+- Latest gap per TF/side only; NO mitigation tracking, size filter, or gap arrays yet (next layer, when this feeds the line logic). Nothing rendered — 16 Data-Window plots (`DW FVG {chart,D,W,M} {bull,bear} {top,bot}`).
+**Tests run:** compile 0/0; HYPE 1W `data_get_study_values`.
+**Results:** chart-TF values == W values on a 1W chart (built-in self-check) ✓; W bull 47.275/56.307 matches hand-scan of the weekly bars (mid-May rally gap: May-18 low > May-4 high) ✓; W bear 26.45/26.862 = the December gap (none since — uptrend) ✓; D bull 68.757/69.954 + D bear 64.30/65.202 current near spot (~65) after the in-context-latch fix ✓; M bear `na` (HYPE has never printed a monthly bear FVG) ✓.
+**Status:** v0.7.0 shipped. OB line logic untouched (HYPE 1W lines 26.865/59.714 unchanged).
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 
