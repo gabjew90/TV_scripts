@@ -1,13 +1,15 @@
 //@version=6
-indicator("Jamal OB v0.8.0", shorttitle = "JOB0.8.0", overlay = true)
+indicator("Jamal OB v0.9.0", shorttitle = "JOB0.9.0", overlay = true)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.8.0"
+SCRIPT_V = "0.9.0"
 
 // ════════════════ Inputs ════════════════
-max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
-start_ts     = input.time(timestamp("1 Jul 2025 00:00 +0000"), "State start date",
-     tooltip = "The OB state machine ignores all bars before this date: no sweeps fire and walk-backs clamp here. Makes the lines DETERMINISTIC across devices (otherwise they depend on how much history the chart loads) and caps how stale a line can be.")
+max_lookback   = input.int(500, "Walk-back max lookback (bars)", minval = 10)
+start_ts       = input.time(timestamp("1 Jan 2024 00:00 +0000"), "Start date",
+     tooltip = "The OB state machine ignores all bars before this date, and the highest/lowest points since it become the per-side walk-back backstops (green line's walks never extend past the macro HIGH bar; red line's never past the macro LOW bar). Determinism across devices requires each device to load history back to this date.")
+stop_body_frac = input.float(0.47, "Conviction body fraction", minval = 0.0, maxval = 1.0, step = 0.01,
+     tooltip = "Candle-anatomy stop: a counter-leg candle whose body is at least this fraction of its range STOPS the walk-back even if the leg later ran through it (a conviction recovery is real structure). Below it, such a candle is a mid-leg pause (a wick-spike is noise). Calibrated between BTC-8h Jan-30-2026 green (0.49, stop) and BTC-1D Aug-8-2025 red (0.45, pause).")
 
 // ════════════════ Bullish walk-back (lower line = open_R) ════════════════
 // From the anchor bar at offset s0 (the sweep candle if it is RED; the bar
@@ -19,25 +21,30 @@ start_ts     = input.time(timestamp("1 Jul 2025 00:00 +0000"), "State start date
 //            a close through it re-enables sweep-driven relocation).
 // Termination is STRUCTURE-ONLY (green-that-held / doji). v0.8.0
 // FIRST-VIOLATION rule: for a counter-leg (green) candle, scan the bars AFTER
-// it (chronological, j = i-1 .. s0). If the leg direction broke through it
-// first (some low < the green's low before any high > the green's high) →
-// mid-leg PAUSE, keep walking. If price broke out the other way first (a high
-// above the green's high before any low below it) → the green is the leg
-// origin → STOP. An outside bar breaking both sides at once counts as a
-// pause; a green never violated on either side counts as a stop (it held).
-// The running max of red opens selects R; it never stops the walk.
-f_walkback_bull(int maxlb, int s0, int t0) =>
+// it (chronological, j = i-1 .. s0). If price broke out the counter way first
+// (a high above the green's high before any low below it) → the green is the
+// leg origin → STOP. If the leg direction broke through it first → normally a
+// mid-leg PAUSE — except (v0.9.0 CANDLE ANATOMY) a CONVICTION candle (body ≥
+// `conv` fraction of its range) is real structure and STOPS the walk anyway;
+// only wick-spike/indecision candles get run through. Ties (outside bar) are
+// judged like leg-direction-first; a green never violated on either side
+// stops (it held). The running max of red opens selects R; it never stops
+// the walk. t0 = this side's backstop (the macro-HIGH bar since the start
+// date — a down-leg cannot begin before its origin top).
+f_walkback_bull(int maxlb, int s0, int t0, float conv) =>
     float best_open = close[s0] < open[s0] ? open[s0] : na   // seed R only if anchor bar is red
     float leg_hi    = high[s0]
     for i = s0 + 1 to s0 + maxlb
         if time[i] < t0
-            break                                   // determinism clamp: never walk before the start date
+            break                                   // backstop: never walk past the macro-high bar
         bool is_red      = close[i] < open[i]
         bool green_pause = false
         if close[i] > open[i]
+            float rng = high[i] - low[i]
+            bool conviction = rng > 0 and math.abs(close[i] - open[i]) / rng >= conv
             for j = i - 1 to s0                     // chronological scan of the bars after the green
                 if low[j] < low[i]
-                    green_pause := true             // leg ran through it first (ties → pause)
+                    green_pause := not conviction   // leg ran through it first — noise pauses, conviction stops
                     break
                 if high[j] > high[i]
                     break                           // upside breakout first → leg origin
@@ -54,21 +61,24 @@ f_walkback_bull(int maxlb, int s0, int t0) =>
 // Mirror: anchor at s0 (the sweep candle if GREEN; the bar before if red).
 // Returns [open_R, leg_lo]: open_R = lowest green open (supply line);
 // leg_lo = swing low over [stop-candle .. s0] (bearish BOS level).
-// (v0.8.0 first-violation mirror: a red is a PAUSE if the up-leg broke above
-// its high before anything broke below its low; a downside break first → leg
-// origin → STOP. Ties → pause; never violated → stop.)
-f_walkback_bear(int maxlb, int s0, int t0) =>
+// (v0.8.0 first-violation + v0.9.0 anatomy mirror: a red is a PAUSE if the
+// up-leg broke above its high before anything broke below its low AND it is
+// not a conviction candle; a downside break first, a conviction body, or no
+// violation at all → leg origin → STOP. t0 = the macro-LOW bar backstop.)
+f_walkback_bear(int maxlb, int s0, int t0, float conv) =>
     float best_open = close[s0] > open[s0] ? open[s0] : na   // seed R only if anchor bar is green
     float leg_lo    = low[s0]
     for i = s0 + 1 to s0 + maxlb
         if time[i] < t0
-            break                                   // determinism clamp: never walk before the start date
+            break                                   // backstop: never walk past the macro-low bar
         bool is_green  = close[i] > open[i]
         bool red_pause = false
         if close[i] < open[i]
+            float rng = high[i] - low[i]
+            bool conviction = rng > 0 and math.abs(close[i] - open[i]) / rng >= conv
             for j = i - 1 to s0                     // chronological scan of the bars after the red
                 if high[j] > high[i]
-                    red_pause := true               // leg ran through it first (ties → pause)
+                    red_pause := not conviction     // leg ran through it first — noise pauses, conviction stops
                     break
                 if low[j] < low[i]
                     break                           // downside breakout first → leg origin
@@ -116,6 +126,23 @@ var bool  bull_closed_above = false   // level reclaimed (armed)
 var bool  bear_touched      = false
 var bool  bear_closed_below = false
 
+// Macro extremes since the start date → per-side walk-back backstops
+// (green walks never extend past the macro-HIGH bar; red never past the
+// macro-LOW bar). Confirmed-bar updated.
+var float hh_since = na
+var int   hh_time  = na
+var float ll_since = na
+var int   ll_time  = na
+if barstate.isconfirmed and active
+    if na(hh_since) or high > hh_since
+        hh_since := high
+        hh_time  := time
+    if na(ll_since) or low < ll_since
+        ll_since := low
+        ll_time  := time
+int bull_t0 = na(hh_time) ? start_ts : hh_time
+int bear_t0 = na(ll_time) ? start_ts : ll_time
+
 // Bullish (lower / demand)
 if barstate.isconfirmed and not na(bull_bos) and close > bull_bos
     bull_broken := true
@@ -126,7 +153,7 @@ bool bull_conf = active and barstate.isconfirmed and (na(bull_anchor_low) ? bull
 bool bull_reloc = (bull_wick or bull_conf) and not bull_locked
 if bull_reloc
     int s0b = close < open ? 0 : 1
-    [oRb, swb] = f_walkback_bull(max_lookback, s0b, start_ts)
+    [oRb, swb] = f_walkback_bull(max_lookback, s0b, bull_t0, stop_body_frac)
     lower_line      := oRb
     bull_anchor_low := low
     bull_bos        := swb
@@ -142,7 +169,7 @@ bool bear_conf = active and barstate.isconfirmed and (na(bear_anchor_high) ? bea
 bool bear_reloc = (bear_wick or bear_conf) and not bear_locked
 if bear_reloc
     int s0s = close > open ? 0 : 1
-    [oRs, sws] = f_walkback_bear(max_lookback, s0s, start_ts)
+    [oRs, sws] = f_walkback_bear(max_lookback, s0s, bear_t0, stop_body_frac)
     upper_line       := oRs
     bear_anchor_high := high
     bear_bos         := sws
