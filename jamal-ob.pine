@@ -1,13 +1,13 @@
 //@version=6
-indicator("Jamal OB v0.9.0", shorttitle = "JOB0.9.0", overlay = true)
+indicator("Jamal OB v0.10.0", shorttitle = "JOB0.10.0", overlay = true)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.9.0"
+SCRIPT_V = "0.10.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback   = input.int(500, "Walk-back max lookback (bars)", minval = 10)
 start_ts       = input.time(timestamp("1 Jan 2024 00:00 +0000"), "Start date",
-     tooltip = "The OB state machine ignores all bars before this date, and the highest/lowest points since it become the per-side walk-back backstops (green line's walks never extend past the macro HIGH bar; red line's never past the macro LOW bar). Determinism across devices requires each device to load history back to this date.")
+     tooltip = "The OB state machine ignores all bars before this date, and the highest/lowest points since it become the per-side walk-back backstops (green line's walks never extend past the macro HIGH bar; red line's never past the macro LOW bar). A NEW macro extreme resets that side's line state. Determinism across devices requires each device to load history back to this date.")
 stop_body_frac = input.float(0.47, "Conviction body fraction", minval = 0.0, maxval = 1.0, step = 0.01,
      tooltip = "Candle-anatomy stop: a counter-leg candle whose body is at least this fraction of its range STOPS the walk-back even if the leg later ran through it (a conviction recovery is real structure). Below it, such a candle is a mid-leg pause (a wick-spike is noise). Calibrated between BTC-8h Jan-30-2026 green (0.49, stop) and BTC-1D Aug-8-2025 red (0.45, pause).")
 
@@ -128,7 +128,10 @@ var bool  bear_closed_below = false
 
 // Macro extremes since the start date → per-side walk-back backstops
 // (green walks never extend past the macro-HIGH bar; red never past the
-// macro-LOW bar). Confirmed-bar updated.
+// macro-LOW bar). v0.10.0: a NEW macro extreme RESETS that side's state —
+// the first line after a fresh top is drawn by the first pullback sweep's
+// walk-back off that top (mirror for the low). Old structure predating the
+// extreme can never linger as a fossil line state. Confirmed-bar updated.
 var float hh_since = na
 var int   hh_time  = na
 var float ll_since = na
@@ -137,9 +140,21 @@ if barstate.isconfirmed and active
     if na(hh_since) or high > hh_since
         hh_since := high
         hh_time  := time
+        lower_line        := na      // the old demand line is void — a new top invalidates it
+        bull_anchor_low   := na      // demand side re-bootstraps from this top
+        bull_bos          := na
+        bull_broken       := false
+        bull_touched      := false
+        bull_closed_above := false   // (line must clear too, else freshness re-arms on the fossil and the freeze blocks re-bootstrap)
     if na(ll_since) or low < ll_since
         ll_since := low
         ll_time  := time
+        upper_line        := na      // the old supply line is void — a new low invalidates it
+        bear_anchor_high  := na      // supply side re-bootstraps from this low
+        bear_bos          := na
+        bear_broken       := false
+        bear_touched      := false
+        bear_closed_below := false
 int bull_t0 = na(hh_time) ? start_ts : hh_time
 int bear_t0 = na(ll_time) ? start_ts : ll_time
 

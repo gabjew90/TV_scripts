@@ -562,6 +562,15 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** **Anatomy verified:** with start Jul-2025, the flush relocation now stops at the Jan-30 16:00-UTC conviction green → lower = **84,211.4** (user's expected value; v0.8.0 gave 89,444.5) ✓. **CONFLICT FOUND:** with the shipped Jan-2024 default, NO relocation fires at that candle at all — the line sits frozen at **42,918.3** (a 2024-rally level, brightened+touched, anchor never violated since) — the v0.4.x staleness pathology re-created by the long window. The two features fight on the very fixture that motivated them; default start date needs a user decision.
 **Status:** v0.9.0 shipped; anatomy ✓; default-start decision OPEN.
 
+## OB v0.10.0 — new macro extreme RESETS that side's line (closes the v0.9.0 staleness conflict)
+**Date:** 2026-07-04 · **On-chart:** "Jamal OB v0.10.0" (shorttitle "JOB0.10.0")
+**Code changes**
+- Per the user's clarified intent ("draw the FIRST green and red line from those extremes"): a **new macro HIGH since the start date voids the green line and resets its whole state** (`lower_line := na`, anchor/bos/broken/touched/closed_above cleared); the next bull sweep re-bootstraps, its walk-back bounded by the new top. Mirror: new macro LOW resets the red side. Old structure predating an extreme can never linger as a fossil line.
+- **Bug found & fixed during verification:** the first cut reset the state but kept the old line VALUE drawn — the freshness block instantly re-armed brightness on the fossil (price far above it) and the bright-freeze then BLOCKED the re-bootstrap forever (BTC 8h showed 61,636 bright at Jan-2026). The line itself must clear on reset.
+**Tests run:** compile 0/0; BTC.P 8h replay Jan-31-2026 fixture at the DEFAULT Jan-2024 start.
+**Results:** lower relocates to **84,211.4** at the user's 8AM-PST flush candle — the anatomy stop at the Jan-30 conviction green — **at the Jan-2024 default** (v0.9.0 froze at 42,918.3 there). The Oct-2025 ATH reset wiped the 2024 fossil state; the v0.9.0 OPEN default-start decision is closed: extreme-resets make long windows safe.
+**Status:** v0.10.0 shipped.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 
