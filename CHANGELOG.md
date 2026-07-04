@@ -571,6 +571,13 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** lower relocates to **84,211.4** at the user's 8AM-PST flush candle — the anatomy stop at the Jan-30 conviction green — **at the Jan-2024 default** (v0.9.0 froze at 42,918.3 there). The Oct-2025 ATH reset wiped the 2024 fossil state; the v0.9.0 OPEN default-start decision is closed: extreme-resets make long windows safe.
 **Status:** v0.10.0 shipped.
 
+## OB — REVERT to v0.8.0 (v0.9.0 + v0.10.0 rolled back)
+**Date:** 2026-07-04 · **On-chart:** "Jamal OB v0.8.0" (shorttitle "JOB0.8.0")
+**Change:** user-requested revert. `jamal-ob.pine` restored verbatim from commit d016e21. Dropped: candle-anatomy conviction stop (`stop_body_frac`), macro-extreme walk backstops, extreme-reset line voiding, Jan-2024 start default, max_lookback 500. Back to: first-violation walk rule, start date Jul-1-2025, max_lookback 200. v0.9/v0.10 remain in git history (177e45c, abf849a) if wanted later.
+**Tests run:** compile 0/0; BTC.P 8h replay Jan-31-2026 fixture.
+**Results:** lower relocates to **89,444.5** at the 8AM-PST flush — exact v0.8.0 behavior restored ✓.
+**Status:** live version = v0.8.0.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 
