@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.8.0", shorttitle = "JOB0.8.0", overlay = true)
+indicator("Jamal OB v0.13.0", shorttitle = "JOB0.13", overlay = true)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.8.0"
+SCRIPT_V = "0.13.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -17,68 +17,55 @@ start_ts     = input.time(timestamp("1 Jul 2025 00:00 +0000"), "State start date
 //            anchor is red it may be the anchor's own open),
 //   leg_hi = swing high over [stop-candle .. s0] (the leg-origin / BOS level:
 //            a close through it re-enables sweep-driven relocation).
-// Termination is STRUCTURE-ONLY (green-that-held / doji). v0.8.0
-// FIRST-VIOLATION rule: for a counter-leg (green) candle, scan the bars AFTER
-// it (chronological, j = i-1 .. s0). If the leg direction broke through it
-// first (some low < the green's low before any high > the green's high) →
-// mid-leg PAUSE, keep walking. If price broke out the other way first (a high
-// above the green's high before any low below it) → the green is the leg
-// origin → STOP. An outside bar breaking both sides at once counts as a
-// pause; a green never violated on either side counts as a stop (it held).
-// The running max of red opens selects R; it never stops the walk.
+// v0.13.0 SWEEP-REVERSAL rule (calibrated on SOL 8h / SOL 1W real legs): reds
+// are in-leg — they extend the running max of red opens and never stop the
+// walk. A GREEN is a counter and is the leg origin → STOP only if it swept the
+// PRIOR (older) bar's LOW (low[i] < low[i+1]): a green that took out the
+// previous low and closed up is the bullish sweep-reversal that began the leg.
+// A green that did NOT make a lower low is mid-leg noise → PAUSE, keep walking.
+// A doji stops. (Exact mirror of the bear side, which tests the HIGH. v0.12.0's
+// bug was testing the high on BOTH sides, so this demand side walked past real
+// reversal candles — e.g. SOL 8h to 81.25 instead of 75.21.)
 f_walkback_bull(int maxlb, int s0, int t0) =>
     float best_open = close[s0] < open[s0] ? open[s0] : na   // seed R only if anchor bar is red
     float leg_hi    = high[s0]
     for i = s0 + 1 to s0 + maxlb
         if time[i] < t0
             break                                   // determinism clamp: never walk before the start date
-        bool is_red      = close[i] < open[i]
-        bool green_pause = false
-        if close[i] > open[i]
-            for j = i - 1 to s0                     // chronological scan of the bars after the green
-                if low[j] < low[i]
-                    green_pause := true             // leg ran through it first (ties → pause)
-                    break
-                if high[j] > high[i]
-                    break                           // upside breakout first → leg origin
         leg_hi := math.max(leg_hi, high[i])         // BOS extreme includes every scanned bar, incl. the stop-candle
-        if is_red                                   // red → in leg
+        if close[i] < open[i]                        // red → in leg
             best_open := na(best_open) ? open[i] : math.max(best_open, open[i])
             continue
-        if green_pause
-            continue                                // mid-leg pause: skip
-        break                                       // green-that-held or doji → stop
+        if close[i] > open[i] and not (low[i] < low[i + 1])
+            continue                                // green that did NOT sweep the prior low → mid-leg pause
+        break                                       // green that swept the prior low (reversal origin), or doji → stop
     [best_open, leg_hi]
 
 // ════════════════ Bearish walk-back (upper line = open_R) ════════════════
 // Mirror: anchor at s0 (the sweep candle if GREEN; the bar before if red).
 // Returns [open_R, leg_lo]: open_R = lowest green open (supply line);
 // leg_lo = swing low over [stop-candle .. s0] (bearish BOS level).
-// (v0.8.0 first-violation mirror: a red is a PAUSE if the up-leg broke above
-// its high before anything broke below its low; a downside break first → leg
-// origin → STOP. Ties → pause; never violated → stop.)
+// v0.13.0 SWEEP-REVERSAL rule: greens are in-leg (running min of green opens).
+// A RED is a counter and is the leg origin → STOP only if it swept the PRIOR
+// (older) bar's HIGH (high[i] > high[i+1]): a red that took out the previous
+// high and closed down is the bearish sweep-reversal that began the leg. A red
+// that did NOT make a higher high is mid-leg noise → PAUSE. A doji stops.
+// (Validated on BTC 1D Aug: the Aug-11 wick-spike swept Aug-10's high → STOP →
+// line 118,641.8; and SOL 1W Apr rally: pauses through Apr-28/Mar-31, stops at
+// Mar-24 → line 105.84.)
 f_walkback_bear(int maxlb, int s0, int t0) =>
     float best_open = close[s0] > open[s0] ? open[s0] : na   // seed R only if anchor bar is green
     float leg_lo    = low[s0]
     for i = s0 + 1 to s0 + maxlb
         if time[i] < t0
             break                                   // determinism clamp: never walk before the start date
-        bool is_green  = close[i] > open[i]
-        bool red_pause = false
-        if close[i] < open[i]
-            for j = i - 1 to s0                     // chronological scan of the bars after the red
-                if high[j] > high[i]
-                    red_pause := true               // leg ran through it first (ties → pause)
-                    break
-                if low[j] < low[i]
-                    break                           // downside breakout first → leg origin
         leg_lo := math.min(leg_lo, low[i])          // BOS extreme includes every scanned bar, incl. the stop-candle
-        if is_green                                 // green → in leg
+        if close[i] > open[i]                        // green → in leg
             best_open := na(best_open) ? open[i] : math.min(best_open, open[i])
             continue
-        if red_pause
-            continue                                // mid-leg pause: skip
-        break                                       // red-that-held or doji → stop
+        if close[i] < open[i] and not (high[i] > high[i + 1])
+            continue                                // red that did NOT sweep the prior high → mid-leg pause
+        break                                       // red that swept the prior high (reversal origin), or doji → stop
     [best_open, leg_lo]
 
 // ════════════════ Line state (single mode: sticky + bright-freeze) ════════════════
