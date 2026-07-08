@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.20.2", shorttitle = "JOB0.20.2", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.21.0", shorttitle = "JOB0.21", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.20.2"
+SCRIPT_V = "0.21.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -146,12 +146,23 @@ if barstate.isconfirmed and active
                 array.set(bear_fvg_mit, i, true)
                 bear_fvg_touched := true
 
-// Bullish (lower / demand) — v0.19.0 FVG model: relocate on (1) anchor-low wick,
-// or (2) price re-entering a bull FVG (bull_fvg_touched). The bright-freeze,
-// post-BOS sweep and trail are all removed; `bull_bos` kept only as an info leg-high.
+// Bullish (lower / demand) — v0.21.0: explicit START condition + FVG model.
+// START (no line yet — start date, first bars of a listing, or post-reset): the
+// first RED candle whose low takes out the most recent CONFIRMED 3-candle swing
+// low (a low below BOTH neighbours; confirms one bar later) is the first anchor
+// candle — the normal walk-back runs from it and places the line. Confirmed-bar.
+// The trigger reads the swing low AS IT STOOD coming into the bar, so a bar that
+// takes out the old swing while confirming a new lower one still fires.
+// RELOCATION (line exists): (1) anchor-low wick (intrabar), or (2) price
+// re-entering a bull FVG (bull_fvg_touched). Bright-freeze/BOS-sweep/trail
+// removed; `bull_bos` kept only as an info leg-high.
+var float bull_swing_low = na           // most recent confirmed 3-candle swing low (bootstrap reference)
 bool bull_prev_touched = bull_touched   // colour only
 bool bull_wick  = active and not na(bull_anchor_low) and low < bull_anchor_low   // trigger 1: new anchor low
-bool bull_reloc = active and (bull_wick or bull_fvg_touched)                     // trigger 2: bull FVG re-entered
+bool bull_boot  = active and barstate.isconfirmed and na(bull_anchor_low) and close < open and not na(bull_swing_low) and low < bull_swing_low   // START: first red candle to take out the last swing low
+if barstate.isconfirmed and low[1] < low[2] and low[1] < low and time[1] >= start_ts
+    bull_swing_low := low[1]            // updated AFTER the boot check (trigger reads the incoming swing state)
+bool bull_reloc = active and (bull_wick or bull_fvg_touched or bull_boot)        // trigger 2: bull FVG re-entered · START: bootstrap
 bool bull_did_reloc = false
 if bull_reloc
     int s0b = close < open ? 0 : 1
