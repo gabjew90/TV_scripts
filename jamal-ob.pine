@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.20.0", shorttitle = "JOB0.20", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.20.1", shorttitle = "JOB0.20.1", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.20.0"
+SCRIPT_V = "0.20.1"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -116,11 +116,11 @@ bool bull_fvg_touched = false          // price entered a bull FVG this bar → 
 bool bear_fvg_touched = false
 if barstate.isconfirmed and active
     if low[1] > high[3]                 // new bull FVG (support gap): [high[3] .. low[1]]
-        array.push(bull_fvg_boxes, box.new(bar_index - 2, low[1], bar_index, high[3], border_color = color.new(color.green, 60), bgcolor = color.new(color.green, 82), extend = extend.right))
+        array.push(bull_fvg_boxes, box.new(bar_index - 2, low[1], bar_index, high[3], border_width = 0, bgcolor = color.new(color.green, 78), extend = extend.right))
         if array.size(bull_fvg_boxes) > 5
             box.delete(array.shift(bull_fvg_boxes))
     if high[1] < low[3]                 // new bear FVG (resistance gap): [high[1] .. low[3]]
-        array.push(bear_fvg_boxes, box.new(bar_index - 2, low[3], bar_index, high[1], border_color = color.new(color.red, 60), bgcolor = color.new(color.red, 82), extend = extend.right))
+        array.push(bear_fvg_boxes, box.new(bar_index - 2, low[3], bar_index, high[1], border_width = 0, bgcolor = color.new(color.red, 78), extend = extend.right))
         if array.size(bear_fvg_boxes) > 5
             box.delete(array.shift(bear_fvg_boxes))
     if array.size(bull_fvg_boxes) > 0   // mitigate: bull FVG touched when price low enters the zone

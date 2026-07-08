@@ -650,6 +650,13 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** demand **13.422** / supply **12.237** (both dull) — same current levels as v0.19.0 (deterministic; the bear path differs mid-history but converges at the last bar), 3 zones unchanged. Borders (40% opacity) carry the zones; fills lightly visible. Version cell "Jamal OB v0.20.0".
 **Status:** shipped. Symmetric FVG relocation model on both sides; trail + bright-freeze + BOS-sweep all removed. Committed + pushed.
 
+## OB v0.20.1 — FVG zones: shaded fill only, no border (cosmetic)
+**Date:** 2026-07-08 · **On-chart:** "Jamal OB v0.20.1" (shorttitle "JOB0.20.1")
+**Change (user):** "you don't need to color the borders of the FVG, just shade." Both `box.new` calls: dropped `border_color`, set `border_width = 0`; bumped fill 82 → **78 transparency** (18% → 22% opacity) to compensate for the removed border so the shade still reads. Logic/relocation/mitigation unchanged — pure render.
+**Tests run:** compile 0/0, saved; VVV.P 1D screenshot (bear FVG 12.36–13.06 renders as a soft-edged filled band, no border edge); bind-check (Fable v0.7.2 v28 untouched).
+**Note:** the crisp rectangle-ish outlines still on chart are the demand/supply STEPLINES (staircase of OB levels), not the FVG boxes.
+**Status:** shipped. Committed + pushed.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 
