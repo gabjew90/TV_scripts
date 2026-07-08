@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.17.0", shorttitle = "JOB0.17", overlay = true)
+indicator("Jamal OB v0.20.0", shorttitle = "JOB0.20", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.17.0"
+SCRIPT_V = "0.20.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -78,72 +78,97 @@ f_walkback_bear(int maxlb, int s0, int t0) =>
         break                                       // red STOPS: local bottom (low<L), OR R below the red with high OUTSIDE the L–R high band (R engulfs / swing high), or doji
     [best_open, leg_lo]
 
-// ════════════════ Line state (single mode: sticky + bright-freeze) ════════════════
-// v0.4.0: the old default (re-anchor on every sweep) is GONE — sticky is the
-// only behavior, with brightness on top:
-//   • The line locks at its current OB. It relocates when (a) its anchor
-//     low/high is wicked out (fires INTRABAR — repaints on the forming bar but
-//     commits identically at close), or (b) after a structure break (confirmed
-//     close beyond the leg-origin `*_bos`) the next same-side sweep re-walks.
-//     The first OB per side is bootstrapped by a plain sweep.
-//   • BRIGHT-FREEZE: while the line is BRIGHT — reclaimed (confirmed close
-//     beyond it on a bar after the setting bar) and untested since — ALL
-//     relocation is suppressed. The ONLY unlock is a TOUCH of the level (the
-//     retest that also starts the dulling). No BOS escape: a never-retested
-//     bright line holds indefinitely.
-//   • v0.4.1: once a line has EVER brightened (`*_closed_above/below`, which
-//     persists until relocation), the post-BOS SWEEP path is permanently dead
-//     for it — after the touch it holds its level, and only an anchor
-//     wick-out (a true violation of the OB extreme) can relocate it. The
-//     BOS+sweep reset applies only to lines that never got reclaimed.
-bool active     = time >= start_ts                   // state machine is dead before the start date
-bool bull_sweep = close < open and low  < low[1]    // red, new low
-bool bear_sweep = close > open and high > high[1]    // green, new high
+// ════════════════ Line state (v0.20.0 — symmetric FVG relocation model) ════════════════
+// Both lines follow the SAME rule (bull = demand/lower; bear = supply/upper is
+// the high↔low mirror). A line relocates when EITHER:
+//   (1) its anchor extreme is violated — a low below `bull_anchor_low` (bull) /
+//       a high above `bear_anchor_high` (bear); fires INTRABAR, or
+//   (2) price RE-ENTERS a chart-TF FVG on its side (`*_fvg_touched` — the same
+//       event that deletes the drawn zone; confirmed-bar only).
+// On a trigger it runs the walk-back from the current bar (or the bar before, if
+// the current bar is the wrong colour to seed the leg) and moves the line to the
+// resulting OB open — but ONLY if the walk-back returns a real level (a genuine
+// down-series behind a demand entry / up-series behind a supply entry). Empty
+// walk-back → the line holds.
+// Brightness is COLOUR ONLY now — no freeze, no trail, no BOS-sweep (all removed
+// across v0.19/v0.20): BRIGHT = reclaimed (a confirmed close beyond the line on a
+// later bar) and not retested since; the first touch dulls it until the next
+// relocation. In a sustained one-way move the walk-back returns the leg origin,
+// so the line parks at the top/bottom of the move until price re-enters a FRESHER
+// FVG deeper in — that later gap is what steps the line back toward price.
+bool active = time >= start_ts                       // state machine is dead before the start date
 
 var float lower_line       = na
 var float upper_line       = na
-var float bull_anchor_low  = na    // low of the sweep candle currently holding lower_line
-var float bull_bos         = na    // bullish leg-origin / structure level
-var bool  bull_broken      = false // has price closed above bull_bos since anchoring?
-var float bear_anchor_high = na
+var float bull_anchor_low  = na    // low currently holding lower_line (a low below it = relocate)
+var float bull_bos         = na    // bullish leg-origin (info: swing high of the walk-back leg)
+var float bear_anchor_high = na    // high currently holding upper_line
 var float bear_bos         = na
-var bool  bear_broken      = false
-var bool  bull_touched      = false   // level retested from above (latched until reloc)
-var bool  bull_closed_above = false   // level reclaimed (armed)
+var bool  bull_touched      = false   // level retested from above (latched until reloc; colour only)
+var bool  bull_closed_above = false   // level reclaimed (armed; colour only)
 var bool  bear_touched      = false
 var bool  bear_closed_below = false
+var array<box> bull_fvg_boxes = array.new<box>()   // v0.19.0: light-green support gaps (feed the demand line's FVG-entry trigger)
+var array<box> bear_fvg_boxes = array.new<box>()   // light-red resistance gaps
 
-// Bullish (lower / demand)
-if barstate.isconfirmed and not na(bull_bos) and close > bull_bos
-    bull_broken := true
-bool bull_prev_touched = bull_touched   // state before this bar's touch
-bool bull_locked = bull_closed_above and not bull_prev_touched   // bright = frozen (touch is the only unlock)
-bool bull_wick = active and not na(bull_anchor_low) and low < bull_anchor_low          // intrabar
-bool bull_conf = active and barstate.isconfirmed and (na(bull_anchor_low) ? bull_sweep : (bull_broken and bull_sweep and not bull_closed_above))
-bool bull_reloc = (bull_wick or bull_conf) and not bull_locked
+// ════════════════ FVG zones (chart TF) — last 5 per side, drawn; a zone disappears when price touches it ════════════════
+bool bull_fvg_touched = false          // price entered a bull FVG this bar → arms the demand relocation
+bool bear_fvg_touched = false
+if barstate.isconfirmed and active
+    if low[1] > high[3]                 // new bull FVG (support gap): [high[3] .. low[1]]
+        array.push(bull_fvg_boxes, box.new(bar_index - 2, low[1], bar_index, high[3], border_color = color.new(color.green, 60), bgcolor = color.new(color.green, 82), extend = extend.right))
+        if array.size(bull_fvg_boxes) > 5
+            box.delete(array.shift(bull_fvg_boxes))
+    if high[1] < low[3]                 // new bear FVG (resistance gap): [high[1] .. low[3]]
+        array.push(bear_fvg_boxes, box.new(bar_index - 2, low[3], bar_index, high[1], border_color = color.new(color.red, 60), bgcolor = color.new(color.red, 82), extend = extend.right))
+        if array.size(bear_fvg_boxes) > 5
+            box.delete(array.shift(bear_fvg_boxes))
+    if array.size(bull_fvg_boxes) > 0   // mitigate: bull FVG touched when price low enters the zone
+        for i = array.size(bull_fvg_boxes) - 1 to 0
+            box b = array.get(bull_fvg_boxes, i)
+            if low <= box.get_top(b)
+                box.delete(b)
+                array.remove(bull_fvg_boxes, i)
+                bull_fvg_touched := true
+    if array.size(bear_fvg_boxes) > 0   // mitigate: bear FVG touched when price high enters the zone
+        for i = array.size(bear_fvg_boxes) - 1 to 0
+            box b = array.get(bear_fvg_boxes, i)
+            if high >= box.get_bottom(b)
+                box.delete(b)
+                array.remove(bear_fvg_boxes, i)
+                bear_fvg_touched := true
+
+// Bullish (lower / demand) — v0.19.0 FVG model: relocate on (1) anchor-low wick,
+// or (2) price re-entering a bull FVG (bull_fvg_touched). The bright-freeze,
+// post-BOS sweep and trail are all removed; `bull_bos` kept only as an info leg-high.
+bool bull_prev_touched = bull_touched   // colour only
+bool bull_wick  = active and not na(bull_anchor_low) and low < bull_anchor_low   // trigger 1: new anchor low
+bool bull_reloc = active and (bull_wick or bull_fvg_touched)                     // trigger 2: bull FVG re-entered
+bool bull_did_reloc = false
 if bull_reloc
     int s0b = close < open ? 0 : 1
     [oRb, swb] = f_walkback_bull(max_lookback, s0b, start_ts)
-    lower_line      := oRb
-    bull_anchor_low := low
-    bull_bos        := swb
-    bull_broken     := false
+    if not na(oRb)                      // eligible only if the walk-back finds a real demand (a down-series behind the entry)
+        lower_line      := oRb
+        bull_anchor_low := low
+        bull_bos        := swb
+        bull_did_reloc  := true
 
-// Bearish (upper / supply)
-if barstate.isconfirmed and not na(bear_bos) and close < bear_bos
-    bear_broken := true
-bool bear_prev_touched = bear_touched   // state before this bar's touch
-bool bear_locked = bear_closed_below and not bear_prev_touched   // bright = frozen
-bool bear_wick = active and not na(bear_anchor_high) and high > bear_anchor_high       // intrabar
-bool bear_conf = active and barstate.isconfirmed and (na(bear_anchor_high) ? bear_sweep : (bear_broken and bear_sweep and not bear_closed_below))
-bool bear_reloc = (bear_wick or bear_conf) and not bear_locked
+// Bearish (upper / supply) — v0.20.0 FVG model (EXACT MIRROR of the bull side):
+// relocate on (1) anchor-high wick, or (2) price re-entering a bear FVG
+// (bear_fvg_touched). Trail / bright-freeze / post-BOS sweep all removed.
+bool bear_prev_touched = bear_touched   // colour only
+bool bear_wick  = active and not na(bear_anchor_high) and high > bear_anchor_high   // trigger 1: new anchor high
+bool bear_reloc = active and (bear_wick or bear_fvg_touched)                        // trigger 2: bear FVG re-entered
+bool bear_did_reloc = false
 if bear_reloc
     int s0s = close > open ? 0 : 1
     [oRs, sws] = f_walkback_bear(max_lookback, s0s, start_ts)
-    upper_line       := oRs
-    bear_anchor_high := high
-    bear_bos         := sws
-    bear_broken      := false
+    if not na(oRs)                      // eligible only if the walk-back finds a real supply (an up-series behind the entry)
+        upper_line       := oRs
+        bear_anchor_high := high
+        bear_bos         := sws
+        bear_did_reloc   := true
 
 // ════════════════ Line freshness (render state) ════════════════
 // BRIGHT = reclaimed and not retested since. Green: arms when a bar AFTER the
@@ -152,7 +177,7 @@ if bear_reloc
 // first low back at the line latches "touched" → dull until relocation (no
 // re-arm). The FIRST touch bar itself stays bright (colour reads the prior
 // bar's touched state). Red: exact mirror.
-if bull_reloc
+if bull_did_reloc
     bull_touched      := false
     bull_closed_above := false
 else if not na(lower_line)
@@ -161,7 +186,7 @@ else if not na(lower_line)
     else if not bull_touched and barstate.isconfirmed and close > lower_line
         bull_closed_above := true
 
-if bear_reloc
+if bear_did_reloc
     bear_touched      := false
     bear_closed_below := false
 else if not na(upper_line)
