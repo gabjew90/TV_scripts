@@ -610,6 +610,14 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results (on-chart):** SOL 1W → lower **96.42** ✓ (was 85.22 — the fix: walks through May-18 to May-11, stops at the May-4 green); VVV → **1.642** ✓ unchanged; SOL 8h → **75.21** ✓ unchanged; BTC → supply **118,641.8** ✓ + demand **107,087.3** unchanged. Fable v0.7.2 untouched.
 **Status:** v0.15.0 shipped (BULL green rule). Red-line permutation table pending before mirroring.
 
+## OB v0.16.0 — mirror the 3-candle rule onto the bear/red side (user: "just mirror it")
+**Date:** 2026-07-07 · **On-chart:** "Jamal OB v0.16.0" (shorttitle "JOB0.16")
+**Change:** the bear/red walk-back is now the EXACT MIRROR of the bull v0.15.0 3-candle rule (high↔low). At a RED counter, STOP iff `RED.low < L.low` OR `R is entirely below the red` (R.low<RED.low AND R.high<RED.high); else PAUSE. Code: red pause = `low[i] >= low[i+1] and (low[i] < low[i-1] or high[i] < high[i-1])`. (Was v0.14.0 inside-bar.) I flagged that mirroring is NOT a strict reflection of the user's intent (BTC Aug-11 is the mirror-shape of SOL-1W May-18 with the opposite call), but the user chose to mirror anyway.
+**Prediction error (logged for honesty):** I told the user mirroring would drop BTC Aug supply to Aug-3 / **112,508.8**. WRONG — the mirror walks past Aug-11 but then STOPS at **Aug-5** (Aug-5.low 112,582.4 < Aug-4.low 114,053.8 = the mirror's "local bottom" stop), so the lowest green open in the walked leg is **Aug-6's open = 114,069.6** (coincidentally the old v0.6.0 value). Corrected the code comment + told the user the real value. Lesson: trace the full walk before quoting a resulting level — an intermediate stop was skipped.
+**Tests run:** compile 0/0; BTC.P 1D replay 2025-08-21.
+**Results (on-chart):** BTC → supply **114,069.6** (Aug-6 open; was 118,641.8 under v0.15.0), demand **107,087.3** unchanged. Green fixtures unaffected (bull rule untouched): SOL 1W 96.42, VVV 1.642, SOL 8h 75.21 all hold. Fable v0.7.2 untouched.
+**Status:** v0.16.0 shipped. Both sides now the symmetric 3-candle rule.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 

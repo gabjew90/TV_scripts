@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.15.0", shorttitle = "JOB0.15", overlay = true)
+indicator("Jamal OB v0.16.0", shorttitle = "JOB0.16", overlay = true)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.15.0"
+SCRIPT_V = "0.16.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -25,8 +25,8 @@ start_ts     = input.time(timestamp("1 Jul 2025 00:00 +0000"), "State start date
 // Else it's a mid-leg step → PAUSE, keep walking. G.low vs L.low is IRRELEVANT
 // (the user's permutation table ignores it). A doji stops. Fixes SOL 1W: v0.14.0
 // stopped at the May-18 bounce (→ 85.22); this walks through it to May-11 (open
-// 96.42). Line = highest red open in the walked leg. NOTE: bull side only —
-// the bear/red side still runs the v0.14.0 inside-bar rule (see below).
+// 96.42). Line = highest red open in the walked leg. The bear side (below) is
+// the EXACT MIRROR of this as of v0.16.0 (high↔low).
 f_walkback_bull(int maxlb, int s0, int t0) =>
     float best_open = close[s0] < open[s0] ? open[s0] : na   // seed R only if anchor bar is red
     float leg_hi    = high[s0]
@@ -46,16 +46,15 @@ f_walkback_bull(int maxlb, int s0, int t0) =>
 // Mirror: anchor at s0 (the sweep candle if GREEN; the bar before if red).
 // Returns [open_R, leg_lo]: open_R = lowest green open (supply line);
 // leg_lo = swing low over [stop-candle .. s0] (bearish BOS level).
-// UP-SERIES rule — still v0.14.0 inside-bar (NOT yet mirrored to the bull
-// v0.15.0 3-candle rule; awaiting the user's red-line permutation table, so BTC
-// Aug stays at 118,641.8). Greens are in-leg (running min of
-// green opens). A RED is a counter; it ENDS the up series (→ STOP) UNLESS it is
-// an INSIDE BAR of the prior bar (high[i] <= high[i+1] and low[i] >= low[i+1] —
-// swept neither prior extreme) → PAUSE. Any red taking out a prior HIGH or LOW
-// is a swing/sweep → the up series is over → STOP. A doji stops.
-// (BTC 1D Aug: Aug-11 swept Aug-10's high → STOP → 118,641.8. SOL 1W Apr rally:
-// Apr-28 is an inside bar → walk through; Mar-31 swept the prior low → STOP →
-// 105.84.)
+// v0.16.0 3-CANDLE STOP rule — EXACT MIRROR of the bull side (high↔low). Greens
+// are in-leg (running min of green opens). At a RED counter with OLDER neighbour
+// L (bar i+1) and NEWER neighbour R (bar i-1, toward the sweep), the up-series
+// ENDS → STOP iff  RED.low < L.low  OR  R is entirely BELOW the red (R.low <
+// RED.low AND R.high < RED.high). Else it's a mid-leg step → PAUSE. RED.high vs
+// L.high is irrelevant (mirror of the bull side ignoring low-vs-L). A doji stops.
+// (User chose to mirror the bull rule; consequence: BTC Aug supply walks past
+// Aug-11 but STOPS at Aug-5 (its low < Aug-4's low = a local bottom) → lowest
+// green open = Aug-6 open 114,069.6, replacing the earlier 118,641.8.)
 f_walkback_bear(int maxlb, int s0, int t0) =>
     float best_open = close[s0] > open[s0] ? open[s0] : na   // seed R only if anchor bar is green
     float leg_lo    = low[s0]
@@ -66,9 +65,9 @@ f_walkback_bear(int maxlb, int s0, int t0) =>
         if close[i] > open[i]                        // green → in leg
             best_open := na(best_open) ? open[i] : math.min(best_open, open[i])
             continue
-        if close[i] < open[i] and high[i] <= high[i + 1] and low[i] >= low[i + 1]
-            continue                                // red INSIDE BAR (swept neither prior extreme) → mid-leg pause
-        break                                       // red that swept a prior high/low (ends the up series), or doji → stop
+        if close[i] < open[i] and low[i] >= low[i + 1] and (low[i] < low[i - 1] or high[i] < high[i - 1])
+            continue                                // red mid-leg step (low not below older L; red not fully above newer R) → keep walking
+        break                                       // red STOPS: local bottom (low<L) OR the red sits fully above R, or doji → line = lowest green open
     [best_open, leg_lo]
 
 // ════════════════ Line state (single mode: sticky + bright-freeze) ════════════════
