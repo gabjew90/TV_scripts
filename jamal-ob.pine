@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.20.1", shorttitle = "JOB0.20.1", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.20.2", shorttitle = "JOB0.20.2", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.20.1"
+SCRIPT_V = "0.20.2"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -108,34 +108,42 @@ var bool  bull_touched      = false   // level retested from above (latched unti
 var bool  bull_closed_above = false   // level reclaimed (armed; colour only)
 var bool  bear_touched      = false
 var bool  bear_closed_below = false
-var array<box> bull_fvg_boxes = array.new<box>()   // v0.19.0: light-green support gaps (feed the demand line's FVG-entry trigger)
-var array<box> bear_fvg_boxes = array.new<box>()   // light-red resistance gaps
+var array<box>  bull_fvg_boxes = array.new<box>()    // v0.19.0: light-green support gaps (feed the demand line's FVG-entry trigger)
+var array<bool> bull_fvg_mit   = array.new<bool>()   // v0.20.2: parallel — has box[i] been mitigated (capped, no longer extends)?
+var array<box>  bear_fvg_boxes = array.new<box>()    // light-red resistance gaps
+var array<bool> bear_fvg_mit   = array.new<bool>()
 
-// ════════════════ FVG zones (chart TF) — last 5 per side, drawn; a zone disappears when price touches it ════════════════
-bool bull_fvg_touched = false          // price entered a bull FVG this bar → arms the demand relocation
+// ════════════════ FVG zones (chart TF) — last 5 FORMED per side, shaded fill only (no border); on mitigation the box is CAPPED at the mitigating candle (kept, not deleted) ════════════════
+bool bull_fvg_touched = false          // price FIRST entered a bull FVG this bar → arms the demand relocation (fires once per box)
 bool bear_fvg_touched = false
 if barstate.isconfirmed and active
     if low[1] > high[3]                 // new bull FVG (support gap): [high[3] .. low[1]]
         array.push(bull_fvg_boxes, box.new(bar_index - 2, low[1], bar_index, high[3], border_width = 0, bgcolor = color.new(color.green, 78), extend = extend.right))
-        if array.size(bull_fvg_boxes) > 5
+        array.push(bull_fvg_mit, false)
+        if array.size(bull_fvg_boxes) > 5   // keep only the last 5 FORMED (mitigated ones still count)
             box.delete(array.shift(bull_fvg_boxes))
+            array.shift(bull_fvg_mit)
     if high[1] < low[3]                 // new bear FVG (resistance gap): [high[1] .. low[3]]
         array.push(bear_fvg_boxes, box.new(bar_index - 2, low[3], bar_index, high[1], border_width = 0, bgcolor = color.new(color.red, 78), extend = extend.right))
+        array.push(bear_fvg_mit, false)
         if array.size(bear_fvg_boxes) > 5
             box.delete(array.shift(bear_fvg_boxes))
-    if array.size(bull_fvg_boxes) > 0   // mitigate: bull FVG touched when price low enters the zone
-        for i = array.size(bull_fvg_boxes) - 1 to 0
+            array.shift(bear_fvg_mit)
+    if array.size(bull_fvg_boxes) > 0   // mitigate: on FIRST touch (low ≤ zone top) cap the box at this candle + stop extending; keep it drawn
+        for i = 0 to array.size(bull_fvg_boxes) - 1
             box b = array.get(bull_fvg_boxes, i)
-            if low <= box.get_top(b)
-                box.delete(b)
-                array.remove(bull_fvg_boxes, i)
+            if not array.get(bull_fvg_mit, i) and low <= box.get_top(b)
+                box.set_right(b, bar_index)
+                box.set_extend(b, extend.none)
+                array.set(bull_fvg_mit, i, true)
                 bull_fvg_touched := true
-    if array.size(bear_fvg_boxes) > 0   // mitigate: bear FVG touched when price high enters the zone
-        for i = array.size(bear_fvg_boxes) - 1 to 0
+    if array.size(bear_fvg_boxes) > 0   // mitigate: on FIRST touch (high ≥ zone bottom) cap the box at this candle + stop extending; keep it drawn
+        for i = 0 to array.size(bear_fvg_boxes) - 1
             box b = array.get(bear_fvg_boxes, i)
-            if high >= box.get_bottom(b)
-                box.delete(b)
-                array.remove(bear_fvg_boxes, i)
+            if not array.get(bear_fvg_mit, i) and high >= box.get_bottom(b)
+                box.set_right(b, bar_index)
+                box.set_extend(b, extend.none)
+                array.set(bear_fvg_mit, i, true)
                 bear_fvg_touched := true
 
 // Bullish (lower / demand) — v0.19.0 FVG model: relocate on (1) anchor-low wick,

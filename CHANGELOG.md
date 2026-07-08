@@ -657,6 +657,12 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Note:** the crisp rectangle-ish outlines still on chart are the demand/supply STEPLINES (staircase of OB levels), not the FVG boxes.
 **Status:** shipped. Committed + pushed.
 
+## OB v0.20.2 — mitigated FVGs KEPT and capped at the mitigating candle (no longer deleted)
+**Date:** 2026-07-08 · **On-chart:** "Jamal OB v0.20.2" (shorttitle "JOB0.20.2")
+**Change (user):** "show the last 5 FVG; if mitigated, don't delete them, just cut them off from extending past the candle that mitigated it." The pool is now the last 5 FORMED per side (mitigated ones still count toward the 5). On first touch, instead of `box.delete` + `array.remove`, the box is CAPPED: `box.set_right(b, bar_index)` + `box.set_extend(b, extend.none)` so it stops at the mitigating candle and no longer trails right. Added a parallel `array<bool>` (`bull_fvg_mit`/`bear_fvg_mit`, index-aligned, push/shift in lockstep with the box arrays) to track per-box mitigation → the `*_fvg_touched` relocation trigger still fires exactly ONCE (on first touch). Mitigation loop now iterates ASCENDING (no in-loop deletion) behind the existing `size > 0` guard (which also avoids Pine's `for 0 to -1` descending-iteration foot-gun). Line-relocation logic unchanged.
+**Tests run:** compile 0/0, saved; VVV.P 1D — box count 3 → **10** (5 bull + 5 bear, mitigated retained); screenshot shows short capped shaded rectangles ending at their touch candle; bind-check (Fable v0.7.2 v28 untouched).
+**Status:** shipped. Committed + pushed.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 
