@@ -618,6 +618,14 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results (on-chart):** BTC → supply **114,069.6** (Aug-6 open; was 118,641.8 under v0.15.0), demand **107,087.3** unchanged. Green fixtures unaffected (bull rule untouched): SOL 1W 96.42, VVV 1.642, SOL 8h 75.21 all hold. Fable v0.7.2 untouched.
 **Status:** v0.16.0 shipped. Both sides now the symmetric 3-candle rule.
 
+## OB v0.17.0 — inside-candle edge-case fix (re-introduces G.low-vs-L); both sides
+**Date:** 2026-07-07 · **On-chart:** "Jamal OB v0.17.0" (shorttitle "JOB0.17")
+**Change:** ran a 6-case inside-candle tap-picker (`scratchpad/ob-green-inside.html`); the user's answers FLIPPED two of the original-16 permutations — **#13** (R engulfs G): continue→**STOP**; **#14** (R merely above G): stop→**continue**. This proves **`G.low vs L.low` (c) is NOT irrelevant** — the original 16-perm picker drew L and R the same size, hiding the inside-bar nature. (Corrects the v0.15.0 "c is irrelevant" claim.)
+**Corrected bull rule:** STOP iff `G.high > L.high` OR ( `R.high > G.high` AND `G.low is NOT between L.low and R.low` ). Boolean `stop = a ∨ (¬b ∧ (c==d))` (a=hi>L, b=hi>R, c=lo>L, d=lo>R). Inside-bar reading: an inside candle walks through UNLESS the newer R engulfs it (bigger both sides). Bear = exact mirror. Code: pause = `not a and (b or (c != d))` with local bools (bull a_hi/b_hi/c_lo/d_lo; bear a_lo/b_lo/c_hi/d_hi). Fits all 22 data points (16-perm + 6 inside).
+**Tests run:** compile 0/0; BTC.P 1D 2025-08-21; SOL.P 1W Jun-8-2026; VVV.P 1D Nov-5-2025; SOL.P 8h Jun-5-2026.
+**Results (on-chart):** demand/green fixtures UNCHANGED — SOL 1W **96.42**, VVV **1.642**, SOL 8h **75.21**; BTC supply **114,069.6** + demand **107,087.3** unchanged (the change only touches inside-bar shapes, which the fixtures don't hit). Non-target SUPPLY lines shifted from the bear-side refinement: SOL 1W supply 200.57→**161.85**, SOL 8h supply 244.65→**233.79** (no locked target). Fable untouched.
+**Status:** v0.17.0 shipped. Both sides on the symmetric 3-candle rule + inside-candle correction.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 
