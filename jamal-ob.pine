@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.14.0", shorttitle = "JOB0.14", overlay = true)
+indicator("Jamal OB v0.15.0", shorttitle = "JOB0.15", overlay = true)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.14.0"
+SCRIPT_V = "0.15.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -17,16 +17,16 @@ start_ts     = input.time(timestamp("1 Jul 2025 00:00 +0000"), "State start date
 //            anchor is red it may be the anchor's own open),
 //   leg_hi = swing high over [stop-candle .. s0] (the leg-origin / BOS level:
 //            a close through it re-enables sweep-driven relocation).
-// v0.14.0 DOWN-SERIES rule (calibrated on VVV / SOL 8h / BTC / SOL 1W real
-// legs): reds are in-leg — they extend the running max of red opens and never
-// stop the walk. A GREEN is a counter; it ENDS the down series (→ STOP, leg
-// origin) UNLESS it is an INSIDE BAR of the prior (older) bar (high[i] <=
-// high[i+1] and low[i] >= low[i+1]) — i.e. it swept NEITHER prior extreme, so
-// it's just a pause inside the leg. Any green that takes out a prior HIGH or a
-// prior LOW is itself a swing/sweep → the down series is over → STOP. A doji
-// stops. (v0.13.0 checked only whether the green swept the prior LOW, so it
-// blew past swing highs like VVV Nov-2 that swept only the HIGH → leaked back
-// to 1.761 instead of stopping the down-series at Nov-3 / 1.642.)
+// v0.15.0 3-CANDLE STOP rule (calibrated via the full 16-permutation table on
+// real legs VVV / SOL 8h / SOL 1W): reds are in-leg (running max of red opens).
+// At a GREEN counter G, compare it to its OLDER neighbour L (bar i+1) and NEWER
+// neighbour R (bar i-1, toward the sweep). G ENDS the down-series → STOP iff
+//   G.high > L.high   OR   R is entirely above G (R.high > G.high AND R.low > G.low).
+// Else it's a mid-leg step → PAUSE, keep walking. G.low vs L.low is IRRELEVANT
+// (the user's permutation table ignores it). A doji stops. Fixes SOL 1W: v0.14.0
+// stopped at the May-18 bounce (→ 85.22); this walks through it to May-11 (open
+// 96.42). Line = highest red open in the walked leg. NOTE: bull side only —
+// the bear/red side still runs the v0.14.0 inside-bar rule (see below).
 f_walkback_bull(int maxlb, int s0, int t0) =>
     float best_open = close[s0] < open[s0] ? open[s0] : na   // seed R only if anchor bar is red
     float leg_hi    = high[s0]
@@ -37,16 +37,18 @@ f_walkback_bull(int maxlb, int s0, int t0) =>
         if close[i] < open[i]                        // red → in leg
             best_open := na(best_open) ? open[i] : math.max(best_open, open[i])
             continue
-        if close[i] > open[i] and high[i] <= high[i + 1] and low[i] >= low[i + 1]
-            continue                                // green INSIDE BAR (swept neither prior extreme) → mid-leg pause
-        break                                       // green that swept a prior high/low (ends the down series), or doji → stop
+        if close[i] > open[i] and high[i] <= high[i + 1] and (high[i] > high[i - 1] or low[i] > low[i - 1])
+            continue                                // green mid-leg step (high not above older L; G still pokes up into newer R) → keep walking
+        break                                       // green STOPS: local top (high>L) OR a dip fully below R, or doji → line = highest red open
     [best_open, leg_hi]
 
 // ════════════════ Bearish walk-back (upper line = open_R) ════════════════
 // Mirror: anchor at s0 (the sweep candle if GREEN; the bar before if red).
 // Returns [open_R, leg_lo]: open_R = lowest green open (supply line);
 // leg_lo = swing low over [stop-candle .. s0] (bearish BOS level).
-// v0.14.0 UP-SERIES rule (exact mirror): greens are in-leg (running min of
+// UP-SERIES rule — still v0.14.0 inside-bar (NOT yet mirrored to the bull
+// v0.15.0 3-candle rule; awaiting the user's red-line permutation table, so BTC
+// Aug stays at 118,641.8). Greens are in-leg (running min of
 // green opens). A RED is a counter; it ENDS the up series (→ STOP) UNLESS it is
 // an INSIDE BAR of the prior bar (high[i] <= high[i+1] and low[i] >= low[i+1] —
 // swept neither prior extreme) → PAUSE. Any red taking out a prior HIGH or LOW
