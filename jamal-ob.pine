@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.21.0", shorttitle = "JOB0.21", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.22.0", shorttitle = "JOB0.22", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.21.0"
+SCRIPT_V = "0.22.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -33,7 +33,7 @@ f_walkback_bull(int maxlb, int s0, int t0) =>
     float leg_hi    = high[s0]
     for i = s0 + 1 to s0 + maxlb
         if time[i] < t0
-            break                                   // determinism clamp: never walk before the start date
+            break                                   // determinism clamp: never walk before the epoch (start date or the latest reset)
         leg_hi := math.max(leg_hi, high[i])         // BOS extreme includes every scanned bar, incl. the stop-candle
         if close[i] < open[i]                        // red → in leg
             best_open := na(best_open) ? open[i] : math.max(best_open, open[i])
@@ -114,10 +114,14 @@ var array<box>  bear_fvg_boxes = array.new<box>()    // light-red resistance gap
 var array<bool> bear_fvg_mit   = array.new<bool>()
 
 // ════════════════ FVG zones (chart TF) — last 5 FORMED per side, shaded fill only (no border); on mitigation the box is CAPPED at the mitigating candle (kept, not deleted) ════════════════
-bool bull_fvg_touched = false          // price FIRST entered a bull FVG this bar → arms the demand relocation (fires once per box)
-bool bear_fvg_touched = false
+bool  bull_fvg_touched = false         // price FIRST entered a bull FVG this bar → arms the demand relocation (fires once per box)
+bool  bear_fvg_touched = false
+bool  bull_new_fvg     = false         // v0.22.0: a new bull FVG confirmed THIS bar (feeds the bright-line reset)
+float bull_new_fvg_bot = na            // its bottom — the gap must sit ENTIRELY above the line to reset
 if barstate.isconfirmed and active
     if low[1] > high[3]                 // new bull FVG (support gap): [high[3] .. low[1]]
+        bull_new_fvg     := true
+        bull_new_fvg_bot := high[3]
         array.push(bull_fvg_boxes, box.new(bar_index - 2, low[1], bar_index, high[3], border_width = 0, bgcolor = color.new(color.green, 78), extend = extend.right))
         array.push(bull_fvg_mit, false)
         if array.size(bull_fvg_boxes) > 5   // keep only the last 5 FORMED (mitigated ones still count)
@@ -146,27 +150,46 @@ if barstate.isconfirmed and active
                 array.set(bear_fvg_mit, i, true)
                 bear_fvg_touched := true
 
-// Bullish (lower / demand) — v0.21.0: explicit START condition + FVG model.
-// START (no line yet — start date, first bars of a listing, or post-reset): the
-// first RED candle whose low takes out the most recent CONFIRMED 3-candle swing
-// low (a low below BOTH neighbours; confirms one bar later) is the first anchor
-// candle — the normal walk-back runs from it and places the line. Confirmed-bar.
-// The trigger reads the swing low AS IT STOOD coming into the bar, so a bar that
-// takes out the old swing while confirming a new lower one still fires.
-// RELOCATION (line exists): (1) anchor-low wick (intrabar), or (2) price
+// Bullish (lower / demand) — v0.21.0 START condition + v0.22.0 RESET + FVG model.
+// START (no line / post-reset): the first RED candle whose low takes out the most
+// recent CONFIRMED 3-candle swing low (a low below BOTH neighbours; confirms one
+// bar later) is the anchor candle — the normal walk-back runs from it and places
+// the line. Confirmed-bar. The trigger reads the swing low AS IT STOOD coming
+// into the bar, so a bar that takes out the old swing while confirming a new
+// lower one still fires.
+// RESET (v0.22.0): while the line is BRIGHT (reclaimed, untested), a new
+// confirmed bull FVG forming ENTIRELY ABOVE it (gap bottom > line) re-arms the
+// start search "as if at the start date": the line KEEPS DRAWING at its level
+// (colour logic keeps running), but the anchor clears (condition 1 dormant), the
+// swing tracker clears, and the search EPOCH bumps to the reset bar — new swing
+// lows only count from here and subsequent walk-backs clamp here. The search
+// ends on the bootstrap sweep OR a bull-FVG entry (whichever first) — note the
+// reset-causing FVG itself is a natural target: price retracing into it fires
+// condition 2 and relocates the line to the new demand.
+// RELOCATION (line established): (1) anchor-low wick (intrabar), or (2) price
 // re-entering a bull FVG (bull_fvg_touched). Bright-freeze/BOS-sweep/trail
 // removed; `bull_bos` kept only as an info leg-high.
 var float bull_swing_low = na           // most recent confirmed 3-candle swing low (bootstrap reference)
+var int   bull_seek_from = start_ts     // search epoch: swing lows + walk-backs clamp here (bumped by a reset)
 bool bull_prev_touched = bull_touched   // colour only
+bool bull_is_bright = bull_closed_above and not bull_touched   // bright state coming into this bar
+bool bull_reset = active and barstate.isconfirmed and not na(bull_anchor_low) and bull_is_bright and bull_new_fvg and bull_new_fvg_bot > lower_line
+var int bull_reset_n = 0                // lifetime reset count (DW diagnostic)
+if bull_reset
+    bull_anchor_low := na               // line holds its level but goes into SEARCH state
+    bull_bos        := na
+    bull_swing_low  := na               // swing search restarts…
+    bull_seek_from  := time             // …from this bar (epoch bump)
+    bull_reset_n    += 1
 bool bull_wick  = active and not na(bull_anchor_low) and low < bull_anchor_low   // trigger 1: new anchor low
 bool bull_boot  = active and barstate.isconfirmed and na(bull_anchor_low) and close < open and not na(bull_swing_low) and low < bull_swing_low   // START: first red candle to take out the last swing low
-if barstate.isconfirmed and low[1] < low[2] and low[1] < low and time[1] >= start_ts
+if barstate.isconfirmed and low[1] < low[2] and low[1] < low and time[1] >= bull_seek_from
     bull_swing_low := low[1]            // updated AFTER the boot check (trigger reads the incoming swing state)
 bool bull_reloc = active and (bull_wick or bull_fvg_touched or bull_boot)        // trigger 2: bull FVG re-entered · START: bootstrap
 bool bull_did_reloc = false
 if bull_reloc
     int s0b = close < open ? 0 : 1
-    [oRb, swb] = f_walkback_bull(max_lookback, s0b, start_ts)
+    [oRb, swb] = f_walkback_bull(max_lookback, s0b, bull_seek_from)
     if not na(oRb)                      // eligible only if the walk-back finds a real demand (a down-series behind the entry)
         lower_line      := oRb
         bull_anchor_low := low
@@ -256,6 +279,8 @@ plot(lower_line, "OB lower (demand open_R)", lower_col, 2, plot.style_stepline)
 plot(upper_line, "OB upper (supply open_R)", upper_col, 2, plot.style_stepline)
 plot(bull_bright ? 1 : 0, "DW lower fresh (1=bright)", display = display.data_window)
 plot(bear_bright ? 1 : 0, "DW upper fresh (1=bright)", display = display.data_window)
+plot(na(bull_anchor_low) and not na(lower_line) ? 1 : 0, "DW lower searching (1=post-reset)", display = display.data_window)
+plot(bull_reset_n, "DW lower resets (lifetime)", display = display.data_window)
 plot(fvg_c_bull_top, "DW FVG chart bull top", display = display.data_window)
 plot(fvg_c_bull_bot, "DW FVG chart bull bot", display = display.data_window)
 plot(fvg_c_bear_top, "DW FVG chart bear top", display = display.data_window)
