@@ -715,6 +715,18 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** GRASS 1W — resets 3→**1** bull / 2→**1** bear (touch-resets gone); demand 0.4893 now ESTABLISHED + BRIGHT (was in-search under v0.25.0). VVV 1D — resets 19→**10** bull / 14→**8** bear; demand 13.422 established, supply 14.316 in search.
 **Status:** shipped. Committed + pushed.
 
+## OB v0.27.0 — full-leg walk-backs (no epoch clamp) + any-part-beyond reset geometry
+**Date:** 2026-07-08 · **On-chart:** "Jamal OB v0.27.0" (shorttitle "JOB0.27")
+**Context (two user-caught cases, both replay-traced):**
+1. **HYPE.P 1D May-26-2026:** a bull FVG [59.887..60.752] formed above the bright line (58.587) AND was entered on the same bar → reset + instant re-place, but the walk-back was EPOCH-CLAMPED at the reset bar, so it couldn't include May-25's red (open 62.79) — the line landed at May-26's own open 61.145. User: the walk should see the full leg.
+2. **HYPE.P 1W Feb-9-2026:** the weekly gap [24.456..29.5] STRADDLED the line at 26.848 (bottom below, top above) → under "entirely above" no reset fired, though visually the gap sat above the line. User: any part above should count.
+**Change (user: "1. full leg / 2. any part above"):**
+1. Walk-backs are clamped at the START DATE only — `f_walkback_*` call sites pass `start_ts` again; the reset epoch (`*_seek_from`) now gates ONLY the swing tracker (post-reset swings).
+2. Reset geometry: bull fires when the new gap's TOP > line (was: bottom > line); bear mirror fires when the gap's BOTTOM < line. Captured values swapped accordingly (`bull_new_fvg_top = low[1]`, `bear_new_fvg_bot = high[1]`).
+**Tests run:** compile 0/0, saved; both fixtures replay-verified; bind-check (Fable v0.7.2 v28 untouched).
+**Results:** HYPE 1D — after May-26 confirms, demand = **62.790** (May-25's open) ✓. HYPE 1W — the Feb-9 straddling gap now RESETS (bull resets 0→2 by mid-Feb) and same-bar form+enter chains reset→start → line re-places at 32.422 (Feb-9's own open — the one-candle-leg pattern again; open question stands). Reset counts rise overall under the looser geometry (by design).
+**Status:** shipped. Committed + pushed. OPEN: one-candle-leg landings (parked).
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 
