@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.23.0", shorttitle = "JOB0.23", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.24.0", shorttitle = "JOB0.24", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.23.0"
+SCRIPT_V = "0.24.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -88,10 +88,11 @@ f_walkback_bear(int maxlb, int s0, int t0) =>
 //       below `bull_anchor_low` / a high above `bear_anchor_high` (INTRABAR), or
 //       (2) price RE-ENTERS a chart-TF FVG on its side (`*_fvg_touched` — the
 //       same event that caps the drawn zone; confirmed-bar only).
-//   RESET: a new confirmed FVG forming ENTIRELY beyond the line (bull FVG fully
-//       above the demand line / bear FVG fully below the supply line) re-arms
-//       the START search — the line keeps drawing at its level; the search
-//       EPOCH bumps to the reset bar (swings + walk-backs clamp there).
+//   RESET: (a) a new confirmed FVG forming ENTIRELY beyond the line (bull FVG
+//       fully above the demand line / bear FVG fully below the supply line), or
+//       (b) the FIRST TOUCH of a BRIGHT line — re-arms the START search: the
+//       line keeps drawing at its level; the search EPOCH bumps to the reset
+//       bar (swings + walk-backs clamp there).
 // On a trigger it runs the walk-back from the current bar (or the bar before, if
 // the current bar is the wrong colour to seed the leg) and moves the line to the
 // resulting OB open — but ONLY if the walk-back returns a real level (a genuine
@@ -168,22 +169,30 @@ if barstate.isconfirmed and active
 // the line. Confirmed-bar. The trigger reads the swing low AS IT STOOD coming
 // into the bar, so a bar that takes out the old swing while confirming a new
 // lower one still fires.
-// RESET (v0.22.0; v0.23.0 dropped the bright precondition): a new confirmed
-// bull FVG forming ENTIRELY ABOVE an established line (gap bottom > line)
-// re-arms the start search "as if at the start date": the line KEEPS DRAWING at
-// its level (colour logic keeps running), but the anchor clears (condition 1
+// RESET (v0.22.0; v0.23.0 dropped the bright precondition; v0.24.0 added the
+// bright-touch trigger). An established line resets — re-arms the start search
+// "as if at the start date" — when EITHER:
+//   (a) a new confirmed bull FVG forms ENTIRELY ABOVE it (gap bottom > line), or
+//   (b) the line is BRIGHT (reclaimed, untested) and price TOUCHES it (the same
+//       first-touch that dulls the colour; fires intrabar, commits at close).
+// On reset the line KEEPS DRAWING at its level (colour logic keeps running —
+// a touch-reset line therefore also dulls), but the anchor clears (condition 1
 // dormant), the swing tracker clears, and the search EPOCH bumps to the reset
 // bar — new swing lows only count from here and subsequent walk-backs clamp
 // here. The search ends on the bootstrap sweep OR a bull-FVG entry (whichever
-// first) — note the reset-causing FVG itself is a natural target: price
-// retracing into it fires condition 2 and relocates the line to the new demand.
+// first) — an FVG-above reset's own gap is a natural target: price retracing
+// into it fires condition 2 and relocates the line to the new demand. Note the
+// bright-touch reset also means a BRIGHT line can never wick-relocate: price
+// reaches the line (→ reset) before it can reach the anchor low. Dull lines
+// wick-relocate as before.
 // RELOCATION (line established): (1) anchor-low wick (intrabar), or (2) price
 // re-entering a bull FVG (bull_fvg_touched). Bright-freeze/BOS-sweep/trail
 // removed; `bull_bos` kept only as an info leg-high.
 var float bull_swing_low = na           // most recent confirmed 3-candle swing low (bootstrap reference)
 var int   bull_seek_from = start_ts     // search epoch: swing lows + walk-backs clamp here (bumped by a reset)
 bool bull_prev_touched = bull_touched   // colour only
-bool bull_reset = active and barstate.isconfirmed and not na(bull_anchor_low) and bull_new_fvg and bull_new_fvg_bot > lower_line
+bool bull_touch_reset = active and not na(bull_anchor_low) and bull_closed_above and not bull_touched and low <= lower_line   // (b) first touch of a BRIGHT line
+bool bull_reset = (active and barstate.isconfirmed and not na(bull_anchor_low) and bull_new_fvg and bull_new_fvg_bot > lower_line) or bull_touch_reset
 var int bull_reset_n = 0                // lifetime reset count (DW diagnostic)
 if bull_reset
     bull_anchor_low := na               // line holds its level but goes into SEARCH state
@@ -206,18 +215,20 @@ if bull_reloc
         bull_bos        := swb
         bull_did_reloc  := true
 
-// Bearish (upper / supply) — v0.23.0: EXACT MIRROR of the bull side (high↔low),
-// full lifecycle. START (no line / post-reset): the first GREEN candle whose
-// high takes out the most recent CONFIRMED 3-candle swing high (a high above
-// BOTH neighbours; confirms one bar later) is the anchor candle — walk-back
-// places the line. RESET: a new confirmed bear FVG forming ENTIRELY BELOW an
-// established line (gap top < line) re-arms the search; line holds its level,
-// epoch bumps. RELOCATION: (1) anchor-high wick (intrabar), or (2) price
-// re-entering a bear FVG (bear_fvg_touched).
+// Bearish (upper / supply) — v0.23.0/v0.24.0: EXACT MIRROR of the bull side
+// (high↔low), full lifecycle. START (no line / post-reset): the first GREEN
+// candle whose high takes out the most recent CONFIRMED 3-candle swing high (a
+// high above BOTH neighbours; confirms one bar later) is the anchor candle —
+// walk-back places the line. RESET: (a) a new confirmed bear FVG forming
+// ENTIRELY BELOW an established line (gap top < line), or (b) first touch of a
+// BRIGHT line (price high reaches it) — re-arms the search; line holds its
+// level, epoch bumps. RELOCATION: (1) anchor-high wick (intrabar), or (2)
+// price re-entering a bear FVG (bear_fvg_touched).
 var float bear_swing_high = na          // most recent confirmed 3-candle swing high (bootstrap reference)
 var int   bear_seek_from  = start_ts    // search epoch: swing highs + walk-backs clamp here (bumped by a reset)
 bool bear_prev_touched = bear_touched   // colour only
-bool bear_reset = active and barstate.isconfirmed and not na(bear_anchor_high) and bear_new_fvg and bear_new_fvg_top < upper_line
+bool bear_touch_reset = active and not na(bear_anchor_high) and bear_closed_below and not bear_touched and high >= upper_line   // (b) first touch of a BRIGHT line
+bool bear_reset = (active and barstate.isconfirmed and not na(bear_anchor_high) and bear_new_fvg and bear_new_fvg_top < upper_line) or bear_touch_reset
 var int bear_reset_n = 0                // lifetime reset count (DW diagnostic)
 if bear_reset
     bear_anchor_high := na              // line holds its level but goes into SEARCH state
