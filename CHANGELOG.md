@@ -706,6 +706,15 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** VVV 1D — demand **13.422** (established, dull), supply **12.936** (in search); resets 19/14 (paths differ from v0.24.0's 20/15 since FVG-relocations no longer occur mid-line). Full-history: lines step the rally with visibly FEWER mid-trend jumps (each step now = a reset→land cycle or a wick-out, not any passing gap-fill).
 **Status:** shipped. Committed + pushed. The condition-2 modification is COMPLETE — no open design items on Jamal OB.
 
+## OB v0.26.0 — bright-touch RESET removed (both sides); touch is colour-only again
+**Date:** 2026-07-08 · **On-chart:** "Jamal OB v0.26.0" (shorttitle "JOB0.26")
+**Context:** on GRASSUSDT.P 1W the v0.24.0 bright-touch reset put the line into an 8-week search (Mar-16 bright-touch → nothing until the May-11 FVG entry), whose landing (the May-11 weekly's own open, a one-candle leg) prompted a full replay trace. After seeing the mechanism, the user removed the trigger: "remove b from RESET."
+**Change:** deleted `bull_touch_reset`/`bear_touch_reset`; RESET per side is again ONLY a new confirmed FVG forming entirely beyond the line (bull above / bear below). A touch of a bright line is back to COLOUR-ONLY (dulls it, nothing else). **Consequence: bright lines can wick-relocate again** (v0.24.0 had made that impossible since the touch cleared the anchor before price could reach the anchor extreme).
+**Lifecycle now (per side, symmetric):** START (no line): (a) counter-colour candle sweeps a post-epoch confirmed 3-candle swing, or (b) FVG entry. MOVE (established): anchor-extreme wick ONLY. RESET (established): FVG confirms entirely beyond the line — line holds its level, search re-arms, epoch bumps.
+**Tests run:** compile 0/0, saved; GRASS.P 1W + VVV.P 1D; bind-check (Fable v0.7.2 v28 untouched).
+**Results:** GRASS 1W — resets 3→**1** bull / 2→**1** bear (touch-resets gone); demand 0.4893 now ESTABLISHED + BRIGHT (was in-search under v0.25.0). VVV 1D — resets 19→**10** bull / 14→**8** bear; demand 13.422 established, supply 14.316 in search.
+**Status:** shipped. Committed + pushed.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 
