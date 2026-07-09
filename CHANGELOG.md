@@ -727,6 +727,14 @@ All three pre-committed mechanism-gated conditioners are dead on the BTC-1h anch
 **Results:** HYPE 1D — after May-26 confirms, demand = **62.790** (May-25's open) ✓. HYPE 1W — the Feb-9 straddling gap now RESETS (bull resets 0→2 by mid-Feb) and same-bar form+enter chains reset→start → line re-places at 32.422 (Feb-9's own open — the one-candle-leg pattern again; open question stands). Reset counts rise overall under the looser geometry (by design).
 **Status:** shipped. Committed + pushed. OPEN: one-candle-leg landings (parked).
 
+## OB v0.27.1 — default start date → 1 Jul 2023 (~3 years back)
+**Date:** 2026-07-08 · **On-chart:** "Jamal OB v0.27.1" (shorttitle "JOB0.27.1")
+**Change (user):** default `State start date` moved 1 Jul 2025 → **1 Jul 2023** (~3 years back from today). The "as far back as it can go" case is inherent: symbols younger than the start date simply begin at their first bar (`active = time >= start_ts` is true from bar 0). Tooltip updated, including the determinism caveat.
+**Caveat (flagged to user):** the start date originally existed for cross-device determinism (v0.5.0 — mobile loads less history than desktop). With a 3-year window, devices that can't load back to mid-2023 on older symbols may show different lines than desktop; the input can be tightened per-chart if that matters.
+**Tests run:** compile 0/0, saved; HYPE.P 1D; bind-check (Fable v0.7.2 v28 untouched).
+**Results:** HYPE 1D now computes from its listing (~Dec 2024, younger than the default): demand 70.729 / supply 53.289, resets 20/13 over the longer history. All prior current-value fixtures quoted under the Jul-2025 start are superseded by design (longer history = different paths); the RULES are unchanged from v0.27.0.
+**Status:** shipped. Committed + pushed.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 

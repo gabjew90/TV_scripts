@@ -1,13 +1,13 @@
 //@version=6
-indicator("Jamal OB v0.27.0", shorttitle = "JOB0.27", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.27.1", shorttitle = "JOB0.27.1", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.27.0"
+SCRIPT_V = "0.27.1"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
-start_ts     = input.time(timestamp("1 Jul 2025 00:00 +0000"), "State start date",
-     tooltip = "The OB state machine ignores all bars before this date: no sweeps fire and walk-backs clamp here. Makes the lines DETERMINISTIC across devices (otherwise they depend on how much history the chart loads) and caps how stale a line can be.")
+start_ts     = input.time(timestamp("1 Jul 2023 00:00 +0000"), "State start date",
+     tooltip = "The OB state machine ignores all bars before this date: no sweeps fire and walk-backs clamp here. Default = ~3 years back; symbols younger than that simply start at their first bar. Caps how stale a line can be. NOTE: if a device loads less history than this (e.g. mobile), the lines can differ across devices — tighten the date if that matters.")
 
 // ════════════════ Bullish walk-back (lower line = open_R) ════════════════
 // From the anchor bar at offset s0 (the sweep candle if it is RED; the bar
