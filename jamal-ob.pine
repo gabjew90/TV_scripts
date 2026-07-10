@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.27.1", shorttitle = "JOB0.27.1", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.28.0", shorttitle = "JOB0.28", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.27.1"
+SCRIPT_V = "0.28.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -129,6 +129,11 @@ var array<box>  bear_fvg_boxes = array.new<box>()    // light-red resistance gap
 var array<bool> bear_fvg_mit   = array.new<bool>()
 
 // ════════════════ FVG zones (chart TF) — last 5 FORMED per side, shaded fill only (no border); on mitigation the box is CAPPED at the mitigating candle (kept, not deleted) ════════════════
+// v0.28.0: MITIGATION RUNS BEFORE DETECTION — a zone cannot be swept by the
+// candle that CREATES it (a gap often confirms with the forming candle's wick
+// already inside it; that birth overlap used to consume the once-per-box sweep
+// on an often-ineligible walk-back — NEAR.P 1h Jul-8-2026). The sweep is now
+// the first LATER candle to enter the zone.
 bool  bull_fvg_touched = false         // price FIRST entered a bull FVG this bar → arms the demand relocation (fires once per box)
 bool  bear_fvg_touched = false
 bool  bull_new_fvg     = false         // v0.22.0: a new bull FVG confirmed THIS bar (feeds the line reset)
@@ -136,7 +141,23 @@ float bull_new_fvg_top = na            // its top — v0.27.0: ANY part of the g
 bool  bear_new_fvg     = false         // v0.23.0 mirror: a new bear FVG confirmed THIS bar
 float bear_new_fvg_bot = na            // its bottom — ANY part of the gap below the line resets (bottom < line)
 if barstate.isconfirmed and active
-    if low[1] > high[3]                 // new bull FVG (support gap): [high[3] .. low[1]]
+    if array.size(bull_fvg_boxes) > 0   // mitigate FIRST: on the first touch (low ≤ zone top) cap the box at this candle + stop extending; keep it drawn
+        for i = 0 to array.size(bull_fvg_boxes) - 1
+            box b = array.get(bull_fvg_boxes, i)
+            if not array.get(bull_fvg_mit, i) and low <= box.get_top(b)
+                box.set_right(b, bar_index)
+                box.set_extend(b, extend.none)
+                array.set(bull_fvg_mit, i, true)
+                bull_fvg_touched := true
+    if array.size(bear_fvg_boxes) > 0   // mitigate FIRST: on the first touch (high ≥ zone bottom) cap the box at this candle + stop extending; keep it drawn
+        for i = 0 to array.size(bear_fvg_boxes) - 1
+            box b = array.get(bear_fvg_boxes, i)
+            if not array.get(bear_fvg_mit, i) and high >= box.get_bottom(b)
+                box.set_right(b, bar_index)
+                box.set_extend(b, extend.none)
+                array.set(bear_fvg_mit, i, true)
+                bear_fvg_touched := true
+    if low[1] > high[3]                 // THEN detect: new bull FVG (support gap): [high[3] .. low[1]] — untouchable until the next bar
         bull_new_fvg     := true
         bull_new_fvg_top := low[1]
         array.push(bull_fvg_boxes, box.new(bar_index - 2, low[1], bar_index, high[3], border_width = 0, bgcolor = color.new(color.green, 78), extend = extend.right))
@@ -152,22 +173,6 @@ if barstate.isconfirmed and active
         if array.size(bear_fvg_boxes) > 5
             box.delete(array.shift(bear_fvg_boxes))
             array.shift(bear_fvg_mit)
-    if array.size(bull_fvg_boxes) > 0   // mitigate: on FIRST touch (low ≤ zone top) cap the box at this candle + stop extending; keep it drawn
-        for i = 0 to array.size(bull_fvg_boxes) - 1
-            box b = array.get(bull_fvg_boxes, i)
-            if not array.get(bull_fvg_mit, i) and low <= box.get_top(b)
-                box.set_right(b, bar_index)
-                box.set_extend(b, extend.none)
-                array.set(bull_fvg_mit, i, true)
-                bull_fvg_touched := true
-    if array.size(bear_fvg_boxes) > 0   // mitigate: on FIRST touch (high ≥ zone bottom) cap the box at this candle + stop extending; keep it drawn
-        for i = 0 to array.size(bear_fvg_boxes) - 1
-            box b = array.get(bear_fvg_boxes, i)
-            if not array.get(bear_fvg_mit, i) and high >= box.get_bottom(b)
-                box.set_right(b, bar_index)
-                box.set_extend(b, extend.none)
-                array.set(bear_fvg_mit, i, true)
-                bear_fvg_touched := true
 
 // Bullish (lower / demand) — v0.25.0 lifecycle.
 // START (no line / post-reset), whichever fires first:
@@ -192,8 +197,9 @@ if barstate.isconfirmed and active
 // full contiguous leg (start-date clamp only); HYPE 1D May-26-2026 now lands at
 // 62.79 (May-25's open) instead of being chopped at the reset bar. The search
 // ends on START (a) or (b) — the reset-causing FVG itself is a natural target:
-// price retracing into it ends the search and lands the line at the new demand
-// (same-bar form+enter chains reset→start on one candle).
+// price retracing into it ends the search and lands the line at the new demand.
+// v0.28.0: a zone cannot be swept by its own creation candle — the sweep is the
+// first LATER candle to enter it (mitigation runs before detection).
 // RELOCATION (line established): ONLY the anchor-low wick (intrabar). v0.25.0
 // removed the FVG-entry relocation — while a line stands, gaps getting filled
 // below/through it no longer move it. Bright-freeze/BOS-sweep/trail removed;
