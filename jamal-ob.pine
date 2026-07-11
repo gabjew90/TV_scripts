@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.28.0", shorttitle = "JOB0.28", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.29.0", shorttitle = "JOB0.29", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.28.0"
+SCRIPT_V = "0.29.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -25,9 +25,12 @@ start_ts     = input.time(timestamp("1 Jul 2023 00:00 +0000"), "State start date
 //   L.low and R.low ) — R rises above G while G's low sits OUTSIDE the L–R low
 //   band (i.e. R ENGULFS G, or G is a swing low). Else PAUSE, keep walking.
 // In inside-bar terms: an inside candle walks through UNLESS the newer R engulfs
-// it (bigger on both sides). A doji stops. v0.17.0 note: G.low-vs-L (c) is NOT
-// irrelevant after all — the inside-candle pass flipped perms #13 (R engulfs →
-// STOP) and #14 (R merely above → CONTINUE). Bear side is the exact mirror.
+// it (bigger on both sides). v0.29.0 (12-case colour×sweep doji quiz): a FLAT
+// doji (close == open) follows the SAME 3-candle rule as a green — it no longer
+// auto-stops. Tiny red/green bodies were confirmed to belong to their colour's
+// path. v0.17.0 note: G.low-vs-L (c) is NOT irrelevant after all — the
+// inside-candle pass flipped perms #13 (R engulfs → STOP) and #14 (R merely
+// above → CONTINUE). Bear side is the exact mirror.
 f_walkback_bull(int maxlb, int s0, int t0) =>
     float best_open = close[s0] < open[s0] ? open[s0] : na   // seed R only if anchor bar is red
     float leg_hi    = high[s0]
@@ -42,9 +45,9 @@ f_walkback_bull(int maxlb, int s0, int t0) =>
         bool b_hi = high[i] > high[i - 1]            // G.high > R.high (newer)
         bool c_lo = low[i]  > low[i + 1]             // G.low  > L.low
         bool d_lo = low[i]  > low[i - 1]             // G.low  > R.low
-        if close[i] > open[i] and not a_hi and (b_hi or (c_lo != d_lo))
-            continue                                // green pass-through: not a local top; G pokes above R OR its low is BETWEEN the two lows → keep walking
-        break                                       // green STOPS: local top (high>L), OR R above G with G.low OUTSIDE the L–R low band (R engulfs G / swing low), or doji
+        if close[i] >= open[i] and not a_hi and (b_hi or (c_lo != d_lo))
+            continue                                // green/doji pass-through: not a local top; pokes above R OR its low is BETWEEN the two lows → keep walking
+        break                                       // green/doji STOPS: local top (high>L), OR R above it with its low OUTSIDE the L–R low band (R engulfs / swing low)
     [best_open, leg_hi]
 
 // ════════════════ Bearish walk-back (upper line = open_R) ════════════════
@@ -57,8 +60,8 @@ f_walkback_bull(int maxlb, int s0, int t0) =>
 //   STOP iff  RED.low < L.low  OR  ( R.low < RED.low  AND  RED.high is NOT
 //   between L.high and R.high ) — R drops below the red while the red's high is
 //   OUTSIDE the L–R high band (R engulfs the red, or a swing high). Else PAUSE.
-// A doji stops. (BTC Aug supply still 114,069.6 — the walk stops at Aug-5, whose
-// low < Aug-4's low = a local bottom; unaffected by the inside-candle change.)
+// v0.29.0: a FLAT doji follows the same 3-candle rule as the red counter (no
+// auto-stop) — exact mirror of the bull-side doji calibration.
 f_walkback_bear(int maxlb, int s0, int t0) =>
     float best_open = close[s0] > open[s0] ? open[s0] : na   // seed R only if anchor bar is green
     float leg_lo    = low[s0]
@@ -73,9 +76,9 @@ f_walkback_bear(int maxlb, int s0, int t0) =>
         bool b_lo = low[i]  < low[i - 1]             // RED.low < R.low (newer)
         bool c_hi = high[i] < high[i + 1]            // RED.high < L.high
         bool d_hi = high[i] < high[i - 1]            // RED.high < R.high
-        if close[i] < open[i] and not a_lo and (b_lo or (c_hi != d_hi))
-            continue                                // red pass-through: not a local bottom; R drops below the red OR the red's high is BETWEEN the two highs → keep walking
-        break                                       // red STOPS: local bottom (low<L), OR R below the red with high OUTSIDE the L–R high band (R engulfs / swing high), or doji
+        if close[i] <= open[i] and not a_lo and (b_lo or (c_hi != d_hi))
+            continue                                // red/doji pass-through: not a local bottom; R drops below it OR its high is BETWEEN the two highs → keep walking
+        break                                       // red/doji STOPS: local bottom (low<L), OR R below it with high OUTSIDE the L–R high band (R engulfs / swing high)
     [best_open, leg_lo]
 
 // ════════════════ Line state (v0.23.0 — symmetric lifecycle: START → relocate → RESET) ════════════════
