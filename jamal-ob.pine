@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.31.0", shorttitle = "JOB0.31", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.30.0", shorttitle = "JOB0.30", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.31.0"
+SCRIPT_V = "0.30.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -81,16 +81,15 @@ f_walkback_bear(int maxlb, int s0, int t0) =>
         break                                       // red/doji STOPS: local bottom (low<L), OR R below it with high OUTSIDE the L–R high band (R engulfs / swing high)
     [best_open, leg_lo]
 
-// ════════════════ Line state (v0.31.0 — candidate machinery + bright memory) ════════════════
-// Both candidate lines follow the SAME rule (bull = demand/lower; bear =
-// supply/upper is the high↔low mirror). Lifecycle per side:
+// ════════════════ Line state (v0.23.0 — symmetric lifecycle: START → relocate → RESET) ════════════════
+// Both lines follow the SAME rule (bull = demand/lower; bear = supply/upper is
+// the high↔low mirror). Lifecycle per side:
 //   START (no line / post-reset), whichever fires first:
 //       (a) the first counter-colour candle to take out the most recent
 //           CONFIRMED 3-candle swing (red sweeping a swing LOW for demand /
 //           green sweeping a swing HIGH for supply), or
 //       (b) price ENTERS a chart-TF FVG on that side (`*_fvg_touched` — the
-//           same event that caps the drawn zone; confirmed-bar only; v0.28.0:
-//           a zone cannot be swept by the candle that CREATES it).
+//           same event that caps the drawn zone; confirmed-bar only).
 //       Either anchors the walk-back that places the line.
 //   RELOCATE (line established): ONLY when its anchor extreme is violated — a
 //       low below `bull_anchor_low` / a high above `bear_anchor_high`
@@ -105,14 +104,17 @@ f_walkback_bear(int maxlb, int s0, int t0) =>
 //       the reset bar (epoch gates ONLY the swing tracker; walk-backs walk the
 //       FULL leg, clamped at the start date alone). (v0.26.0 removed the
 //       bright-touch reset — a touch is colour-only.)
-// v0.31.0: on the GREEN side this machinery is the CANDIDATE layer — the DRAWN
-// green line is governed by the BRIGHT MEMORY below. The RED side draws its
-// machinery line directly (unchanged).
 // On a trigger it runs the walk-back from the current bar (or the bar before, if
 // the current bar is the wrong colour to seed the leg) and moves the line to the
 // resulting OB open — but ONLY if the walk-back returns a real level (a genuine
 // down-series behind a demand entry / up-series behind a supply entry). Empty
 // walk-back → the line holds.
+// Brightness is COLOUR ONLY now — no freeze, no trail, no BOS-sweep (all removed
+// across v0.19/v0.20): BRIGHT = reclaimed (a confirmed close beyond the line on a
+// later bar) and not retested since; the first touch dulls it until the next
+// relocation. In a sustained one-way move the walk-back returns the leg origin,
+// so the line parks at the top/bottom of the move until price re-enters a FRESHER
+// FVG deeper in — that later gap is what steps the line back toward price.
 bool active = time >= start_ts                       // state machine is dead before the start date
 
 var float lower_line       = na
@@ -121,8 +123,8 @@ var float bull_anchor_low  = na    // low currently holding lower_line (a low be
 var float bull_bos         = na    // bullish leg-origin (info: swing high of the walk-back leg)
 var float bear_anchor_high = na    // high currently holding upper_line
 var float bear_bos         = na
-var bool  bull_touched      = false   // level retested from above (latched until reloc; gates re-arming)
-var bool  bull_closed_above = false   // level reclaimed (armed; the v0.31.0 activation signal)
+var bool  bull_touched      = false   // level retested from above (latched until reloc; colour only)
+var bool  bull_closed_above = false   // level reclaimed (armed; colour only)
 var bool  bear_touched      = false
 var bool  bear_closed_below = false
 var array<box>  bull_fvg_boxes = array.new<box>()    // v0.19.0: light-green support gaps (feed the demand line's FVG-entry trigger)
@@ -172,7 +174,7 @@ if barstate.isconfirmed and active
             box.delete(array.shift(bear_fvg_boxes))
             array.shift(bear_fvg_mit)
 
-// Bullish (lower / demand) — v0.30.0 candidate machinery (v0.31.0: feeds the bright memory).
+// Bullish (lower / demand) — v0.25.0 lifecycle.
 // START (no line / post-reset), whichever fires first:
 //   (a) the first RED candle whose low takes out the most recent CONFIRMED
 //       3-candle swing low (a low below BOTH neighbours; confirms one bar
@@ -205,6 +207,7 @@ if barstate.isconfirmed and active
 // `bull_bos` kept only as an info leg-high.
 var float bull_swing_low = na           // most recent confirmed 3-candle swing low (bootstrap reference)
 var int   bull_seek_from = start_ts     // search epoch: swing-low tracking restarts here (bumped by a reset; does NOT clamp walk-backs)
+bool bull_prev_touched = bull_touched   // colour only
 bool bull_reset = active and barstate.isconfirmed and not na(bull_anchor_low) and bull_new_fvg
 var int bull_reset_n = 0                // lifetime reset count (DW diagnostic)
 if bull_reset
@@ -215,7 +218,7 @@ if bull_reset
     bull_reset_n    += 1
 bool bull_wick  = active and not na(bull_anchor_low) and low < bull_anchor_low   // MOVE: new anchor low (the only established-line trigger)
 bool bull_boot  = active and barstate.isconfirmed and na(bull_anchor_low) and close < open and not na(bull_swing_low) and low < bull_swing_low   // START (a): first red candle to take out the last swing low
-bool bull_start_fvg = active and na(bull_anchor_low) and bull_fvg_touched        // START (b): bull-FVG sweep ends the search (v0.25.0 — no longer moves an established line)
+bool bull_start_fvg = active and na(bull_anchor_low) and bull_fvg_touched        // START (b): bull-FVG entry ends the search (v0.25.0 — no longer moves an established line)
 if barstate.isconfirmed and low[1] < low[2] and low[1] < low and time[1] >= bull_seek_from
     bull_swing_low := low[1]            // updated AFTER the boot check (trigger reads the incoming swing state)
 bool bull_reloc = active and (bull_wick or bull_boot or bull_start_fvg)
@@ -238,7 +241,6 @@ if bull_reloc
 // — no position test — re-arms the search; line holds its level, epoch bumps
 // (epoch gates only the swing tracker; walk-backs see the full leg).
 // RELOCATION (line established): ONLY the anchor-high wick (intrabar).
-// (v0.31.0 bright memory is GREEN-side only — the red line draws directly.)
 var float bear_swing_high = na          // most recent confirmed 3-candle swing high (bootstrap reference)
 var int   bear_seek_from  = start_ts    // search epoch: swing-high tracking restarts here (bumped by a reset; does NOT clamp walk-backs)
 bool bear_prev_touched = bear_touched   // colour only
@@ -252,7 +254,7 @@ if bear_reset
     bear_reset_n     += 1
 bool bear_wick  = active and not na(bear_anchor_high) and high > bear_anchor_high   // MOVE: new anchor high (the only established-line trigger)
 bool bear_boot  = active and barstate.isconfirmed and na(bear_anchor_high) and close > open and not na(bear_swing_high) and high > bear_swing_high   // START (a): first green candle to take out the last swing high
-bool bear_start_fvg = active and na(bear_anchor_high) and bear_fvg_touched          // START (b): bear-FVG sweep ends the search (v0.25.0 — no longer moves an established line)
+bool bear_start_fvg = active and na(bear_anchor_high) and bear_fvg_touched          // START (b): bear-FVG entry ends the search (v0.25.0 — no longer moves an established line)
 if barstate.isconfirmed and high[1] > high[2] and high[1] > high and time[1] >= bear_seek_from
     bear_swing_high := high[1]          // updated AFTER the boot check (trigger reads the incoming swing state)
 bool bear_reloc = active and (bear_wick or bear_boot or bear_start_fvg)
@@ -266,13 +268,13 @@ if bear_reloc
         bear_bos         := sws
         bear_did_reloc   := true
 
-// ════════════════ Line freshness (activation state) ════════════════
-// Green: `bull_closed_above` arms when a bar AFTER the setting bar CONFIRMS a
-// close above the candidate (the arming bar's pass-through wick doesn't count,
-// nor do pre-reclaim wicks from below). Once armed, the first low back at the
-// candidate latches "touched" → no re-arm until relocation. v0.31.0: the arming
-// EDGE is the bright-memory ACTIVATION signal. Red: exact mirror (drives the
-// red line's colour directly).
+// ════════════════ Line freshness (render state) ════════════════
+// BRIGHT = reclaimed and not retested since. Green: arms when a bar AFTER the
+// setting bar CONFIRMS a close above the line (the arming bar's pass-through
+// wick doesn't count, nor do pre-reclaim wicks from below). Once armed, the
+// first low back at the line latches "touched" → dull until relocation (no
+// re-arm). The FIRST touch bar itself stays bright (colour reads the prior
+// bar's touched state). Red: exact mirror.
 if bull_did_reloc
     bull_touched      := false
     bull_closed_above := false
@@ -291,35 +293,9 @@ else if not na(upper_line)
     else if not bear_touched and barstate.isconfirmed and close < upper_line
         bear_closed_below := true
 
-// ════════════════ v0.31.0 BRIGHT MEMORY (green side only) ════════════════
-// The DRAWN green line = the most recently ACTIVATED bright demand level that
-// price hasn't touched yet. The v0.30 machinery above becomes the CANDIDATE
-// layer — it keeps placing/relocating/resetting `lower_line` as before, and
-// each placement ACTIVATES (once) when it earns its reclaim: a confirmed close
-// above it on a later bar (`bull_closed_above` arming edge). Untouched brights
-// are REMEMBERED in activation order; the newest is the active drawn line —
-// newest wins in BOTH directions (a fresh lower reclaim replaces a higher one).
-// When the active bright is TOUCHED (low reaches it — intrabar, like all touch
-// logic) it is CONSUMED and the previous untouched bright re-activates; one
-// deep flush chains through several. Pops run BEFORE pushes, so a bright can
-// never be popped by its own arming bar's pass-through wick. When the memory
-// empties, the line DULLS at the last consumed level until the machinery
-// activates a new bright; before any bright has ever existed, the candidate
-// itself draws dull.
-var array<float> bull_stack  = array.new<float>()   // untouched bright levels, activation order (last = active)
-var float bull_last_consumed = na                   // most recently touched bright (dull hold when the memory is empty)
-while array.size(bull_stack) > 0 and low <= array.get(bull_stack, array.size(bull_stack) - 1)
-    bull_last_consumed := array.pop(bull_stack)     // touch consumes the active bright → previous untouched one re-activates
-bool bull_armed_edge = bull_closed_above and not bull_closed_above[1]   // the candidate just earned its reclaim (fires once per placement)
-if bull_armed_edge and not na(lower_line) and (array.size(bull_stack) == 0 or array.get(bull_stack, array.size(bull_stack) - 1) != lower_line)
-    array.push(bull_stack, lower_line)              // new bright ACTIVATES → becomes the drawn line
-    if array.size(bull_stack) > 20                  // bound the memory
-        array.remove(bull_stack, 0)
-bool  bull_stack_active = array.size(bull_stack) > 0
-float bull_draw = bull_stack_active ? array.get(bull_stack, array.size(bull_stack) - 1) : not na(bull_last_consumed) ? bull_last_consumed : lower_line
-
+bool  bull_bright = bull_closed_above and not bull_prev_touched
 bool  bear_bright = bear_closed_below and not bear_prev_touched
-color lower_col   = bull_stack_active ? color.new(color.green, 0) : color.new(color.green, 60)
+color lower_col   = bull_bright ? color.new(color.green, 0) : color.new(color.green, 60)
 color upper_col   = bear_bright ? color.new(color.red, 0)   : color.new(color.red, 60)
 
 // ════════════════ FVG identification (v0.7.0 — state only, NOT drawn) ════════════════
@@ -355,11 +331,10 @@ f_fvg_latest() =>
 [fvg_m_bull_bot, fvg_m_bull_top, fvg_m_bear_bot, fvg_m_bear_top] = request.security(syminfo.tickerid, "M", f_fvg_latest(), lookahead = barmerge.lookahead_on)
 
 // ════════════════ Render ════════════════
-plot(bull_draw, "OB lower (demand — active bright / dull hold)", lower_col, 2, plot.style_stepline)
+plot(lower_line, "OB lower (demand open_R)", lower_col, 2, plot.style_stepline)
 plot(upper_line, "OB upper (supply open_R)", upper_col, 2, plot.style_stepline)
-plot(bull_stack_active ? 1 : 0, "DW lower fresh (1=bright)", display = display.data_window)
+plot(bull_bright ? 1 : 0, "DW lower fresh (1=bright)", display = display.data_window)
 plot(bear_bright ? 1 : 0, "DW upper fresh (1=bright)", display = display.data_window)
-plot(array.size(bull_stack), "DW bright memory depth", display = display.data_window)
 plot(na(bull_anchor_low) and not na(lower_line) ? 1 : 0, "DW lower searching (1=post-reset)", display = display.data_window)
 plot(bull_reset_n, "DW lower resets (lifetime)", display = display.data_window)
 plot(na(bear_anchor_high) and not na(upper_line) ? 1 : 0, "DW upper searching (1=post-reset)", display = display.data_window)
