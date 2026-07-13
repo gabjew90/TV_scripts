@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.30.0", shorttitle = "JOB0.30", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.32.0", shorttitle = "JOB0.32", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.30.0"
+SCRIPT_V = "0.32.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -138,6 +138,14 @@ var array<bool> bear_fvg_mit   = array.new<bool>()
 // already inside it; that birth overlap used to consume the once-per-box sweep
 // on an often-ineligible walk-back — NEAR.P 1h Jul-8-2026). The sweep is now
 // the first LATER candle to enter the zone.
+// v0.32.0: detection lands on the PATTERN'S OWN COMPLETING CLOSE — the
+// confirmed bar itself is the third candle (`low > high[2]` / `high < low[2]`),
+// not the bar after it (VVV.P 1D Jul-11-2026: the user rightly expected the
+// gap at yesterday's close, not tonight's). Same gap, same boundaries, one bar
+// earlier, still zero-repaint (the whole block is close-gated). The creation
+// candle is now the completing candle; the NEXT bar is the first eligible
+// sweeper. (The 4-TF DW latch below keeps the old [1]/[3] offsets — it is
+// un-gated and would repaint intrabar otherwise; display only.)
 bool  bull_fvg_touched = false         // price FIRST entered a bull FVG this bar → arms the demand relocation (fires once per box)
 bool  bear_fvg_touched = false
 bool  bull_new_fvg     = false         // v0.22.0: a new bull FVG confirmed THIS bar → resets an established demand line (v0.30.0: unconditionally)
@@ -159,16 +167,16 @@ if barstate.isconfirmed and active
                 box.set_extend(b, extend.none)
                 array.set(bear_fvg_mit, i, true)
                 bear_fvg_touched := true
-    if low[1] > high[3]                 // THEN detect: new bull FVG (support gap): [high[3] .. low[1]] — untouchable until the next bar
+    if low > high[2]                    // THEN detect at THIS confirmed close: new bull FVG (support gap): [high[2] .. low] — untouchable until the next bar
         bull_new_fvg     := true
-        array.push(bull_fvg_boxes, box.new(bar_index - 2, low[1], bar_index, high[3], border_width = 0, bgcolor = color.new(color.green, 78), extend = extend.right))
+        array.push(bull_fvg_boxes, box.new(bar_index - 1, low, bar_index, high[2], border_width = 0, bgcolor = color.new(color.green, 78), extend = extend.right))
         array.push(bull_fvg_mit, false)
         if array.size(bull_fvg_boxes) > 5   // keep only the last 5 FORMED (mitigated ones still count)
             box.delete(array.shift(bull_fvg_boxes))
             array.shift(bull_fvg_mit)
-    if high[1] < low[3]                 // new bear FVG (resistance gap): [high[1] .. low[3]]
+    if high < low[2]                    // new bear FVG (resistance gap): [high .. low[2]]
         bear_new_fvg     := true
-        array.push(bear_fvg_boxes, box.new(bar_index - 2, low[3], bar_index, high[1], border_width = 0, bgcolor = color.new(color.red, 78), extend = extend.right))
+        array.push(bear_fvg_boxes, box.new(bar_index - 1, low[2], bar_index, high, border_width = 0, bgcolor = color.new(color.red, 78), extend = extend.right))
         array.push(bear_fvg_mit, false)
         if array.size(bear_fvg_boxes) > 5
             box.delete(array.shift(bear_fvg_boxes))
