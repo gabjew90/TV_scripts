@@ -1,43 +1,55 @@
 //@version=6
-indicator("Jamal OB v0.32.0", shorttitle = "JOB0.32", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.33.0", shorttitle = "JOB0.33", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.32.0"
+SCRIPT_V = "0.33.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
 start_ts     = input.time(timestamp("1 Jul 2023 00:00 +0000"), "State start date",
      tooltip = "The OB state machine ignores all bars before this date: no sweeps fire and walk-backs clamp here. Default = ~3 years back; symbols younger than that simply start at their first bar. Caps how stale a line can be. NOTE: if a device loads less history than this (e.g. mobile), the lines can differ across devices — tighten the date if that matters.")
 
-// ════════════════ Bullish walk-back (lower line = open_R) ════════════════
-// From the anchor bar at offset s0 (the sweep candle if it is RED; the bar
-// BEFORE it if the sweep candle is green), walk backward over the contiguous
-// down-leg. Returns [open_R, leg_hi]:
-//   open_R = highest red open in the leg (the demand line level; when the
-//            anchor is red it may be the anchor's own open),
-//   leg_hi = swing high over [stop-candle .. s0] (the leg-origin / BOS level:
-//            a close through it re-enables sweep-driven relocation).
+// ════════════════ Vocabulary (v0.33.0) ════════════════
+// ORIGIN  — the candle that starts the down series; its open is the line.
+// TRIGGER — any candle that fires a walk-back. Three trigger events, ALWAYS
+//           armed (no established/search states, no resets — all removed):
+//             1. BOTTOM SWEEP — price trades below the current series' lowest
+//                low (the guard). Intrabar; this is the lower-low chain.
+//             2. PIVOT SWEEP — a red candle takes out the most recent
+//                CONFIRMED 3-candle swing low. One-shot per swing (a swept
+//                swing is consumed once a placement succeeds off it).
+//             3. FVG SWEEP — the first later candle to enter a bull gap
+//                (one-shot per zone; a zone cannot be swept by the candle
+//                that creates it — v0.28.0).
+// BOTTOM  — the walked series' lowest low; stored as the GUARD. Sweeping the
+//           guard (not the Trigger candle's own wick — v0.33.0 placement
+//           guard fix) is what makes the next candle a new Trigger.
+// The line is simply the walk-back of the most recent Trigger: it moves ONLY
+// when a new Trigger fires, and only if the walk-back finds a real down-series
+// behind it (else the line holds). Bear side is the exact high↔low mirror.
+
+// ════════════════ Bullish walk-back (lower line = Origin's open) ════════════════
+// From the anchor bar at offset s0 (the Trigger candle if it is RED; the bar
+// BEFORE it if the Trigger is green), walk backward over the contiguous
+// down-leg. Returns [open_R, leg_lo]:
+//   open_R = highest red open in the leg (the Origin's open = the line; when
+//            the anchor is red it may be the anchor's own open),
+//   leg_lo = lowest low over [stop-candle .. s0] (the series BOTTOM → guard).
 // v0.17.0 3-CANDLE STOP rule (16-permutation table + inside-candle edge-case
 // pass; real legs VVV / SOL 8h / SOL 1W): reds are in-leg (running max of red
 // opens). At a GREEN counter G with OLDER neighbour L (bar i+1) and NEWER
-// neighbour R (bar i-1, toward the sweep):
+// neighbour R (bar i-1, toward the Trigger):
 //   STOP iff  G.high > L.high  OR  ( R.high > G.high  AND  G.low is NOT between
 //   L.low and R.low ) — R rises above G while G's low sits OUTSIDE the L–R low
 //   band (i.e. R ENGULFS G, or G is a swing low). Else PAUSE, keep walking.
-// In inside-bar terms: an inside candle walks through UNLESS the newer R engulfs
-// it (bigger on both sides). v0.29.0 (12-case colour×sweep doji quiz): a FLAT
-// doji (close == open) follows the SAME 3-candle rule as a green — it no longer
-// auto-stops. Tiny red/green bodies were confirmed to belong to their colour's
-// path. v0.17.0 note: G.low-vs-L (c) is NOT irrelevant after all — the
-// inside-candle pass flipped perms #13 (R engulfs → STOP) and #14 (R merely
-// above → CONTINUE). Bear side is the exact mirror.
+// v0.29.0: a FLAT doji (close == open) follows the same rule as a green.
 f_walkback_bull(int maxlb, int s0, int t0) =>
     float best_open = close[s0] < open[s0] ? open[s0] : na   // seed R only if anchor bar is red
-    float leg_hi    = high[s0]
+    float leg_lo    = low[s0]
     for i = s0 + 1 to s0 + maxlb
         if time[i] < t0
-            break                                   // determinism clamp: never walk before the start date (v0.27.0: the walk sees the FULL leg — resets no longer clamp it)
-        leg_hi := math.max(leg_hi, high[i])         // BOS extreme includes every scanned bar, incl. the stop-candle
+            break                                   // determinism clamp: never walk before the start date
+        leg_lo := math.min(leg_lo, low[i])          // series BOTTOM includes every scanned bar, incl. the stop-candle
         if close[i] < open[i]                        // red → in leg
             best_open := na(best_open) ? open[i] : math.max(best_open, open[i])
             continue
@@ -48,27 +60,21 @@ f_walkback_bull(int maxlb, int s0, int t0) =>
         if close[i] >= open[i] and not a_hi and (b_hi or (c_lo != d_lo))
             continue                                // green/doji pass-through: not a local top; pokes above R OR its low is BETWEEN the two lows → keep walking
         break                                       // green/doji STOPS: local top (high>L), OR R above it with its low OUTSIDE the L–R low band (R engulfs / swing low)
-    [best_open, leg_hi]
+    [best_open, leg_lo]
 
-// ════════════════ Bearish walk-back (upper line = open_R) ════════════════
-// Mirror: anchor at s0 (the sweep candle if GREEN; the bar before if red).
-// Returns [open_R, leg_lo]: open_R = lowest green open (supply line);
-// leg_lo = swing low over [stop-candle .. s0] (bearish BOS level).
-// v0.17.0 3-CANDLE STOP rule — EXACT MIRROR of the bull side (high↔low). Greens
-// are in-leg (running min of green opens). At a RED counter with OLDER neighbour
-// L (bar i+1) and NEWER neighbour R (bar i-1, toward the sweep):
-//   STOP iff  RED.low < L.low  OR  ( R.low < RED.low  AND  RED.high is NOT
-//   between L.high and R.high ) — R drops below the red while the red's high is
-//   OUTSIDE the L–R high band (R engulfs the red, or a swing high). Else PAUSE.
-// v0.29.0: a FLAT doji follows the same 3-candle rule as the red counter (no
-// auto-stop) — exact mirror of the bull-side doji calibration.
+// ════════════════ Bearish walk-back (upper line = Origin's open) ════════════════
+// Mirror: anchor at s0 (the Trigger candle if GREEN; the bar before if red).
+// Returns [open_R, leg_hi]: open_R = lowest green open (supply line);
+// leg_hi = highest high over [stop-candle .. s0] (the series TOP → guard).
+// v0.17.0 3-CANDLE STOP rule — EXACT MIRROR of the bull side (high↔low).
+// v0.29.0: a FLAT doji follows the same rule as the red counter.
 f_walkback_bear(int maxlb, int s0, int t0) =>
     float best_open = close[s0] > open[s0] ? open[s0] : na   // seed R only if anchor bar is green
-    float leg_lo    = low[s0]
+    float leg_hi    = high[s0]
     for i = s0 + 1 to s0 + maxlb
         if time[i] < t0
-            break                                   // determinism clamp: never walk before the start date (v0.27.0: the walk sees the FULL leg — resets no longer clamp it)
-        leg_lo := math.min(leg_lo, low[i])          // BOS extreme includes every scanned bar, incl. the stop-candle
+            break                                   // determinism clamp: never walk before the start date
+        leg_hi := math.max(leg_hi, high[i])         // series TOP includes every scanned bar, incl. the stop-candle
         if close[i] > open[i]                        // green → in leg
             best_open := na(best_open) ? open[i] : math.min(best_open, open[i])
             continue
@@ -79,79 +85,35 @@ f_walkback_bear(int maxlb, int s0, int t0) =>
         if close[i] <= open[i] and not a_lo and (b_lo or (c_hi != d_hi))
             continue                                // red/doji pass-through: not a local bottom; R drops below it OR its high is BETWEEN the two highs → keep walking
         break                                       // red/doji STOPS: local bottom (low<L), OR R below it with high OUTSIDE the L–R high band (R engulfs / swing high)
-    [best_open, leg_lo]
+    [best_open, leg_hi]
 
-// ════════════════ Line state (v0.23.0 — symmetric lifecycle: START → relocate → RESET) ════════════════
-// Both lines follow the SAME rule (bull = demand/lower; bear = supply/upper is
-// the high↔low mirror). Lifecycle per side:
-//   START (no line / post-reset), whichever fires first:
-//       (a) the first counter-colour candle to take out the most recent
-//           CONFIRMED 3-candle swing (red sweeping a swing LOW for demand /
-//           green sweeping a swing HIGH for supply), or
-//       (b) price ENTERS a chart-TF FVG on that side (`*_fvg_touched` — the
-//           same event that caps the drawn zone; confirmed-bar only).
-//       Either anchors the walk-back that places the line.
-//   RELOCATE (line established): ONLY when its anchor extreme is violated — a
-//       low below `bull_anchor_low` / a high above `bear_anchor_high`
-//       (INTRABAR). v0.25.0: FVG entry no longer moves an ESTABLISHED line —
-//       it only ends a search.
-//   RESET (v0.30.0): ANY new confirmed FVG on the line's side (bull FVG for
-//       demand / bear FVG for supply) — no position test; the gap forming IS
-//       the fresh-structure signal (ZEC.P 1W: the supply line stranded at 40.38
-//       below a 775 rally could never reset under the old any-part-BEYOND
-//       geometry, because every bear gap formed above it). Re-arms the START
-//       search: the line keeps drawing at its level; the search EPOCH bumps to
-//       the reset bar (epoch gates ONLY the swing tracker; walk-backs walk the
-//       FULL leg, clamped at the start date alone). (v0.26.0 removed the
-//       bright-touch reset — a touch is colour-only.)
-// On a trigger it runs the walk-back from the current bar (or the bar before, if
-// the current bar is the wrong colour to seed the leg) and moves the line to the
-// resulting OB open — but ONLY if the walk-back returns a real level (a genuine
-// down-series behind a demand entry / up-series behind a supply entry). Empty
-// walk-back → the line holds.
-// Brightness is COLOUR ONLY now — no freeze, no trail, no BOS-sweep (all removed
-// across v0.19/v0.20): BRIGHT = reclaimed (a confirmed close beyond the line on a
-// later bar) and not retested since; the first touch dulls it until the next
-// relocation. In a sustained one-way move the walk-back returns the leg origin,
-// so the line parks at the top/bottom of the move until price re-enters a FRESHER
-// FVG deeper in — that later gap is what steps the line back toward price.
-bool active = time >= start_ts                       // state machine is dead before the start date
+// ════════════════ State ════════════════
+bool active = time >= start_ts                       // machine is dead before the start date
 
-var float lower_line       = na
-var float upper_line       = na
-var float bull_anchor_low  = na    // low currently holding lower_line (a low below it = relocate)
-var float bull_bos         = na    // bullish leg-origin (info: swing high of the walk-back leg)
-var float bear_anchor_high = na    // high currently holding upper_line
-var float bear_bos         = na
+var float lower_line    = na
+var float upper_line    = na
+var float bull_guard_lo = na       // the series BOTTOM from the last placement — trading below it = new Trigger (chain)
+var float bear_guard_hi = na       // the series TOP — trading above it = new Trigger
 var bool  bull_touched      = false   // level retested from above (latched until reloc; colour only)
 var bool  bull_closed_above = false   // level reclaimed (armed; colour only)
 var bool  bear_touched      = false
 var bool  bear_closed_below = false
-var array<box>  bull_fvg_boxes = array.new<box>()    // v0.19.0: light-green support gaps (feed the demand line's FVG-entry trigger)
-var array<bool> bull_fvg_mit   = array.new<bool>()   // v0.20.2: parallel — has box[i] been mitigated (capped, no longer extends)?
+var array<box>  bull_fvg_boxes = array.new<box>()    // light-green support gaps (feed the FVG-sweep trigger)
+var array<bool> bull_fvg_mit   = array.new<bool>()   // parallel — has box[i] been swept (capped, no longer extends)?
 var array<box>  bear_fvg_boxes = array.new<box>()    // light-red resistance gaps
 var array<bool> bear_fvg_mit   = array.new<bool>()
 
-// ════════════════ FVG zones (chart TF) — last 5 FORMED per side, shaded fill only (no border); on mitigation the box is CAPPED at the mitigating candle (kept, not deleted) ════════════════
+// ════════════════ FVG zones (chart TF) — last 5 FORMED per side, shaded fill only; a swept zone is CAPPED at the sweeping candle (kept, not deleted) ════════════════
 // v0.28.0: MITIGATION RUNS BEFORE DETECTION — a zone cannot be swept by the
-// candle that CREATES it (a gap often confirms with the forming candle's wick
-// already inside it; that birth overlap used to consume the once-per-box sweep
-// on an often-ineligible walk-back — NEAR.P 1h Jul-8-2026). The sweep is now
-// the first LATER candle to enter the zone.
+// candle that CREATES it; the sweep is the first LATER candle to enter it.
 // v0.32.0: detection lands on the PATTERN'S OWN COMPLETING CLOSE — the
-// confirmed bar itself is the third candle (`low > high[2]` / `high < low[2]`),
-// not the bar after it (VVV.P 1D Jul-11-2026: the user rightly expected the
-// gap at yesterday's close, not tonight's). Same gap, same boundaries, one bar
-// earlier, still zero-repaint (the whole block is close-gated). The creation
-// candle is now the completing candle; the NEXT bar is the first eligible
-// sweeper. (The 4-TF DW latch below keeps the old [1]/[3] offsets — it is
-// un-gated and would repaint intrabar otherwise; display only.)
-bool  bull_fvg_touched = false         // price FIRST entered a bull FVG this bar → arms the demand relocation (fires once per box)
-bool  bear_fvg_touched = false
-bool  bull_new_fvg     = false         // v0.22.0: a new bull FVG confirmed THIS bar → resets an established demand line (v0.30.0: unconditionally)
-bool  bear_new_fvg     = false         // v0.23.0 mirror: a new bear FVG confirmed THIS bar → resets an established supply line
+// confirmed bar itself is the third candle (`low > high[2]` / `high < low[2]`).
+// Same gap, same boundaries, zero-repaint (the block is close-gated). (The
+// 4-TF DW latch below keeps the old [1]/[3] offsets — un-gated, display only.)
+bool bull_fvg_touched = false          // price FIRST entered a bull FVG this bar → FVG-sweep Trigger (fires once per zone)
+bool bear_fvg_touched = false
 if barstate.isconfirmed and active
-    if array.size(bull_fvg_boxes) > 0   // mitigate FIRST: on the first touch (low ≤ zone top) cap the box at this candle + stop extending; keep it drawn
+    if array.size(bull_fvg_boxes) > 0   // sweep check FIRST: on the first touch (low ≤ zone top) cap the box at this candle + stop extending
         for i = 0 to array.size(bull_fvg_boxes) - 1
             box b = array.get(bull_fvg_boxes, i)
             if not array.get(bull_fvg_mit, i) and low <= box.get_top(b)
@@ -159,7 +121,7 @@ if barstate.isconfirmed and active
                 box.set_extend(b, extend.none)
                 array.set(bull_fvg_mit, i, true)
                 bull_fvg_touched := true
-    if array.size(bear_fvg_boxes) > 0   // mitigate FIRST: on the first touch (high ≥ zone bottom) cap the box at this candle + stop extending; keep it drawn
+    if array.size(bear_fvg_boxes) > 0
         for i = 0 to array.size(bear_fvg_boxes) - 1
             box b = array.get(bear_fvg_boxes, i)
             if not array.get(bear_fvg_mit, i) and high >= box.get_bottom(b)
@@ -167,114 +129,66 @@ if barstate.isconfirmed and active
                 box.set_extend(b, extend.none)
                 array.set(bear_fvg_mit, i, true)
                 bear_fvg_touched := true
-    if low > high[2]                    // THEN detect at THIS confirmed close: new bull FVG (support gap): [high[2] .. low] — untouchable until the next bar
-        bull_new_fvg     := true
+    if low > high[2]                    // THEN detect at THIS confirmed close: new bull FVG [high[2] .. low] — untouchable until the next bar
         array.push(bull_fvg_boxes, box.new(bar_index - 1, low, bar_index, high[2], border_width = 0, bgcolor = color.new(color.green, 78), extend = extend.right))
         array.push(bull_fvg_mit, false)
-        if array.size(bull_fvg_boxes) > 5   // keep only the last 5 FORMED (mitigated ones still count)
+        if array.size(bull_fvg_boxes) > 5   // keep only the last 5 FORMED (swept ones still count)
             box.delete(array.shift(bull_fvg_boxes))
             array.shift(bull_fvg_mit)
-    if high < low[2]                    // new bear FVG (resistance gap): [high .. low[2]]
-        bear_new_fvg     := true
+    if high < low[2]                    // new bear FVG [high .. low[2]]
         array.push(bear_fvg_boxes, box.new(bar_index - 1, low[2], bar_index, high, border_width = 0, bgcolor = color.new(color.red, 78), extend = extend.right))
         array.push(bear_fvg_mit, false)
         if array.size(bear_fvg_boxes) > 5
             box.delete(array.shift(bear_fvg_boxes))
             array.shift(bear_fvg_mit)
 
-// Bullish (lower / demand) — v0.25.0 lifecycle.
-// START (no line / post-reset), whichever fires first:
-//   (a) the first RED candle whose low takes out the most recent CONFIRMED
-//       3-candle swing low (a low below BOTH neighbours; confirms one bar
-//       later) — the trigger reads the swing low AS IT STOOD coming into the
-//       bar, so a bar that takes out the old swing while confirming a new
-//       lower one still fires; or
-//   (b) price ENTERS a bull FVG (bull_fvg_touched; v0.25.0 — moved here from
-//       the relocation triggers).
-// Either is the anchor candle — the normal walk-back runs from it and places
-// the line. Confirmed-bar.
-// RESET (v0.22.0; v0.23.0 dropped the bright precondition; v0.26.0 removed the
-// v0.24.0 bright-touch trigger; v0.27.0 loosened to any-part-above; v0.30.0
-// dropped the geometry test entirely — ZEC.P 1W showed a supply line stranded
-// BELOW a 775 rally whose bear gaps all formed above it, unreachable forever).
-// An established line resets — re-arms the start search — when ANY new bull
-// FVG confirms, wherever it sits relative to the line.
-// On reset the line KEEPS DRAWING at its level (colour logic keeps running),
-// but the anchor clears (the wick trigger goes dormant), the swing tracker
-// clears, and the search EPOCH bumps to the reset bar — new swing lows only
-// count from here. v0.27.0: the WALK-BACK is NOT epoch-clamped — it walks the
-// full contiguous leg (start-date clamp only); HYPE 1D May-26-2026 now lands at
-// 62.79 (May-25's open) instead of being chopped at the reset bar. The search
-// ends on START (a) or (b) — the reset-causing FVG itself is a natural target:
-// price retracing into it ends the search and lands the line at the new demand.
-// v0.28.0: a zone cannot be swept by its own creation candle — the sweep is the
-// first LATER candle to enter it (mitigation runs before detection).
-// RELOCATION (line established): ONLY the anchor-low wick (intrabar). v0.25.0
-// removed the FVG-entry relocation — while a line stands, gaps getting filled
-// below/through it no longer move it. Bright-freeze/BOS-sweep/trail removed;
-// `bull_bos` kept only as an info leg-high.
-var float bull_swing_low = na           // most recent confirmed 3-candle swing low (bootstrap reference)
-var int   bull_seek_from = start_ts     // search epoch: swing-low tracking restarts here (bumped by a reset; does NOT clamp walk-backs)
-bool bull_prev_touched = bull_touched   // colour only
-bool bull_reset = active and barstate.isconfirmed and not na(bull_anchor_low) and bull_new_fvg
-var int bull_reset_n = 0                // lifetime reset count (DW diagnostic)
-if bull_reset
-    bull_anchor_low := na               // line holds its level but goes into SEARCH state
-    bull_bos        := na
-    bull_swing_low  := na               // swing search restarts…
-    bull_seek_from  := time             // …from this bar (epoch bump)
-    bull_reset_n    += 1
-bool bull_wick  = active and not na(bull_anchor_low) and low < bull_anchor_low   // MOVE: new anchor low (the only established-line trigger)
-bool bull_boot  = active and barstate.isconfirmed and na(bull_anchor_low) and close < open and not na(bull_swing_low) and low < bull_swing_low   // START (a): first red candle to take out the last swing low
-bool bull_start_fvg = active and na(bull_anchor_low) and bull_fvg_touched        // START (b): bull-FVG entry ends the search (v0.25.0 — no longer moves an established line)
-if barstate.isconfirmed and low[1] < low[2] and low[1] < low and time[1] >= bull_seek_from
-    bull_swing_low := low[1]            // updated AFTER the boot check (trigger reads the incoming swing state)
-bool bull_reloc = active and (bull_wick or bull_boot or bull_start_fvg)
+// ════════════════ Bullish (lower / demand) — v0.33.0 stateless Trigger model ════════════════
+// Three always-armed Triggers (see Vocabulary). Any of them → walk-back from
+// the Trigger candle (or the bar before, if it is the wrong colour to seed the
+// leg) → the line moves to the Origin's open — ONLY if the walk finds a real
+// down-series behind the entry (else the line holds). The GUARD becomes the
+// walked series' BOTTOM (min of the leg's lows and the Trigger candle's own
+// low) — v0.33.0: no more hollow re-Triggers off the old Trigger's wick.
+var float bull_swing_low   = na        // most recent confirmed 3-candle swing low (pivot-sweep reference)
+var bool  bull_swing_swept = false     // one-shot: a swing is consumed once a placement succeeds off it
+bool bull_prev_touched = bull_touched  // colour only
+bool bull_wick  = active and not na(bull_guard_lo) and low < bull_guard_lo   // Trigger 1: BOTTOM sweep (intrabar chain)
+bool bull_pivot = active and barstate.isconfirmed and not bull_swing_swept and close < open and not na(bull_swing_low) and low < bull_swing_low   // Trigger 2: PIVOT sweep
+if barstate.isconfirmed and low[1] < low[2] and low[1] < low and time[1] >= start_ts
+    bull_swing_low   := low[1]         // updated AFTER the pivot check (the Trigger reads the incoming swing state)
+    bull_swing_swept := false
+bool bull_reloc = active and (bull_wick or bull_pivot or bull_fvg_touched)   // Trigger 3: FVG sweep
 bool bull_did_reloc = false
 if bull_reloc
     int s0b = close < open ? 0 : 1
-    [oRb, swb] = f_walkback_bull(max_lookback, s0b, start_ts)
-    if not na(oRb)                      // eligible only if the walk-back finds a real demand (a down-series behind the entry)
-        lower_line      := oRb
-        bull_anchor_low := low
-        bull_bos        := swb
-        bull_did_reloc  := true
+    [oRb, wlo] = f_walkback_bull(max_lookback, s0b, start_ts)
+    if not na(oRb)                     // eligible only if the walk-back finds a real demand (a down-series behind the entry)
+        lower_line    := oRb
+        bull_guard_lo := math.min(low, wlo)
+        bull_did_reloc := true
+if bull_pivot and bull_did_reloc
+    bull_swing_swept := true           // consume the swing only when a placement actually happened (v0.28 lesson)
 
-// Bearish (upper / supply) — v0.30.0: EXACT MIRROR of the bull side (high↔low),
-// full lifecycle. START (no line / post-reset), whichever first: (a) the first
-// GREEN candle whose high takes out the most recent CONFIRMED 3-candle swing
-// high (a high above BOTH neighbours; confirms one bar later), or (b) price
-// ENTERS a bear FVG (bear_fvg_touched; cannot be swept by its creation candle)
-// — either anchors the walk-back. RESET (v0.30.0): ANY new confirmed bear FVG
-// — no position test — re-arms the search; line holds its level, epoch bumps
-// (epoch gates only the swing tracker; walk-backs see the full leg).
-// RELOCATION (line established): ONLY the anchor-high wick (intrabar).
-var float bear_swing_high = na          // most recent confirmed 3-candle swing high (bootstrap reference)
-var int   bear_seek_from  = start_ts    // search epoch: swing-high tracking restarts here (bumped by a reset; does NOT clamp walk-backs)
-bool bear_prev_touched = bear_touched   // colour only
-bool bear_reset = active and barstate.isconfirmed and not na(bear_anchor_high) and bear_new_fvg
-var int bear_reset_n = 0                // lifetime reset count (DW diagnostic)
-if bear_reset
-    bear_anchor_high := na              // line holds its level but goes into SEARCH state
-    bear_bos         := na
-    bear_swing_high  := na              // swing search restarts…
-    bear_seek_from   := time            // …from this bar (epoch bump)
-    bear_reset_n     += 1
-bool bear_wick  = active and not na(bear_anchor_high) and high > bear_anchor_high   // MOVE: new anchor high (the only established-line trigger)
-bool bear_boot  = active and barstate.isconfirmed and na(bear_anchor_high) and close > open and not na(bear_swing_high) and high > bear_swing_high   // START (a): first green candle to take out the last swing high
-bool bear_start_fvg = active and na(bear_anchor_high) and bear_fvg_touched          // START (b): bear-FVG entry ends the search (v0.25.0 — no longer moves an established line)
-if barstate.isconfirmed and high[1] > high[2] and high[1] > high and time[1] >= bear_seek_from
-    bear_swing_high := high[1]          // updated AFTER the boot check (trigger reads the incoming swing state)
-bool bear_reloc = active and (bear_wick or bear_boot or bear_start_fvg)
+// ════════════════ Bearish (upper / supply) — EXACT MIRROR ════════════════
+var float bear_swing_high   = na       // most recent confirmed 3-candle swing high (pivot-sweep reference)
+var bool  bear_swing_swept  = false
+bool bear_prev_touched = bear_touched  // colour only
+bool bear_wick  = active and not na(bear_guard_hi) and high > bear_guard_hi   // Trigger 1: TOP sweep (intrabar chain)
+bool bear_pivot = active and barstate.isconfirmed and not bear_swing_swept and close > open and not na(bear_swing_high) and high > bear_swing_high   // Trigger 2: PIVOT sweep
+if barstate.isconfirmed and high[1] > high[2] and high[1] > high and time[1] >= start_ts
+    bear_swing_high  := high[1]        // updated AFTER the pivot check
+    bear_swing_swept := false
+bool bear_reloc = active and (bear_wick or bear_pivot or bear_fvg_touched)    // Trigger 3: FVG sweep
 bool bear_did_reloc = false
 if bear_reloc
     int s0s = close > open ? 0 : 1
-    [oRs, sws] = f_walkback_bear(max_lookback, s0s, start_ts)
-    if not na(oRs)                      // eligible only if the walk-back finds a real supply (an up-series behind the entry)
-        upper_line       := oRs
-        bear_anchor_high := high
-        bear_bos         := sws
-        bear_did_reloc   := true
+    [oRs, whi] = f_walkback_bear(max_lookback, s0s, start_ts)
+    if not na(oRs)                     // eligible only if the walk-back finds a real supply (an up-series behind the entry)
+        upper_line    := oRs
+        bear_guard_hi := math.max(high, whi)
+        bear_did_reloc := true
+if bear_pivot and bear_did_reloc
+    bear_swing_swept := true
 
 // ════════════════ Line freshness (render state) ════════════════
 // BRIGHT = reclaimed and not retested since. Green: arms when a bar AFTER the
@@ -307,19 +221,12 @@ color lower_col   = bull_bright ? color.new(color.green, 0) : color.new(color.gr
 color upper_col   = bear_bright ? color.new(color.red, 0)   : color.new(color.red, 60)
 
 // ════════════════ FVG identification (v0.7.0 — state only, NOT drawn) ════════════════
-// 3-candle fair value gap on COMPLETED bars (pattern = bars [3][2][1]; the
-// values are known from the open of the bar after the pattern completes, so
-// detection is stable intrabar and leak-free):
-//   bull: low[1] > high[3]  → gap [bot = high[3] .. top = low[1]]  (support below)
-//   bear: high[1] < low[3]  → gap [bot = high[1] .. top = low[3]]  (resistance above)
-// Four timeframes: the chart's own TF (local call) + D / W / M via
-// request.security with internal [1..3] offsets + lookahead_on (the standard
-// non-repaint idiom). The latest-gap latch lives INSIDE the function (each
-// security context keeps its own `var` state on its own series), so requesting
-// a LOWER timeframe than the chart still returns the current latest gap —
-// detection pulses can't be lost to per-chart-bar sampling. No mitigation
-// tracking, no size filter, no arrays — those come when this feeds the line
-// logic. Exposed in the Data Window only.
+// 3-candle fair value gap latches for the Data Window, four timeframes (chart
+// TF + D / W / M via request.security with internal [1..3] offsets +
+// lookahead_on — the standard non-repaint idiom). The latch lives INSIDE the
+// function (per-security-context var state). NOTE: the DRAWN boxes above
+// detect one bar earlier (at the pattern's own completing close) — this latch
+// keeps the lagged offsets because it is not close-gated. Display only.
 f_fvg_latest() =>
     var float bb = na    // latest bull gap bot / top
     var float bt = na
@@ -339,14 +246,12 @@ f_fvg_latest() =>
 [fvg_m_bull_bot, fvg_m_bull_top, fvg_m_bear_bot, fvg_m_bear_top] = request.security(syminfo.tickerid, "M", f_fvg_latest(), lookahead = barmerge.lookahead_on)
 
 // ════════════════ Render ════════════════
-plot(lower_line, "OB lower (demand open_R)", lower_col, 2, plot.style_stepline)
-plot(upper_line, "OB upper (supply open_R)", upper_col, 2, plot.style_stepline)
+plot(lower_line, "OB lower (demand — Origin's open)", lower_col, 2, plot.style_stepline)
+plot(upper_line, "OB upper (supply — Origin's open)", upper_col, 2, plot.style_stepline)
 plot(bull_bright ? 1 : 0, "DW lower fresh (1=bright)", display = display.data_window)
 plot(bear_bright ? 1 : 0, "DW upper fresh (1=bright)", display = display.data_window)
-plot(na(bull_anchor_low) and not na(lower_line) ? 1 : 0, "DW lower searching (1=post-reset)", display = display.data_window)
-plot(bull_reset_n, "DW lower resets (lifetime)", display = display.data_window)
-plot(na(bear_anchor_high) and not na(upper_line) ? 1 : 0, "DW upper searching (1=post-reset)", display = display.data_window)
-plot(bear_reset_n, "DW upper resets (lifetime)", display = display.data_window)
+plot(bull_guard_lo, "DW lower guard (series bottom)", display = display.data_window)
+plot(bear_guard_hi, "DW upper guard (series top)", display = display.data_window)
 plot(fvg_c_bull_top, "DW FVG chart bull top", display = display.data_window)
 plot(fvg_c_bull_bot, "DW FVG chart bull bot", display = display.data_window)
 plot(fvg_c_bear_top, "DW FVG chart bear top", display = display.data_window)
