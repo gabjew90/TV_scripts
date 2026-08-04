@@ -1,26 +1,34 @@
 //@version=6
-indicator("Jamal OB v0.33.1", shorttitle = "JOB0.33", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.34.0", shorttitle = "JOB0.34", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.33.1"
+SCRIPT_V = "0.34.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
+use_pivot    = input.bool(false, "Pivot-sweep trigger",
+     tooltip = "OFF (default): taking out a confirmed 3-candle swing low/high does NOT move the line — except the very FIRST placement on a chart, which still uses the pivot sweep (otherwise no line could ever appear). ON: pivot sweeps relocate the line at any time (v0.33 behavior).")
+use_fvg      = input.bool(false, "FVG-sweep trigger",
+     tooltip = "OFF (default): touching a fair-value-gap zone does NOT move the line (the zones still draw). ON: the first touch of a gap relocates the line (v0.33 behavior).")
 start_ts     = input.time(timestamp("1 Jul 2023 00:00 +0000"), "State start date",
      tooltip = "The OB state machine ignores all bars before this date: no sweeps fire and walk-backs clamp here. Default = ~3 years back; symbols younger than that simply start at their first bar. Caps how stale a line can be. NOTE: if a device loads less history than this (e.g. mobile), the lines can differ across devices — tighten the date if that matters.")
 
-// ════════════════ Vocabulary (v0.33.0) ════════════════
+// ════════════════ Vocabulary (v0.33.0; v0.34.0 trigger toggles) ════════════════
 // ORIGIN  — the candle that starts the down series; its open is the line.
-// TRIGGER — any candle that fires a walk-back. Three trigger events, ALWAYS
-//           armed (no established/search states, no resets — all removed):
+// TRIGGER — any candle that fires a walk-back. Three trigger events (no
+//           established/search states, no resets — all removed in v0.33):
 //             1. BOTTOM SWEEP — price trades below the current series' lowest
 //                low (the guard). Intrabar; this is the lower-low chain.
+//                ALWAYS ON — by default this is the ONLY way the line moves.
 //             2. PIVOT SWEEP — a red candle takes out the most recent
 //                CONFIRMED 3-candle swing low. One-shot per swing (a swept
 //                swing is consumed once a placement succeeds off it).
+//                v0.34.0: toggle, default OFF — EXCEPT the first placement on
+//                a chart (no guard exists yet, so nothing else can bootstrap).
 //             3. FVG SWEEP — the first later candle to enter a bull gap
 //                (one-shot per zone; a zone cannot be swept by the candle
-//                that creates it — v0.28.0).
+//                that creates it — v0.28.0). v0.34.0: toggle, default OFF
+//                (zones still draw either way).
 // BOTTOM  — the walked series' lowest low; stored as the GUARD. Sweeping the
 //           guard (not the Trigger candle's own wick — v0.33.0 placement
 //           guard fix) is what makes the next candle a new Trigger.
@@ -153,11 +161,11 @@ var float bull_swing_low   = na        // most recent confirmed 3-candle swing l
 var bool  bull_swing_swept = false     // one-shot: a swing is consumed once a placement succeeds off it
 bool bull_prev_touched = bull_touched  // colour only
 bool bull_wick  = active and not na(bull_guard_lo) and low < bull_guard_lo   // Trigger 1: BOTTOM sweep (intrabar chain)
-bool bull_pivot = active and barstate.isconfirmed and not bull_swing_swept and close < open and not na(bull_swing_low) and low < bull_swing_low   // Trigger 2: PIVOT sweep
+bool bull_pivot = active and (use_pivot or na(bull_guard_lo)) and barstate.isconfirmed and not bull_swing_swept and close < open and not na(bull_swing_low) and low < bull_swing_low   // Trigger 2: PIVOT sweep (v0.34.0: toggled — but always allowed for the FIRST placement, when no guard exists yet)
 if barstate.isconfirmed and low[1] < low[2] and low[1] < low and time[1] >= start_ts
     bull_swing_low   := low[1]         // updated AFTER the pivot check (the Trigger reads the incoming swing state)
     bull_swing_swept := false
-bool bull_reloc = active and (bull_wick or bull_pivot or bull_fvg_touched)   // Trigger 3: FVG sweep
+bool bull_reloc = active and (bull_wick or bull_pivot or (use_fvg and bull_fvg_touched))   // Trigger 3: FVG sweep (v0.34.0: toggled, default off)
 bool bull_did_reloc = false
 if bull_reloc
     int s0b = close < open ? 0 : 1
@@ -174,11 +182,11 @@ var float bear_swing_high   = na       // most recent confirmed 3-candle swing h
 var bool  bear_swing_swept  = false
 bool bear_prev_touched = bear_touched  // colour only
 bool bear_wick  = active and not na(bear_guard_hi) and high > bear_guard_hi   // Trigger 1: TOP sweep (intrabar chain)
-bool bear_pivot = active and barstate.isconfirmed and not bear_swing_swept and close > open and not na(bear_swing_high) and high > bear_swing_high   // Trigger 2: PIVOT sweep
+bool bear_pivot = active and (use_pivot or na(bear_guard_hi)) and barstate.isconfirmed and not bear_swing_swept and close > open and not na(bear_swing_high) and high > bear_swing_high   // Trigger 2: PIVOT sweep (v0.34.0: toggled — first placement always allowed)
 if barstate.isconfirmed and high[1] > high[2] and high[1] > high and time[1] >= start_ts
     bear_swing_high  := high[1]        // updated AFTER the pivot check
     bear_swing_swept := false
-bool bear_reloc = active and (bear_wick or bear_pivot or bear_fvg_touched)    // Trigger 3: FVG sweep
+bool bear_reloc = active and (bear_wick or bear_pivot or (use_fvg and bear_fvg_touched))    // Trigger 3: FVG sweep (v0.34.0: toggled, default off)
 bool bear_did_reloc = false
 if bear_reloc
     int s0s = close > open ? 0 : 1
