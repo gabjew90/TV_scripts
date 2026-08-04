@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.33.0", shorttitle = "JOB0.33", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.33.1", shorttitle = "JOB0.33", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.33.0"
+SCRIPT_V = "0.33.1"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -47,8 +47,8 @@ f_walkback_bull(int maxlb, int s0, int t0) =>
     float best_open = close[s0] < open[s0] ? open[s0] : na   // seed R only if anchor bar is red
     float leg_lo    = low[s0]
     for i = s0 + 1 to s0 + maxlb
-        if time[i] < t0
-            break                                   // determinism clamp: never walk before the start date
+        if na(time[i]) or time[i] < t0
+            break                                   // clamp: stop at the start date AND at the chart's first loaded bar (a bar past the edge has na values — folding its na low into leg_lo would wipe out the guard; v0.33.1)
         leg_lo := math.min(leg_lo, low[i])          // series BOTTOM includes every scanned bar, incl. the stop-candle
         if close[i] < open[i]                        // red → in leg
             best_open := na(best_open) ? open[i] : math.max(best_open, open[i])
@@ -72,8 +72,8 @@ f_walkback_bear(int maxlb, int s0, int t0) =>
     float best_open = close[s0] > open[s0] ? open[s0] : na   // seed R only if anchor bar is green
     float leg_hi    = high[s0]
     for i = s0 + 1 to s0 + maxlb
-        if time[i] < t0
-            break                                   // determinism clamp: never walk before the start date
+        if na(time[i]) or time[i] < t0
+            break                                   // clamp: stop at the start date AND at the chart's first loaded bar (v0.33.1 — see bull side)
         leg_hi := math.max(leg_hi, high[i])         // series TOP includes every scanned bar, incl. the stop-candle
         if close[i] > open[i]                        // green → in leg
             best_open := na(best_open) ? open[i] : math.min(best_open, open[i])
