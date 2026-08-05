@@ -17,6 +17,10 @@ Core workflow:
 
 Note: `pine_get_source` can return 200KB+ on complex scripts — avoid unless editing.
 
+# Writing style (all responses, docs, changelogs, comments)
+
+Write in direct, technically accurate, plain English. Avoid melodramatic, flowery, or decorative language. Do not state the obvious or repeat points, but do not skip logical steps — ensure explanations are thorough on the first pass. Avoid unnecessary buzzwords, but use precise domain terminology where accuracy requires it. Eliminate common AI mannerisms: do not overuse em-dashes and semi-colons, and avoid generic transition words (delve, tapestry, crucial, pivotal, furthermore, in conclusion).
+
 # Reference
 
 - Pine Script v6 language reference manual: https://github.com/codenamedevan/pinescriptv6/blob/main/Pine%20Script%20language%20reference%20manual
