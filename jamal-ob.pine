@@ -1,15 +1,13 @@
 //@version=6
-indicator("Jamal OB v0.35.0", shorttitle = "JOB0.35", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.36.0", shorttitle = "JOB0.36", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.35.0"
+SCRIPT_V = "0.36.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
-use_pivot    = input.bool(false, "Pivot-sweep trigger",
-     tooltip = "OFF (default): taking out a confirmed 3-candle swing low/high does NOT move the line. ON: pivot sweeps relocate the line (v0.33 behavior). No longer needed for the first placement — v0.35.0 seeds the guard from the first bar after the start date.")
-use_fvg      = input.bool(false, "FVG-sweep trigger",
-     tooltip = "OFF (default): touching a fair-value-gap zone does NOT move the line (the zones still draw). ON: the first touch of a gap relocates the line (v0.33 behavior).")
+use_combo    = input.bool(false, "Gap+pivot trigger (combined)",
+     tooltip = "OFF (default): the line moves only on new lows (green) / new highs (red). ON: adds one extra trigger, calibrated on the BTC-2023 quizzes. A candle that takes out the most recent confirmed 3-candle swing low is a Trigger only if a bull gap is involved: either that same candle is the FIRST to dip into a gap, or a gap was dipped earlier (since the last placement) and the swept swing formed at or after that dip. Candle colour does not matter. A swing take with no gap does nothing; a gap dip with no swing take does nothing by itself. Bear side is the exact mirror.")
 start_ts     = input.time(timestamp("1 Aug 2022 00:00 +0000"), "State start date",
      tooltip = "The OB state machine ignores all bars before this date: no sweeps fire and walk-backs clamp here. Default = ~4 years back; symbols younger than that simply start at their first bar. Caps how stale a line can be. NOTE: if a device loads less history than this (e.g. mobile), the lines can differ across devices — tighten the date if that matters.")
 
@@ -24,14 +22,22 @@ start_ts     = input.time(timestamp("1 Aug 2022 00:00 +0000"), "State start date
 //                date (its low), so the chain bootstraps itself — at defaults
 //                the line is simply THE WALK-BACK OF THE LOWEST LOW SINCE THE
 //                START DATE (red mirror: the highest high).
-//             2. PIVOT SWEEP — a red candle takes out the most recent
-//                CONFIRMED 3-candle swing low. One-shot per swing (a swept
-//                swing is consumed once a placement succeeds off it).
-//                v0.34.0: toggle, default OFF (v0.35.0: no bootstrap role).
-//             3. FVG SWEEP — the first later candle to enter a bull gap
-//                (one-shot per zone; a zone cannot be swept by the candle
-//                that creates it — v0.28.0). v0.34.0: toggle, default OFF
-//                (zones still draw either way).
+//             2. GAP+PIVOT COMBO (v0.36.0, single toggle, default OFF;
+//                replaces the separate pivot-sweep / FVG-sweep toggles;
+//                calibrated on BTC-1D-2023 tap quizzes, 3 rounds):
+//                a candle that takes out the most recent CONFIRMED 3-candle
+//                swing low is a Trigger only if a bull gap is involved —
+//                  (a) SAME CANDLE: it is also the first candle to dip into
+//                      a gap (Mar-27 / Jun-30 fixtures), OR
+//                  (b) SEQUENCE: a gap was dipped EARLIER (since the last
+//                      placement = the ARM) and the swept swing FORMED AT OR
+//                      AFTER that dip (Sep-24, Oct-11, Apr-24 fixtures;
+//                      Apr-21 must NOT fire — its swing predates the dip).
+//                Candle colour irrelevant (Jun-30 closed green). A swing take
+//                with no gap does nothing (Apr-21/24 without arm, Jan-3-24);
+//                a gap dip with no swing take does nothing by itself
+//                (Sep-21, Oct-3, Apr-17) but sets the ARM. Any successful
+//                placement clears the arm. One-shot per swing and per zone.
 // BOTTOM  — the walked series' lowest low; stored as the GUARD. Sweeping the
 //           guard (not the Trigger candle's own wick — v0.33.0 placement
 //           guard fix) is what makes the next candle a new Trigger.
@@ -160,17 +166,23 @@ if barstate.isconfirmed and active
 // down-series behind the entry (else the line holds). The GUARD becomes the
 // walked series' BOTTOM (min of the leg's lows and the Trigger candle's own
 // low) — v0.33.0: no more hollow re-Triggers off the old Trigger's wick.
-var float bull_swing_low   = na        // most recent confirmed 3-candle swing low (pivot-sweep reference)
+var float bull_swing_low   = na        // most recent confirmed 3-candle swing low
+var int   bull_swing_bar   = na        // bar_index of that swing candle (for the formed-after-the-dip test)
 var bool  bull_swing_swept = false     // one-shot: a swing is consumed once a placement succeeds off it
+var int   bull_arm_bar     = na        // ARM: bar_index of the first gap dip since the last placement (na = unarmed)
 bool bull_prev_touched = bull_touched  // colour only
 if active and na(bull_guard_lo)
-    bull_guard_lo := low               // v0.35.0 seed: first active bar's low starts the record-low chain (no pivot bootstrap needed)
+    bull_guard_lo := low               // v0.35.0 seed: first active bar's low starts the record-low chain
+if use_combo and bull_fvg_touched and na(bull_arm_bar)
+    bull_arm_bar := bar_index          // a gap was dipped: arm the combo (kept until a placement clears it)
 bool bull_wick  = active and not na(bull_guard_lo) and low < bull_guard_lo   // Trigger 1: BOTTOM sweep (intrabar chain)
-bool bull_pivot = active and use_pivot and barstate.isconfirmed and not bull_swing_swept and close < open and not na(bull_swing_low) and low < bull_swing_low   // Trigger 2: PIVOT sweep (v0.34.0: toggled, default off)
+bool bull_sweep = barstate.isconfirmed and not bull_swing_swept and not na(bull_swing_low) and low < bull_swing_low   // takes out the most recent confirmed swing low (any colour — Jun-30 fixture)
+bool bull_combo = active and use_combo and bull_sweep and (bull_fvg_touched or (not na(bull_arm_bar) and bull_swing_bar >= bull_arm_bar))   // Trigger 2: gap involved — same-candle dip, or armed dip with the swing formed at/after it
 if barstate.isconfirmed and low[1] < low[2] and low[1] < low and time[1] >= start_ts
-    bull_swing_low   := low[1]         // updated AFTER the pivot check (the Trigger reads the incoming swing state)
+    bull_swing_low   := low[1]         // updated AFTER the trigger check (the Trigger reads the incoming swing state)
+    bull_swing_bar   := bar_index - 1
     bull_swing_swept := false
-bool bull_reloc = active and (bull_wick or bull_pivot or (use_fvg and bull_fvg_touched))   // Trigger 3: FVG sweep (v0.34.0: toggled, default off)
+bool bull_reloc = active and (bull_wick or bull_combo)
 bool bull_did_reloc = false
 if bull_reloc
     int s0b = close < open ? 0 : 1
@@ -179,21 +191,29 @@ if bull_reloc
         lower_line    := oRb
         bull_guard_lo := math.min(low, wlo)
         bull_did_reloc := true
-if bull_pivot and bull_did_reloc
+if bull_did_reloc
+    bull_arm_bar := na                 // any successful placement clears the arm
+if bull_combo and bull_did_reloc
     bull_swing_swept := true           // consume the swing only when a placement actually happened (v0.28 lesson)
 
 // ════════════════ Bearish (upper / supply) — EXACT MIRROR ════════════════
-var float bear_swing_high   = na       // most recent confirmed 3-candle swing high (pivot-sweep reference)
+var float bear_swing_high   = na       // most recent confirmed 3-candle swing high
+var int   bear_swing_bar    = na
 var bool  bear_swing_swept  = false
+var int   bear_arm_bar      = na       // ARM: bar_index of the first gap dip since the last placement
 bool bear_prev_touched = bear_touched  // colour only
 if active and na(bear_guard_hi)
     bear_guard_hi := high              // v0.35.0 seed: first active bar's high starts the record-high chain
+if use_combo and bear_fvg_touched and na(bear_arm_bar)
+    bear_arm_bar := bar_index
 bool bear_wick  = active and not na(bear_guard_hi) and high > bear_guard_hi   // Trigger 1: TOP sweep (intrabar chain)
-bool bear_pivot = active and use_pivot and barstate.isconfirmed and not bear_swing_swept and close > open and not na(bear_swing_high) and high > bear_swing_high   // Trigger 2: PIVOT sweep (v0.34.0: toggled, default off)
+bool bear_sweep = barstate.isconfirmed and not bear_swing_swept and not na(bear_swing_high) and high > bear_swing_high   // takes out the most recent confirmed swing high (any colour)
+bool bear_combo = active and use_combo and bear_sweep and (bear_fvg_touched or (not na(bear_arm_bar) and bear_swing_bar >= bear_arm_bar))   // Trigger 2: gap involved — mirror
 if barstate.isconfirmed and high[1] > high[2] and high[1] > high and time[1] >= start_ts
-    bear_swing_high  := high[1]        // updated AFTER the pivot check
+    bear_swing_high  := high[1]        // updated AFTER the trigger check
+    bear_swing_bar   := bar_index - 1
     bear_swing_swept := false
-bool bear_reloc = active and (bear_wick or bear_pivot or (use_fvg and bear_fvg_touched))    // Trigger 3: FVG sweep (v0.34.0: toggled, default off)
+bool bear_reloc = active and (bear_wick or bear_combo)
 bool bear_did_reloc = false
 if bear_reloc
     int s0s = close > open ? 0 : 1
@@ -202,7 +222,9 @@ if bear_reloc
         upper_line    := oRs
         bear_guard_hi := math.max(high, whi)
         bear_did_reloc := true
-if bear_pivot and bear_did_reloc
+if bear_did_reloc
+    bear_arm_bar := na
+if bear_combo and bear_did_reloc
     bear_swing_swept := true
 
 // ════════════════ Line freshness (render state) ════════════════
