@@ -1,13 +1,13 @@
 //@version=6
-indicator("Jamal OB v0.36.0", shorttitle = "JOB0.36", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.37.0", shorttitle = "JOB0.37", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.36.0"
+SCRIPT_V = "0.37.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
 use_combo    = input.bool(false, "Gap+pivot trigger (combined)",
-     tooltip = "OFF (default): the line moves only on new lows (green) / new highs (red). ON: adds one extra trigger, calibrated on the BTC-2023 quizzes. A candle that takes out the most recent confirmed 3-candle swing low is a Trigger only if a bull gap is involved: either that same candle is the FIRST to dip into a gap, or a gap was dipped earlier (since the last placement) and the swept swing formed at or after that dip. Candle colour does not matter. A swing take with no gap does nothing; a gap dip with no swing take does nothing by itself. Bear side is the exact mirror.")
+     tooltip = "OFF (default): the line moves only on new lows (green) / new highs (red). ON: adds one extra trigger, calibrated on the BTC-2023 quizzes. A candle that takes out the most recent confirmed 3-candle swing low is a Trigger only if a bull gap is involved: either that same candle is the FIRST to dip into a gap, or a gap was dipped earlier (since the last placement) and the swept swing formed at or after that dip. Candle colour does not matter. A swing take with no gap does nothing; a gap dip with no swing take does nothing by itself. v0.37.0: the whole mechanism runs ONLY while price is above the green line (previous close above it) — it exists to catch a left-behind line up to price, so it is dormant while price is below the line. Bear side is the exact mirror (active only while price is below the red line).")
 start_ts     = input.time(timestamp("1 Aug 2022 00:00 +0000"), "State start date",
      tooltip = "The OB state machine ignores all bars before this date: no sweeps fire and walk-backs clamp here. Default = ~4 years back; symbols younger than that simply start at their first bar. Caps how stale a line can be. NOTE: if a device loads less history than this (e.g. mobile), the lines can differ across devices — tighten the date if that matters.")
 
@@ -38,6 +38,12 @@ start_ts     = input.time(timestamp("1 Aug 2022 00:00 +0000"), "State start date
 //                a gap dip with no swing take does nothing by itself
 //                (Sep-21, Oct-3, Apr-17) but sets the ARM. Any successful
 //                placement clears the arm. One-shot per swing and per zone.
+//                v0.37.0 GATE: the combo (arming AND firing) runs only while
+//                price is ABOVE the line — previous confirmed close above it.
+//                Its purpose is catching a left-behind line up to price; with
+//                price living below the line it is dormant. The gate reads
+//                close[1] because the trigger candle itself may dip through
+//                the line (Sep-24, Oct-11 fixtures closed at/below it).
 // BOTTOM  — the walked series' lowest low; stored as the GUARD. Sweeping the
 //           guard (not the Trigger candle's own wick — v0.33.0 placement
 //           guard fix) is what makes the next candle a new Trigger.
@@ -173,11 +179,12 @@ var int   bull_arm_bar     = na        // ARM: bar_index of the first gap dip si
 bool bull_prev_touched = bull_touched  // colour only
 if active and na(bull_guard_lo)
     bull_guard_lo := low               // v0.35.0 seed: first active bar's low starts the record-low chain
-if use_combo and bull_fvg_touched and na(bull_arm_bar)
+bool bull_px_above = not na(lower_line) and close[1] > lower_line   // v0.37.0 gate: combo runs only while price is ABOVE the line (state coming into the bar)
+if use_combo and bull_px_above and bull_fvg_touched and na(bull_arm_bar)
     bull_arm_bar := bar_index          // a gap was dipped: arm the combo (kept until a placement clears it)
 bool bull_wick  = active and not na(bull_guard_lo) and low < bull_guard_lo   // Trigger 1: BOTTOM sweep (intrabar chain)
 bool bull_sweep = barstate.isconfirmed and not bull_swing_swept and not na(bull_swing_low) and low < bull_swing_low   // takes out the most recent confirmed swing low (any colour — Jun-30 fixture)
-bool bull_combo = active and use_combo and bull_sweep and (bull_fvg_touched or (not na(bull_arm_bar) and bull_swing_bar >= bull_arm_bar))   // Trigger 2: gap involved — same-candle dip, or armed dip with the swing formed at/after it
+bool bull_combo = active and use_combo and bull_px_above and bull_sweep and (bull_fvg_touched or (not na(bull_arm_bar) and bull_swing_bar >= bull_arm_bar))   // Trigger 2: gap involved — same-candle dip, or armed dip with the swing formed at/after it
 if barstate.isconfirmed and low[1] < low[2] and low[1] < low and time[1] >= start_ts
     bull_swing_low   := low[1]         // updated AFTER the trigger check (the Trigger reads the incoming swing state)
     bull_swing_bar   := bar_index - 1
@@ -204,11 +211,12 @@ var int   bear_arm_bar      = na       // ARM: bar_index of the first gap dip si
 bool bear_prev_touched = bear_touched  // colour only
 if active and na(bear_guard_hi)
     bear_guard_hi := high              // v0.35.0 seed: first active bar's high starts the record-high chain
-if use_combo and bear_fvg_touched and na(bear_arm_bar)
+bool bear_px_below = not na(upper_line) and close[1] < upper_line   // v0.37.0 gate: mirror — combo runs only while price is BELOW the red line
+if use_combo and bear_px_below and bear_fvg_touched and na(bear_arm_bar)
     bear_arm_bar := bar_index
 bool bear_wick  = active and not na(bear_guard_hi) and high > bear_guard_hi   // Trigger 1: TOP sweep (intrabar chain)
 bool bear_sweep = barstate.isconfirmed and not bear_swing_swept and not na(bear_swing_high) and high > bear_swing_high   // takes out the most recent confirmed swing high (any colour)
-bool bear_combo = active and use_combo and bear_sweep and (bear_fvg_touched or (not na(bear_arm_bar) and bear_swing_bar >= bear_arm_bar))   // Trigger 2: gap involved — mirror
+bool bear_combo = active and use_combo and bear_px_below and bear_sweep and (bear_fvg_touched or (not na(bear_arm_bar) and bear_swing_bar >= bear_arm_bar))   // Trigger 2: gap involved — mirror
 if barstate.isconfirmed and high[1] > high[2] and high[1] > high and time[1] >= start_ts
     bear_swing_high  := high[1]        // updated AFTER the trigger check
     bear_swing_bar   := bar_index - 1
