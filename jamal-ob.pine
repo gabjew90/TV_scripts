@@ -1,13 +1,13 @@
 //@version=6
-indicator("Jamal OB v0.38.0", shorttitle = "JOB0.38", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.38.2", shorttitle = "JOB0.38", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.38.0"
+SCRIPT_V = "0.38.2"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
 use_fill     = input.bool(false, "Gap close-fill trigger",
-     tooltip = "OFF (default): the line moves only on new lows (green) / new highs (red). ON: adds the CLOSE-FILL trigger, calibrated on the 21-tap BTC-1D walk-back sandbox (2026-08-06): the first candle to CLOSE below the bottom of a bull gap (fully closing the gap - any margin) relocates the green line. Its walk-back stops BEFORE the previous line-moving Trigger candle, so each breakdown starts a fresh leg. Works in both directions (catches a left-behind line up during rallies, steps it down on breakdowns). Dipping into a gap without closing through it does nothing. Bear mirror: first close above a bear gap's top.")
+     tooltip = "OFF (default): the line moves only on new lows (green) / new highs (red). ON: adds the CLOSE-FILL trigger, calibrated on the 21-tap BTC-1D walk-back sandbox (2026-08-06): the first candle to CLOSE below the bottom of a bull gap (fully closing the gap - any margin) relocates the green line via the normal full walk-back. Dipping into a gap without closing through it does nothing. Works in both directions. Bear mirror: first close above a bear gap's top.")
 start_ts     = input.time(timestamp("1 Aug 2022 00:00 +0000"), "State start date",
      tooltip = "The OB state machine ignores all bars before this date: no sweeps fire and walk-backs clamp here. Default = ~4 years back; symbols younger than that simply start at their first bar. Caps how stale a line can be. NOTE: if a device loads less history than this (e.g. mobile), the lines can differ across devices — tighten the date if that matters.")
 
@@ -34,11 +34,13 @@ start_ts     = input.time(timestamp("1 Aug 2022 00:00 +0000"), "State start date
 //                Nov-14, Dec-11-2023 fixtures) and breakdown steps
 //                (Dec-19-2022 fixture). One-shot per zone (on the close-fill,
 //                tracked separately from the visual first-touch cap).
-//                CLAMP (from the Dec-19 fixture, user-chosen 16,768 landing):
-//                a close-fill walk-back stops BEFORE the previous
-//                line-moving Trigger candle — each breakdown starts a fresh
-//                leg. Chain (Trigger 1) walks stay UNCLAMPED (a lower-low's
-//                idempotent full-leg walk must stay silent — Nov-9-2022).
+//                v0.38.2: the walk-back is IDENTICAL for every trigger — the
+//                full v0.17 3-candle-rule walk, never clamped or modified
+//                (user directive: "the walk back logic should never have
+//                changed"). The v0.38.0 previous-Trigger clamp and the
+//                v0.38.1 0.5% threshold are both REVERTED. Known consequence:
+//                the Dec-19-2022 fixture's fill walks to 17,804 (the level
+//                already in force) and the line does not move there.
 // BOTTOM  — the walked series' lowest low; stored as the GUARD. Sweeping the
 //           guard (not the Trigger candle's own wick — v0.33.0 placement
 //           guard fix) is what makes the next candle a new Trigger.
@@ -61,14 +63,12 @@ start_ts     = input.time(timestamp("1 Aug 2022 00:00 +0000"), "State start date
 //   L.low and R.low ) — R rises above G while G's low sits OUTSIDE the L–R low
 //   band (i.e. R ENGULFS G, or G is a swing low). Else PAUSE, keep walking.
 // v0.29.0: a FLAT doji (close == open) follows the same rule as a green.
-f_walkback_bull(int maxlb, int s0, int t0, int stop_bar) =>
+f_walkback_bull(int maxlb, int s0, int t0) =>
     float best_open = close[s0] < open[s0] ? open[s0] : na   // seed R only if anchor bar is red
     float leg_lo    = low[s0]
     for i = s0 + 1 to s0 + maxlb
         if na(time[i]) or time[i] < t0
             break                                   // clamp: stop at the start date AND at the chart's first loaded bar (a bar past the edge has na values — folding its na low into leg_lo would wipe out the guard; v0.33.1)
-        if not na(stop_bar) and bar_index - i <= stop_bar
-            break                                   // v0.38.0: close-fill walks stop BEFORE the previous line-moving Trigger candle (exclusive)
         leg_lo := math.min(leg_lo, low[i])          // series BOTTOM includes every scanned bar, incl. the stop-candle
         if close[i] < open[i]                        // red → in leg
             best_open := na(best_open) ? open[i] : math.max(best_open, open[i])
@@ -88,14 +88,12 @@ f_walkback_bull(int maxlb, int s0, int t0, int stop_bar) =>
 // leg_hi = highest high over [stop-candle .. s0] (the series TOP → guard).
 // v0.17.0 3-CANDLE STOP rule — EXACT MIRROR of the bull side (high↔low).
 // v0.29.0: a FLAT doji follows the same rule as the red counter.
-f_walkback_bear(int maxlb, int s0, int t0, int stop_bar) =>
+f_walkback_bear(int maxlb, int s0, int t0) =>
     float best_open = close[s0] > open[s0] ? open[s0] : na   // seed R only if anchor bar is green
     float leg_hi    = high[s0]
     for i = s0 + 1 to s0 + maxlb
         if na(time[i]) or time[i] < t0
             break                                   // clamp: stop at the start date AND at the chart's first loaded bar (v0.33.1 — see bull side)
-        if not na(stop_bar) and bar_index - i <= stop_bar
-            break                                   // v0.38.0: close-fill walks stop BEFORE the previous line-moving Trigger candle (exclusive)
         leg_hi := math.max(leg_hi, high[i])         // series TOP includes every scanned bar, incl. the stop-candle
         if close[i] > open[i]                        // green → in leg
             best_open := na(best_open) ? open[i] : math.min(best_open, open[i])
@@ -200,7 +198,6 @@ if barstate.isconfirmed and active
 // walk finds a real down-series behind the entry (else the line holds). The
 // GUARD becomes the walked series' BOTTOM (min of the leg's lows and the
 // Trigger candle's own low).
-var int bull_move_bar = na             // bar_index of the last placement that CHANGED the line level — the close-fill walk clamp
 bool bull_prev_touched = bull_touched  // colour only
 if active and na(bull_guard_lo)
     bull_guard_lo := low               // v0.35.0 seed: first active bar's low starts the record-low chain
@@ -209,17 +206,13 @@ bool bull_fill = active and use_fill and bull_fill_evt                      // T
 bool bull_did_reloc = false
 if bull_wick or bull_fill
     int s0b = close < open ? 0 : 1
-    int stopb = bull_fill ? bull_move_bar : na   // fill walks stop before the last line-moving Trigger; chain walks never clamp (idempotent full-leg walks stay silent)
-    [oRb, wlo] = f_walkback_bull(max_lookback, s0b, start_ts, stopb)
+    [oRb, wlo] = f_walkback_bull(max_lookback, s0b, start_ts)
     if not na(oRb)                     // eligible only if the walk-back finds a real demand (a down-series behind the entry)
-        if na(lower_line) or lower_line != oRb
-            bull_move_bar := bar_index
         lower_line    := oRb
         bull_guard_lo := math.min(low, wlo)
         bull_did_reloc := true
 
 // ════════════════ Bearish (upper / supply) — EXACT MIRROR ════════════════
-var int bear_move_bar = na             // bar_index of the last placement that CHANGED the line level
 bool bear_prev_touched = bear_touched  // colour only
 if active and na(bear_guard_hi)
     bear_guard_hi := high              // v0.35.0 seed: first active bar's high starts the record-high chain
@@ -228,11 +221,8 @@ bool bear_fill = active and use_fill and bear_fill_evt                       // 
 bool bear_did_reloc = false
 if bear_wick or bear_fill
     int s0s = close > open ? 0 : 1
-    int stops = bear_fill ? bear_move_bar : na
-    [oRs, whi] = f_walkback_bear(max_lookback, s0s, start_ts, stops)
+    [oRs, whi] = f_walkback_bear(max_lookback, s0s, start_ts)
     if not na(oRs)                     // eligible only if the walk-back finds a real supply (an up-series behind the entry)
-        if na(upper_line) or upper_line != oRs
-            bear_move_bar := bar_index
         upper_line    := oRs
         bear_guard_hi := math.max(high, whi)
         bear_did_reloc := true
