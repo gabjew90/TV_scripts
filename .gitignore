@@ -12,3 +12,6 @@ Thumbs.db
 # Local scratch / outputs
 *.output
 /screenshots/
+
+# Local Claude Code settings
+.claude/

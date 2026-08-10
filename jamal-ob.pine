@@ -1,15 +1,15 @@
 //@version=6
-indicator("Jamal OB v0.39.0", shorttitle = "JOB0.39", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.40.0", shorttitle = "JOB0.40", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.39.0"
+SCRIPT_V = "0.40.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
 use_fill     = input.bool(false, "Gap close-fill trigger",
      tooltip = "OFF (default): the line moves only on new lows (green) / new highs (red). ON: adds the CLOSE-FILL trigger, calibrated on the 21-tap BTC-1D walk-back sandbox (2026-08-06): the first candle to CLOSE below the bottom of a bull gap (fully closing the gap - any margin) relocates the green line via the normal full walk-back. Dipping into a gap without closing through it does nothing. Works in both directions. Bear mirror: first close above a bear gap's top.")
-use_redlit   = input.bool(false, "Red-bright trigger",
-     tooltip = "OFF (default): no effect. ON (v0.39.0): adds a THIRD Trigger to the green line — the bar on which the RED line turns BRIGHT (the first confirmed close below the upper line since its last relocation) fires a normal bull walk-back, exactly like a bottom sweep or a gap close-fill does. Same walk, same guard update, same eligibility rule (the line holds if the walk finds no down-series). One-shot per red-line placement, because the red line can only turn bright once between its own relocations.")
+use_lit      = input.bool(false, "Bright-line trigger",
+     tooltip = "OFF (default): no effect. ON: adds a THIRD Trigger to BOTH lines, mirrored (v0.39.0 shipped the red→green half only, as use_redlit; v0.40.0 renames it and adds the mirror). RED turns BRIGHT (first confirmed close below the upper line since its last relocation) → fires a normal bull walk-back, moving the GREEN line. GREEN turns BRIGHT (first confirmed close above the lower line) → fires a normal bear walk-back, moving the RED line. Same walks, same guard updates, same eligibility rule (a line holds if its walk finds no series). One-shot per line placement, because the reclaim latch only arms once between that line's own relocations. Tie-break when both fire on one bar: red→green resolves first and cancels the green's own lit event.")
 start_ts     = input.time(timestamp("1 Aug 2022 00:00 +0000"), "State start date",
      tooltip = "The OB state machine ignores all bars before this date: no sweeps fire and walk-backs clamp here. Default = ~4 years back; symbols younger than that simply start at their first bar. Caps how stale a line can be. NOTE: if a device loads less history than this (e.g. mobile), the lines can differ across devices — tighten the date if that matters.")
 
@@ -43,15 +43,21 @@ start_ts     = input.time(timestamp("1 Aug 2022 00:00 +0000"), "State start date
 //                v0.38.1 0.5% threshold are both REVERTED. Known consequence:
 //                the Dec-19-2022 fixture's fill walks to 17,804 (the level
 //                already in force) and the line does not move there.
-//             3. RED-BRIGHT (v0.39.0, single toggle, default OFF): the bar on
-//                which the RED line turns BRIGHT — the first confirmed close
-//                below the upper line since that line last relocated — is a
-//                Trigger for the GREEN line. Nothing about the walk changes:
-//                same f_walkback_bull from the Trigger candle (or the bar
-//                before, if green), same guard update, same hold-on-na rule.
-//                One-shot per red-line placement, because bear_closed_below
-//                latches until the next bear relocation. Requires the bear
-//                side to be evaluated first — see EVALUATION ORDER below.
+//             3. BRIGHT-LINE (v0.39.0 red→green; v0.40.0 adds the mirror —
+//                single toggle `use_lit`, default OFF): the bar on which ONE
+//                line turns BRIGHT is a Trigger for the OTHER line.
+//                  RED bright (first confirmed close below the upper line
+//                  since it last relocated) → normal f_walkback_bull → the
+//                  GREEN line moves.
+//                  GREEN bright (first confirmed close above the lower line)
+//                  → normal f_walkback_bear → the RED line moves.
+//                Nothing about either walk changes: same anchor convention
+//                (the Trigger candle, or the bar before if it is the wrong
+//                colour to seed), same guard update, same hold-on-na rule.
+//                One-shot per line placement, because the reclaim latch only
+//                arms once between that line's own relocations. The two are
+//                mutually recursive, so the bar is evaluated in three stages
+//                — see EVALUATION ORDER below.
 // BOTTOM  — the walked series' lowest low; stored as the GUARD. Sweeping the
 //           guard (not the Trigger candle's own wick — v0.33.0 placement
 //           guard fix) is what makes the next candle a new Trigger.
@@ -129,10 +135,13 @@ var bool  bull_touched      = false   // level retested from above (latched unti
 var bool  bull_closed_above = false   // level reclaimed (armed; colour only)
 var bool  bear_touched      = false
 var bool  bear_closed_below = false
-var int   redlit_n       = 0       // v0.39.0 diagnostic: how many times the red line has turned BRIGHT
-var int   redlit_reloc_n = 0       // v0.39.0 diagnostic: how many of those actually moved the green line
-                                   // (redlit was the SOLE trigger AND the walk found a down-series).
-                                   // The gap between the two is the na-rate — the calibration number.
+var int   redlit_n         = 0     // diagnostic: how many times the RED line has turned BRIGHT
+var int   redlit_reloc_n   = 0     // diagnostic: how many of those actually moved the GREEN line
+var int   greenlit_n       = 0     // v0.40.0 mirror: how many times the GREEN line has turned BRIGHT
+var int   greenlit_reloc_n = 0     // v0.40.0 mirror: how many of those actually moved the RED line
+                                   // A *_reloc_n counts only when the bright trigger was the SOLE cause
+                                   // (that side did not already relocate on a sweep/fill this bar) AND the
+                                   // walk found a series. The gap to *_n is the na-rate — the calibration number.
 var array<box>  bull_fvg_boxes = array.new<box>()    // light-green support gaps (visual: last 5, capped on first touch)
 var array<bool> bull_fvg_mit   = array.new<bool>()   // parallel — has box[i] been swept (capped, no longer extends)?
 var array<box>  bear_fvg_boxes = array.new<box>()    // light-red resistance gaps
@@ -206,28 +215,41 @@ if barstate.isconfirmed and active
             array.shift(bear_fill_top)
             array.shift(bear_fill_done)
 
-// ════════════════ EVALUATION ORDER (v0.39.0) ════════════════
-// The BEAR side is now evaluated in full — relocation AND freshness — before
-// the BULL side, because the v0.39.0 red-bright Trigger is produced by the
-// bear freshness block and consumed by the bull relocation block on the SAME
-// bar. The two sides read none of each other's state (the bull block touches
-// only lower_line / bull_guard_lo / bull_touched / bull_closed_above, the bear
-// block only their mirrors), so the swap is order-neutral for every pre-0.39
-// rule: with use_redlit OFF the compiled behaviour is v0.38.2 exactly.
+// ════════════════ EVALUATION ORDER (v0.40.0) ════════════════
+// The two BRIGHT triggers are MUTUALLY RECURSIVE — red-bright feeds the bull
+// walk, green-bright feeds the bear walk, and each side's lit edge is itself
+// gated on whether that side relocated this bar. No single top-to-bottom pass
+// satisfies both. The bar is therefore evaluated in three stages:
+//   PASS 1 — both sides relocate on Triggers 1-2 ONLY (sweep, close-fill).
+//   LIT    — both freshness blocks run, each gated on its OWN side's pass-1
+//            relocation exactly as in every prior version, raising
+//            bear_lit_evt / bull_lit_evt on the arming edge.
+//   PASS 2 — the cross triggers fire: red-bright → bull walk, green-bright →
+//            bear walk. Each is SKIPPED if that side already relocated in
+//            pass 1, and performs its own freshness reset when it lands.
+// The pass-2 skip costs nothing: a walk-back's result depends only on its
+// anchor bar (this bar, or the one before, chosen by candle colour), so a
+// second walk on the same bar would return an identical level. That makes
+// this structure behaviourally identical to v0.39.0 for red→green, and to
+// v0.38.2 whenever use_lit is OFF.
+// TIE-BREAK: if both lines go bright on the same bar, red→green resolves
+// first and CANCELS the green's own lit event — the green line it lit against
+// has just been replaced, so firing off it would be an artifact.
 
-// ════════════════ Bearish (upper / supply) — stateless Trigger model ════════════════
-// Triggers (see Vocabulary): chain TOP sweep + gap CLOSE-FILL. Either →
-// walk-back from the Trigger candle (or the bar before, if it is the wrong
-// colour to seed the leg) → the line moves to the Origin's open — ONLY if the
-// walk finds a real up-series behind the entry (else the line holds). The
-// GUARD becomes the walked series' TOP (max of the leg's highs and the Trigger
-// candle's own high).
-bool bear_prev_touched = bear_touched  // colour only
+bool bull_prev_touched = bull_touched   // colour only — captured before any relocation
+bool bear_prev_touched = bear_touched
+
+// ──────────────── PASS 1: sweep + close-fill, both sides ────────────────
 if active and na(bear_guard_hi)
     bear_guard_hi := high              // v0.35.0 seed: first active bar's high starts the record-high chain
+if active and na(bull_guard_lo)
+    bull_guard_lo := low               // v0.35.0 seed: first active bar's low starts the record-low chain
 bool bear_wick = active and not na(bear_guard_hi) and high > bear_guard_hi   // Trigger 1: TOP sweep (intrabar chain)
 bool bear_fill = active and use_fill and bear_fill_evt                       // Trigger 2: gap CLOSE-FILL (close above a bear zone's top)
+bool bull_wick = active and not na(bull_guard_lo) and low < bull_guard_lo    // Trigger 1: BOTTOM sweep (intrabar chain)
+bool bull_fill = active and use_fill and bull_fill_evt                       // Trigger 2: gap CLOSE-FILL (close below a bull zone's bottom)
 bool bear_did_reloc = false
+bool bull_did_reloc = false
 if bear_wick or bear_fill
     int s0s = close > open ? 0 : 1
     [oRs, whi] = f_walkback_bear(max_lookback, s0s, start_ts)
@@ -235,16 +257,24 @@ if bear_wick or bear_fill
         upper_line    := oRs
         bear_guard_hi := math.max(high, whi)
         bear_did_reloc := true
+if bull_wick or bull_fill
+    int s0b = close < open ? 0 : 1
+    [oRb, wlo] = f_walkback_bull(max_lookback, s0b, start_ts)
+    if not na(oRb)                     // eligible only if the walk-back finds a real demand (a down-series behind the entry)
+        lower_line    := oRb
+        bull_guard_lo := math.min(low, wlo)
+        bull_did_reloc := true
 
-// ════════════════ Bear freshness (render state) ════════════════
-// BRIGHT = reclaimed and not retested since. Red: arms when a bar AFTER the
-// setting bar CONFIRMS a close below the line (the arming bar's pass-through
-// wick doesn't count, nor do pre-reclaim wicks from above). Once armed, the
-// first high back at the line latches "touched" → dull until relocation (no
+// ──────────────── LIT: freshness edges (render state + Trigger 3 source) ────────────────
+// BRIGHT = reclaimed and not retested since. Green: arms when a bar AFTER the
+// setting bar CONFIRMS a close above the line (the arming bar's pass-through
+// wick doesn't count, nor do pre-reclaim wicks from below). Once armed, the
+// first low back at the line latches "touched" → dull until relocation (no
 // re-arm). The FIRST touch bar itself stays bright (colour reads the prior
-// bar's touched state).
-// v0.39.0: the arming edge also raises bear_lit_evt — the red-bright Trigger.
+// bar's touched state). Red: exact mirror.
+// v0.39.0 / v0.40.0: each arming edge also raises that side's *_lit_evt.
 bool bear_lit_evt = false
+bool bull_lit_evt = false
 if bear_did_reloc
     bear_touched      := false
     bear_closed_below := false
@@ -253,34 +283,8 @@ else if not na(upper_line)
         bear_touched := true
     else if not bear_touched and barstate.isconfirmed and close < upper_line
         bear_closed_below := true
-        bear_lit_evt      := true      // v0.39.0 Trigger 3 for the bull side
+        bear_lit_evt      := true
         redlit_n          += 1
-
-// ════════════════ Bullish (lower / demand) — EXACT MIRROR + red-bright Trigger ════════════════
-// Triggers: chain BOTTOM sweep + gap CLOSE-FILL + (v0.39.0) RED-BRIGHT.
-// All three run the SAME f_walkback_bull and the SAME guard update — the
-// red-bright Trigger is an additional entry point, nothing more. It is
-// one-shot per red-line placement by construction: bear_closed_below latches
-// until the next bear relocation, so its arming edge fires exactly once.
-bool bull_prev_touched = bull_touched  // colour only
-if active and na(bull_guard_lo)
-    bull_guard_lo := low               // v0.35.0 seed: first active bar's low starts the record-low chain
-bool bull_wick   = active and not na(bull_guard_lo) and low < bull_guard_lo  // Trigger 1: BOTTOM sweep (intrabar chain)
-bool bull_fill   = active and use_fill and bull_fill_evt                     // Trigger 2: gap CLOSE-FILL (confirmed-bar by construction)
-bool bull_redlit = active and use_redlit and bear_lit_evt                    // Trigger 3: RED turned BRIGHT (confirmed-bar by construction)
-bool bull_did_reloc = false
-if bull_wick or bull_fill or bull_redlit
-    int s0b = close < open ? 0 : 1
-    [oRb, wlo] = f_walkback_bull(max_lookback, s0b, start_ts)
-    if not na(oRb)                     // eligible only if the walk-back finds a real demand (a down-series behind the entry)
-        lower_line    := oRb
-        bull_guard_lo := math.min(low, wlo)
-        bull_did_reloc := true
-        if bull_redlit and not bull_wick and not bull_fill
-            redlit_reloc_n += 1        // v0.39.0 diagnostic: attributable to red-bright alone
-
-// ════════════════ Bull freshness (render state) ════════════════
-// Exact mirror of the bear freshness rule above.
 if bull_did_reloc
     bull_touched      := false
     bull_closed_above := false
@@ -289,6 +293,31 @@ else if not na(lower_line)
         bull_touched := true
     else if not bull_touched and barstate.isconfirmed and close > lower_line
         bull_closed_above := true
+        bull_lit_evt      := true
+        greenlit_n        += 1
+
+// ──────────────── PASS 2: cross (bright-line) triggers ────────────────
+if use_lit and bear_lit_evt and not bull_did_reloc                           // RED bright → move the GREEN line
+    int s0b2 = close < open ? 0 : 1
+    [oRb2, wlo2] = f_walkback_bull(max_lookback, s0b2, start_ts)
+    if not na(oRb2)
+        lower_line        := oRb2
+        bull_guard_lo     := math.min(low, wlo2)
+        bull_did_reloc    := true
+        bull_touched      := false     // relocated → green freshness resets, starts dull
+        bull_closed_above := false
+        bull_lit_evt      := false     // tie-break: the level it lit against is gone
+        redlit_reloc_n    += 1
+if use_lit and bull_lit_evt and not bear_did_reloc                           // GREEN bright → move the RED line
+    int s0s2 = close > open ? 0 : 1
+    [oRs2, whi2] = f_walkback_bear(max_lookback, s0s2, start_ts)
+    if not na(oRs2)
+        upper_line        := oRs2
+        bear_guard_hi     := math.max(high, whi2)
+        bear_did_reloc    := true
+        bear_touched      := false     // relocated → red freshness resets, starts dull
+        bear_closed_below := false
+        greenlit_reloc_n  += 1
 
 bool  bull_bright = bull_closed_above and not bull_prev_touched
 bool  bear_bright = bear_closed_below and not bear_prev_touched
@@ -328,6 +357,9 @@ plot(bear_bright ? 1 : 0, "DW upper fresh (1=bright)", display = display.data_wi
 plot(bear_lit_evt ? 1 : 0, "DW red-lit trigger", display = display.data_window)
 plot(redlit_n, "DW red-lit count (cumulative)", display = display.data_window)
 plot(redlit_reloc_n, "DW red-lit relocations", display = display.data_window)
+plot(bull_lit_evt ? 1 : 0, "DW green-lit trigger", display = display.data_window)
+plot(greenlit_n, "DW green-lit count (cumulative)", display = display.data_window)
+plot(greenlit_reloc_n, "DW green-lit relocations", display = display.data_window)
 plot(bull_guard_lo, "DW lower guard (series bottom)", display = display.data_window)
 plot(bear_guard_hi, "DW upper guard (series top)", display = display.data_window)
 plot(fvg_c_bull_top, "DW FVG chart bull top", display = display.data_window)
