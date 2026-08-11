@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.40.0", shorttitle = "JOB0.40", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.40.1", shorttitle = "JOB0.40", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.40.0"
+SCRIPT_V = "0.40.1"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -13,9 +13,9 @@ use_lit      = input.bool(false, "Bright-line trigger",
 start_ts     = input.time(timestamp("1 Aug 2022 00:00 +0000"), "State start date",
      tooltip = "The OB state machine ignores all bars before this date: no sweeps fire and walk-backs clamp here. Default = ~4 years back; symbols younger than that simply start at their first bar. Caps how stale a line can be. NOTE: if a device loads less history than this (e.g. mobile), the lines can differ across devices — tighten the date if that matters.")
 
-// ════════════════ Vocabulary (v0.33.0; v0.38.0 close-fill trigger) ════════════════
+// ════════════════ Vocabulary (v0.33.0; v0.38.0 close-fill; v0.40.0 bright-line) ════════════════
 // ORIGIN  — the candle that starts the down series; its open is the line.
-// TRIGGER — any candle that fires a walk-back. Two trigger events (no
+// TRIGGER — any candle that fires a walk-back. Three trigger events (no
 //           established/search states, no resets — all removed in v0.33):
 //             1. BOTTOM SWEEP — price trades below the current series' lowest
 //                low (the guard). Intrabar; this is the lower-low chain.
@@ -54,8 +54,10 @@ start_ts     = input.time(timestamp("1 Aug 2022 00:00 +0000"), "State start date
 //                Nothing about either walk changes: same anchor convention
 //                (the Trigger candle, or the bar before if it is the wrong
 //                colour to seed), same guard update, same hold-on-na rule.
-//                One-shot per line placement, because the reclaim latch only
-//                arms once between that line's own relocations. The two are
+//                One-shot per line placement — v0.40.1: this requires the
+//                RISING-EDGE guard (`not *_closed_below/above`) in the LIT
+//                stage. Without it the branch is a level test that re-fires
+//                every confirmed bar beyond the line. The two are
 //                mutually recursive, so the bar is evaluated in three stages
 //                — see EVALUATION ORDER below.
 // BOTTOM  — the walked series' lowest low; stored as the GUARD. Sweeping the
@@ -281,18 +283,21 @@ if bear_did_reloc
 else if not na(upper_line)
     if bear_closed_below and high >= upper_line
         bear_touched := true
-    else if not bear_touched and barstate.isconfirmed and close < upper_line
-        bear_closed_below := true
-        bear_lit_evt      := true
-        redlit_n          += 1
+    else if not bear_closed_below and not bear_touched and barstate.isconfirmed and close < upper_line
+        bear_closed_below := true      // v0.40.1: `not bear_closed_below` makes this a RISING EDGE.
+        bear_lit_evt      := true      // Without it the branch re-fires on EVERY confirmed bar closing
+        redlit_n          += 1         // below the line (harmless pre-0.39 — it only re-set an already-true
+                                       // latch — but v0.39 hung a Trigger on it: SOL 1W fired 26 weeks running
+                                       // because price sat far under a 40.60 line, so `high >= upper_line`
+                                       // never latched bear_touched. Colour behaviour is unchanged.
 if bull_did_reloc
     bull_touched      := false
     bull_closed_above := false
 else if not na(lower_line)
     if bull_closed_above and low <= lower_line
         bull_touched := true
-    else if not bull_touched and barstate.isconfirmed and close > lower_line
-        bull_closed_above := true
+    else if not bull_closed_above and not bull_touched and barstate.isconfirmed and close > lower_line
+        bull_closed_above := true      // v0.40.1 rising-edge guard — exact mirror of the bear side above
         bull_lit_evt      := true
         greenlit_n        += 1
 
