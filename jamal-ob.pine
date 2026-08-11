@@ -1,13 +1,13 @@
 //@version=6
-indicator("Jamal OB v0.41.0", shorttitle = "JOB0.41", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.42.0", shorttitle = "JOB0.42", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.41.0"
+SCRIPT_V = "0.42.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
 use_fill     = input.bool(false, "Gap close-fill trigger",
-     tooltip = "OFF (default): the line moves only on new lows (green) / new highs (red). ON: adds the CLOSE-FILL trigger. A candle that CLOSES below the bottom of a bull gap (fully closing the gap - any margin) relocates the green line via the normal full walk-back. Dipping into a gap without closing through it does nothing. Bear mirror: a close above a bear gap's top moves the red line. v0.41.0 QUEUE: only the NEWEST zone not yet closed through is armed at any time; when it fires, the next-newest becomes armed on the following bar. One bar closing through several stacked zones therefore walks them one per bar instead of firing once for all of them. Side effect: a zone price never closes back through sits at the head of the queue and blocks the older zones behind it.")
+     tooltip = "OFF (default): the line moves only on new lows (green) / new highs (red). ON: adds the CLOSE-FILL trigger. A candle that CLOSES below the bottom of a bull gap (fully closing the gap - any margin) relocates the GREEN line via the normal full walk-back; a close above a bear gap's top relocates the RED line. Dipping into a gap without closing through it does nothing. v0.42.0 OPPOSITE-LINE GATE: each pathway is armed only once price has broken past the OTHER line - the green line's fill trigger requires close ABOVE the red line, the red line's requires close BELOW the green line. Fills that happen while price sits between the two lines do nothing, and do not consume the zone. v0.41.0 QUEUE: only the NEWEST zone not yet closed through is armed at any time; when it fires, the next-newest becomes armed on the following bar.")
 use_lit      = input.bool(false, "Bright-line trigger",
      tooltip = "OFF (default): no effect. ON: adds a THIRD Trigger to BOTH lines, mirrored (v0.39.0 shipped the red→green half only, as use_redlit; v0.40.0 renames it and adds the mirror). RED turns BRIGHT (first confirmed close below the upper line since its last relocation) → fires a normal bull walk-back, moving the GREEN line. GREEN turns BRIGHT (first confirmed close above the lower line) → fires a normal bear walk-back, moving the RED line. Same walks, same guard updates, same eligibility rule (a line holds if its walk finds no series). One-shot per line placement, because the reclaim latch only arms once between that line's own relocations. Tie-break when both fire on one bar: red→green resolves first and cancels the green's own lit event.")
 start_ts     = input.time(timestamp("1 Aug 2022 00:00 +0000"), "State start date",
@@ -41,6 +41,13 @@ start_ts     = input.time(timestamp("1 Aug 2022 00:00 +0000"), "State start date
 //                Replaces "every unmitigated zone armed at once". This CHANGES
 //                the v0.38.0 sandbox calibration surface — see CHANGELOG for
 //                which fixtures were re-checked and which were not.
+//                v0.42.0 OPPOSITE-LINE GATE: each pathway keeps its own-colour
+//                target but is ARMED only once price has broken past the OTHER
+//                line — green gap → green line needs close > upper_line, red
+//                gap → red line needs close < lower_line. A commitment filter:
+//                demand re-anchors only after supply is overcome, supply only
+//                after demand has failed. Fills inside the band do nothing and
+//                do NOT consume the zone (unarmed ≠ spent).
 //                v0.38.2: the walk-back is IDENTICAL for every trigger — the
 //                full v0.17 3-candle-rule walk, never clamped or modified
 //                (user directive: "the walk back logic should never have
@@ -177,6 +184,19 @@ bool bear_fvg_touched = false
 bool bull_fill_evt    = false          // v0.38.0: a candle CLOSED below a bull zone's bottom for the first time → close-fill Trigger
 bool bear_fill_evt    = false
 if barstate.isconfirmed and active
+    // v0.42.0 OPPOSITE-LINE GATE: a gap fill still moves its OWN-colour line (green gap →
+    // green line, red gap → red line, unchanged), but the pathway is ARMED only once price
+    // has broken past the OTHER line:
+    //     green gap filled → green line moves, only while close > upper_line (above the red)
+    //     red   gap filled → red line moves,   only while close < lower_line (below the green)
+    // Read as a commitment filter: demand re-anchors only after supply has been overcome,
+    // supply re-anchors only after demand has failed. Fills inside the band do nothing.
+    // Both lines are read HERE, before PASS 1, so the gate always sees the values coming
+    // INTO the bar — no ordering dependence on which side relocates first (the v0.37.0
+    // convention, which gated on state entering the bar rather than the trigger candle).
+    // A zone is NOT consumed when the gate fails: the pathway is unarmed, so the zone stays
+    // at the head of the queue and can still fire on a later bar once price is in the right
+    // regime AND still closed through the zone.
     // v0.41.0 QUEUE ("reading A"): only the NEWEST unmitigated zone is armed. Scan from the
     // newest end for the first zone not yet closed through; that one, and only that one, can
     // fire this bar. When it does it is marked done and the next-newest becomes armed on the
@@ -191,8 +211,8 @@ if barstate.isconfirmed and active
             if not array.get(bull_fill_done, i)
                 kb := i
                 break
-        if kb >= 0 and close < array.get(bull_fill_bot, kb)
-            array.set(bull_fill_done, kb, true)
+        if kb >= 0 and close < array.get(bull_fill_bot, kb) and not na(upper_line) and close > upper_line
+            array.set(bull_fill_done, kb, true)   // v0.42.0: consumed ONLY when the gate passes
             bull_fill_evt := true
             fill_bull_n   += 1
     if array.size(bear_fill_top) > 0
@@ -201,8 +221,8 @@ if barstate.isconfirmed and active
             if not array.get(bear_fill_done, i)
                 ks := i
                 break
-        if ks >= 0 and close > array.get(bear_fill_top, ks)
-            array.set(bear_fill_done, ks, true)
+        if ks >= 0 and close > array.get(bear_fill_top, ks) and not na(lower_line) and close < lower_line
+            array.set(bear_fill_done, ks, true)   // v0.42.0: consumed ONLY when the gate passes
             bear_fill_evt := true
             fill_bear_n   += 1
     if array.size(bull_fvg_boxes) > 0   // sweep check FIRST: on the first touch (low ≤ zone top) cap the box at this candle + stop extending
