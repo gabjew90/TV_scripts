@@ -1,9 +1,9 @@
 //@version=6
-indicator("Jamal Mono v2.3.0", shorttitle = "JMono2.3", overlay = true,
+indicator("Jamal Mono v2.4.0", shorttitle = "JMono2.4", overlay = false,
      max_boxes_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "2.3.0"
+SCRIPT_V = "2.4.0"
 
 // ════════════════ What this is ════════════════
 // TWO-STAGE grouping, no toggles (v2.3.0):
@@ -27,9 +27,12 @@ SCRIPT_V = "2.3.0"
 // The renderer handles that by re-drawing the affected boxes in place. Nothing
 // looks ahead; Pine's rollback handles intrabar flips.
 //
-// VISUAL: each final mono spanning 2+ bars is drawn AS A CANDLE over the price
-// chart — translucent body box (open..close), centre wick line (high..low),
-// coloured by the final mono's live direction. Single-bar finals are not drawn.
+// VISUAL: each final mono spanning 2+ bars is drawn AS A CANDLE in this
+// indicator's own pane below the chart (v2.4.0) — translucent body box
+// (open..close), centre wick line (high..low), coloured by the final mono's
+// live direction. Single-bar finals are not drawn. The pane shares the bar
+// axis with the chart; two invisible high/low plots anchor its price scale,
+// since boxes and lines do not participate in pane autoscaling.
 //
 // DRAWING LIMIT: 500 boxes/lines = the most recent ~500 drawn final monos.
 
@@ -189,6 +192,12 @@ else
         wickL := na
 
 prev_l_red := l_red                          // lock-in candidate for the finalize step
+
+// ════════════════ Pane scale anchors ════════════════
+// Invisible plots of the bar high/low. Boxes/lines do not drive a pane's
+// autoscale, so without these the pane would not scale to the mono candles.
+plot(high, "Scale anchor high", color.new(color.gray, 100), editable = false)
+plot(low,  "Scale anchor low",  color.new(color.gray, 100), editable = false)
 
 // ════════════════ Data window ════════════════
 plot(a_cnt, "DW stage-1 monos so far", display = display.data_window)
