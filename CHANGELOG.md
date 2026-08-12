@@ -1112,7 +1112,19 @@ This also reconciles with the earlier "only two toggles" request: the two bools 
 **Tests run:** compile 0/0 (buffer version verified before compiling, both times), on-chart version table reads v2.0.1. **NEAR.P 1D: 1,766 monos** — exactly the inside-only count v1.0.0 measured, so the grouping is the already-validated one. **335 bands.** Screenshot confirms full-height alternating bands over the price chart.
 **Process:** the stale-editor failure from v1.1.0 recurred after the editor was closed with its window X — `pine_set_source` reported success, view kept the old source. Per the recorded rule, no blind re-injects: TradingView restarted, buffer verified, compiled. One casualty: a click meant for the Pine button landed on the watchlist and switched the chart to CLUSDT.P; switched back to NEAR before any reading was taken.
 **Not done:** the symmetric-vs-low-only question about "inside" is moot for now (colour no longer exists in the rule, but the symmetric containment test itself is unchanged and uncalibrated); `use_mono` in jamal-ob is unaffected.
-**Status:** shipped. The saved TradingView script and the repo file are code-identical.
+**Status:** superseded by v2.1.0 — the bands misrepresented the monos.
+
+## Mono v2.1.0 — the mono is drawn AS A CANDLE on the price chart
+**Date:** 2026-08-12 · **On-chart:** "Jamal Mono v2.1.0" (shorttitle "JMono2.1")
+**User report:** "uh the monolithic candles are definitely not rendered correct, they extend the full vertical?" — correct. v2.0.x drew the GROUPING as full-height background bands and lost the CANDLES: a mono has an OHLC and the bands threw it away.
+**Render now,** for each mono of 2+ bars, overlaid on the price candles:
+- body = translucent box from the mono's OPEN (first bar's open) to its CLOSE (newest bar's close), spanning the mono's bars;
+- wick = line at the mono's centre from its HIGH to its LOW;
+- colour = the mono's own direction (close >= open green, else red), updating live, border and wick solid, fill at an input transparency (default 70) so the real candles stay visible through it.
+Single-bar monos are not drawn — the real candle already shows them. Grouping unchanged from v2.0.x (inside vs the individual left candle, colour-blind, no toggles).
+**Tests run:** compile 0/0, version table v2.1.0. **Numerical render check** against cached Binance NEAR 1D data (k_near_now.json, through 2026-08-12): the inside-chain grouping over the last 16 bars predicts exactly two multi-bar monos — Jul 31-Aug 1 (body 1.677..1.673, wick 1.708/1.631) and Aug 7-8 (body 1.656..1.611, wick 1.669/1.574) — and the chart shows precisely those two boxes with centre wicks, nothing over the singles.
+**Process:** the stale-editor failure hit again (third time; it triggers whenever injection follows an editor close/reopen in the same TradingView session). Restart-verify-compile per [[pine-set-source-silent-failure]] worked again. A wider screenshot was nearly misdiagnosed as "boxes drawn into the future"; the tight zoom plus the offline computation settled it as an axis misreading. Pixel forensics keeps losing to computing the expected values first.
+**Status:** shipped. Repo and TradingView copies code-identical.
 
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.

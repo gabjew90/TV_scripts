@@ -1,10 +1,11 @@
 //@version=6
-indicator("Jamal Mono v2.0.1", shorttitle = "JMono2.0", overlay = true, max_boxes_count = 500)
+indicator("Jamal Mono v2.1.0", shorttitle = "JMono2.1", overlay = true,
+     max_boxes_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "2.0.1"
+SCRIPT_V = "2.1.0"
 
-// ════════════════ What this is (v2.0.0 — clean restart) ════════════════
+// ════════════════ What this is ════════════════
 // ONE rule, no toggles. A bar joins the current monolithic candle when it is an
 // INSIDE bar relative to the INDIVIDUAL candle immediately to its left:
 //     high <= previous high  AND  low >= previous low
@@ -18,68 +19,86 @@ SCRIPT_V = "2.0.1"
 // the bars that are not inside their left neighbour, so this single forward
 // pass produces the identical grouping.
 //
-// VISUAL: overlay shading on the price chart, in the style of the Day of Week
-// Shading indicator. Each mono of 2+ bars is drawn as a translucent full-height
-// vertical band over the candles it spans; single-bar monos are left unshaded.
-// Adjacent bands alternate between two colours so back-to-back groups stay
-// distinguishable. Bands are BOXES, not bgcolor, because bgcolor cannot be
-// applied retroactively — a mono's first bar is only known to be in a group
-// once its second bar arrives, and a box created at that moment can span both.
-// Boxes are drawings and do not drive the price scale, so the tall bounds used
-// to fill the pane cannot stretch the chart's scaling.
+// VISUAL (v2.1.0): the mono is drawn AS A CANDLE, overlaid on the price chart
+// at its own price range — not as a full-height band (v2.0.x drew bands, which
+// misrepresented the monos as having no OHLC). For each mono of 2+ bars:
+//     body = translucent box from the mono's OPEN (first bar's open) to its
+//            CLOSE (newest bar's close), spanning the mono's bars
+//     wick = line at the mono's centre from its HIGH to its LOW
+//     colour = the mono's own direction, green if close >= open, red otherwise,
+//              updating live as the mono's close moves
+// Single-bar monos are not drawn — the real candle already shows them.
 //
-// The band's left/right edges sit half a bar beyond the mono's first and last
-// bar times, so the shading covers those bars fully. Assumes evenly spaced
-// bars (true on 24/7 crypto).
+// The box/wick edges use `xloc.bar_time` with a half-bar offset so the mono
+// covers its bars fully. Assumes evenly spaced bars (true on 24/7 crypto).
+// Boxes and lines are drawings and do not drive the price scale.
 //
 // NO LAG, NO LOOKAHEAD. The live bar can still flip intrabar (a new high or
 // low can break it out of the chain); Pine's rollback handles that.
 //
-// DRAWING LIMIT: 500 boxes = the most recent 500 multi-bar monos. NEAR 1D has
-// ~360 in the full loaded history, so the cap is not binding there.
+// DRAWING LIMIT: 500 boxes/lines = the most recent ~500 multi-bar monos.
+// NEAR 1D has ~335 in the full loaded history, so the cap is not binding.
 
 // ════════════════ Inputs ════════════════
-col_a = input.color(color.new(#5c7cba, 74), "Band colour A")
-col_b = input.color(color.new(#c4901a, 74), "Band colour B")
+col_up   = input.color(#26a69a, "Mono up",   group = "Colours")
+col_dn   = input.color(#ef5350, "Mono down", group = "Colours")
+fill_tr  = input.int(70, "Body fill transparency", minval = 0, maxval = 100, group = "Colours", tooltip = "The body is filled at this transparency so the real candles stay visible through it. The border and wick are drawn solid.")
 
 // ════════════════ Grouping ════════════════
 bool inside_prev = bar_index > 0 and high <= high[1] and low >= low[1]
 
-var int m_len   = 0                          // bars in the current mono
-var int m_count = 0                          // monos so far (completed + current)
-var int m_t0    = 0                          // time of the current mono's first bar
-var int m_bands = 0                          // multi-bar monos so far — drives colour alternation
+var int   m_len   = 0                        // bars in the current mono
+var int   m_count = 0                        // monos so far (completed + current)
+var float m_o     = na                       // current mono's open (its first bar's open)
+var float m_h     = na                       // current mono's high
+var float m_l     = na                       // current mono's low
+var int   m_t0    = 0                        // time of the current mono's first bar
 
 bool new_run = not inside_prev
 if new_run
     m_count += 1
     m_len   := 1
+    m_o     := open
+    m_h     := high
+    m_l     := low
     m_t0    := time
 else
     m_len += 1
+    m_h   := math.max(m_h, high)             // a no-op by definition — an inside bar cannot widen the mono
+    m_l   := math.min(m_l, low)
 
-// ════════════════ Render — full-height band per multi-bar mono ════════════════
-var box b_band = na
-float half_ms  = timeframe.in_seconds() * 500.0     // half a bar, in ms
+// ════════════════ Render — the mono as a candle over the price chart ════════
+var box  b_body = na
+var line l_wick = na
+float half_ms   = timeframe.in_seconds() * 500.0    // half a bar, in ms
 
 if not new_run
-    if m_len == 2                            // mono just became multi-bar — band starts now
-        m_bands += 1
-        color bc = m_bands % 2 == 0 ? col_a : col_b
-        // v2.0.1: 50x above and below price stands in for "full height". The
-        // v2.0.0 bounds (1e12 / 1e-10) existed in the box model but rendered
-        // NOTHING - TradingView culls boxes with coordinates that extreme. A
-        // +/-50x envelope covers any realistic zoom, and boxes do not drive
-        // the price scale, so these bounds cannot stretch the chart.
-        b_band := box.new(int(m_t0 - half_ms), close * 50, int(time + half_ms), close / 50,
-             xloc = xloc.bar_time, border_width = 0, bgcolor = bc)
-    else
-        box.set_right(b_band, int(time + half_ms))  // chain keeps growing
+    color mc     = close >= m_o ? col_up : col_dn   // the mono's own direction, live
+    float body_t = math.max(m_o, close)
+    float body_b = math.min(m_o, close)
+    int   x_r    = int(time + half_ms)              // right edge of the mono's last bar
+    int   x_c    = int((m_t0 + time) / 2)           // centre of the mono, for the wick
+    if m_len == 2                                   // mono just became multi-bar — draw it now
+        b_body := box.new(int(m_t0 - half_ms), body_t, x_r, body_b, xloc = xloc.bar_time,
+             border_color = mc, border_width = 1, bgcolor = color.new(mc, fill_tr))
+        l_wick := line.new(x_c, m_h, x_c, m_l, xloc = xloc.bar_time, color = mc, width = 2)
+    else                                            // mono keeps growing — extend in place
+        box.set_right(b_body, x_r)
+        box.set_top(b_body, body_t)
+        box.set_bottom(b_body, body_b)
+        line.set_xy1(l_wick, x_c, m_h)
+        line.set_xy2(l_wick, x_c, m_l)
+    box.set_border_color(b_body, mc)                // direction can flip while the mono grows
+    box.set_bgcolor(b_body, color.new(mc, fill_tr))
+    line.set_color(l_wick, mc)
 
 // ════════════════ Data window ════════════════
+plot(m_o,     "DW mono open",         display = display.data_window)
+plot(m_h,     "DW mono high",         display = display.data_window)
+plot(m_l,     "DW mono low",          display = display.data_window)
+plot(close,   "DW mono close",        display = display.data_window)
 plot(m_len,   "DW bars in this mono", display = display.data_window)
 plot(m_count, "DW monos so far",      display = display.data_window)
-plot(inside_prev ? 1 : 0, "DW inside prev (1=yes)", display = display.data_window)
 
 // ════════════════ Version tag ════════════════
 var table vt = table.new(position.top_right, 1, 1)
