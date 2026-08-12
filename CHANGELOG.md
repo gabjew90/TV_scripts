@@ -1004,6 +1004,19 @@ Read as a commitment filter: demand re-anchors only after supply has been overco
 **Merging-OFF path:** unchanged by construction — `inside_p` and `inside_n` are both gated on `merge_inside`, so with it off the machine is the plain colour-run grouping. Measured at **1,085 monos, lag 0** on the v0.4.0 build whose OFF path is byte-identical to this one.
 **Comparison table, NEAR.P 1D:** off 1,085 · v0.3.0 (mono-inside only) 301 · v0.4.0 (bar-inside both sides) 781 · **v0.5.0 (mono-inside + next-bar clause) 280**.
 **Not done:** no calibration case checked against this grouping; the previous-over-next precedence is still asserted rather than tested; the symmetric-vs-low-only question above is open; `use_mono` in jamal-ob remains colour-flip-only and unaffected.
+**Status:** superseded by v0.6.0 — absorption now also ENDS the mono.
+
+## Mono v0.6.0 — an absorbed inside candle also ENDS the mono
+**Date:** 2026-08-12 · **On-chart:** "Jamal Mono v0.6.0" (shorttitle "JMono0.6")
+**User instruction:** "I would say opposite color inside candles gets absorbed by the monolithic candle but they also end the candle."
+**Change:** the inside-the-previous-mono bar still joins that mono, but it is now the mono's LAST bar. It sets the mono's close, and the bar after it is forced to start a fresh mono whatever its colour. Carried across the bar boundary by a new `var bool m_sealed`, set in the `inside_p` branch and consumed by a new first-position clause in the decision chain (`else if m_sealed -> new_run := true`), cleared whenever a new mono starts. `m_sealed` is surfaced in the data window.
+**Consequence that makes this the right shape:** a mono can now hold **at most one** absorbed opposite-colour bar, always the last one. That is precisely what removes the runaway lengths of v0.3.0/v0.5.0 — under those, absorbing did not end the run, so a mono that had grown wide kept swallowing everything that fell inside it, giving 27- and 26-bar monos on NEAR daily. Those are gone; the pane now shows 2-5 bar monos throughout.
+**Second consequence, expected:** the mono's close comes from an opposite-colour bar, so a green mono sealed by a red inside bar can close BELOW its own open while still being drawn green. The mono keeps the RUN's colour, which is what a run means. Not a bug.
+**Interaction kept:** if the bar following a sealed mono is itself inside its own next bar, it still adopts that next bar's colour when it opens the new mono. The `m_sealed` clause only forces `new_run`; it does not suppress the colour-adoption rule.
+**Tests run:** compile 0/0, saved as script version 9. **NEAR.P 1D, crosshair on the last bar, merging ON → 863 monos, lag 1.** Current mono: 3 bars, open 1.611, high 1.669, low 1.536, close 1.620, one merged bar, not sealed.
+**Comparison table, NEAR.P 1D:** off 1,085 · v0.3.0 301 · v0.4.0 781 · v0.5.0 280 · **v0.6.0 863**. The jump from 280 to 863 is the whole point: sealing stops the cascade, so merging now folds roughly 222 monos into their predecessors instead of collapsing the chart into a few dozen giants.
+**Reading note:** `m_ins` counts opposite-colour bars in the mono from BOTH paths — one absorbed by `inside_p`, or one that opened the mono under the `inside_n` colour-adoption rule. So `m_ins = 1` with `m_sealed = 0` is a legitimate combination (the current NEAR mono is exactly that) and does not indicate a missed seal.
+**Not done:** unchanged from v0.5.0 — no calibration case checked against this grouping, the previous-over-next precedence is asserted not tested, the symmetric-vs-low-only question is still open, and `use_mono` in jamal-ob remains colour-flip-only.
 **Status:** shipped, `merge_inside` default OFF so the pane keeps matching the walk by default.
 
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
