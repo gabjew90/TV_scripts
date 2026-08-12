@@ -1,9 +1,9 @@
 //@version=6
-indicator("Jamal Mono v0.4.0", shorttitle = "JMono0.4", overlay = false,
+indicator("Jamal Mono v0.5.0", shorttitle = "JMono0.5", overlay = false,
      max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.4.0"
+SCRIPT_V = "0.5.0"
 
 // ════════════════ What this is ════════════════
 // A separate-pane candle chart of MONOLITHIC candles — the same grouping the
@@ -40,7 +40,7 @@ SCRIPT_V = "0.4.0"
 // empty in one-candle mode. Switch the toggle off to see all of it.
 
 // ════════════════ Inputs ════════════════
-merge_inside = input.bool(false, "Merge inside candles into a mono", group = "Grouping", tooltip = "OFF (default): a run ends the moment the bar colour flips - the grouping the jamal-ob use_mono walk-back actually runs on. ON: an opposite-colour bar that is INSIDE its PREVIOUS bar joins the previous mono; one that is INSIDE its NEXT bar joins the next mono instead. Deciding the next-bar case needs the next bar, so grouping runs ONE BAR BEHIND when this is on - the live bar is not classified until it closes. WARNING: with this ON the pane NO LONGER matches what use_mono does; it is a what-if view, not a mirror of the walk.")
+merge_inside = input.bool(false, "Merge inside candles into a mono", group = "Grouping", tooltip = "OFF (default): a run ends the moment the bar colour flips - the grouping the jamal-ob use_mono walk-back actually runs on. ON: an opposite-colour bar that is INSIDE THE PREVIOUS MONO (against the whole accumulated run, not the single bar before it) is absorbed into that mono. One that instead breaks the mono's range but is INSIDE ITS NEXT BAR becomes the FIRST bar of the next mono, taking that next bar's colour. Anything else starts its own mono. Deciding the next-bar case needs the next bar, so grouping runs ONE BAR BEHIND when this is on - the live bar is not classified until it closes. WARNING: with this ON the pane NO LONGER matches what use_mono does; it is a what-if view, not a mirror of the walk.")
 one_candle   = input.bool(true,  "One candle per mono", group = "Rendering", tooltip = "ON: each run is drawn as a SINGLE candle spanning its bars, using a box for the body and a line for the wick. OFF: the v0.1.0 behaviour - plotcandle repeats the growing mono on every bar of the run (the stair). One-candle mode is limited to the most recent 500 monos by TradingView's drawing cap; repeat mode has no limit. NOTE: this setting is IGNORED while Merge inside candles is on - plotcandle cannot be offset, so under the one-bar lag it would draw every mono a bar to the right. Merging always uses the one-candle renderer.")
 show_len     = input.bool(true,  "Label runs of 2+ bars", group = "Rendering", tooltip = "Prints the bar count under each completed multi-bar mono. A trailing * means the mono absorbed at least one opposite-colour inside bar, so it only exists in that shape because merge_inside is on.")
 show_split   = input.bool(true,  "Mark where each run starts", group = "Rendering", tooltip = "Only applies in repeat mode - in one-candle mode the box edges already mark every boundary.")
@@ -51,16 +51,29 @@ col_lab      = input.color(#7c8ba0, "Labels / markers", group = "Colours")
 // ════════════════ Grouping ════════════════
 // Default: a run is a maximal stretch of same-colour bars.
 //
-// `merge_inside` ON adds two clauses, both judged against a SINGLE NEIGHBOUR
-// BAR (v0.4.0 — v0.3.0 judged against the whole accumulated run instead, which
-// was far too permissive: once a run was wide almost everything fell inside it
-// and NEAR daily produced 27- and 26-bar monos). For an opposite-colour bar X
-// with previous bar P and next bar N:
-//     X inside P  (X.high <= P.high and X.low >= P.low)  -> X joins the PREVIOUS mono
-//     X inside N  (X.high <= N.high and X.low >= N.low)  -> X joins the NEXT mono
-//     neither                                            -> X starts its own mono
+// `merge_inside` ON adds two clauses. Note the two are measured against
+// DIFFERENT things, deliberately (v0.5.0, user-specified):
+//     X inside the PREVIOUS MONO  (X.high <= mono high and X.low >= mono low)
+//         -> X is absorbed into that mono. The comparison is against the whole
+//            accumulated run, NOT the single bar before X.
+//     X inside the NEXT BAR       (X.high <= N.high and X.low >= N.low)
+//         -> X becomes the FIRST bar of the next mono. Single bar, not a mono,
+//            because the next mono does not exist yet when X is judged.
+//     neither -> X starts its own mono.
 // PRECEDENCE: previous wins when X is inside both, matching the order the rules
 // were specified in.
+//
+// So a green bar that takes out the previous mono's low is NOT inside it, and
+// breaks the run — unless it is inside the next bar, in which case it opens the
+// next mono instead of forming its own. CAVEAT: "not inside" is symmetric here,
+// meaning a bar that takes out the previous mono's HIGH breaks it too. The rule
+// was specified with the LOW as the example; if only the low is meant to matter
+// (mirrored to only the high for a red bar against a green mono) that is a
+// different, narrower rule and is NOT what this implements.
+//
+// HISTORY: v0.3.0 used mono-based inside with no next clause; v0.4.0 switched
+// both to single neighbour bars. v0.5.0 restores the mono-based test for the
+// previous side, per user instruction, and keeps v0.4.0's next-bar clause.
 //
 // "Joins the NEXT mono" means X becomes that mono's FIRST bar — so the next
 // mono opens at X's open and takes N's colour, not X's.
@@ -77,8 +90,6 @@ int k = merge_inside ? 1 : 0                 // which bar this bar classifies
 bool  x_red = close[k] < open[k]             // flat doji -> green, same as the walk-back
 float x_hi  = high[k]
 float x_lo  = low[k]
-float p_hi  = high[k + 1]                    // PREVIOUS bar
-float p_lo  = low[k + 1]
 float n_hi  = k >= 1 ? high[k - 1] : na      // NEXT bar (only exists when lagging)
 float n_lo  = k >= 1 ? low[k - 1]  : na
 bool  n_red = k >= 1 ? close[k - 1] < open[k - 1] : false
@@ -95,7 +106,7 @@ var int   m_start = 0                        // bar_index the current mono began
 var int   m_t0    = 0                        // time    the current mono began on
 
 bool same_col = m_init and x_red == m_red
-bool inside_p = merge_inside and not na(p_hi) and x_hi <= p_hi and x_lo >= p_lo
+bool inside_p = merge_inside and m_init and x_hi <= m_h and x_lo >= m_l   // vs the MONO so far
 bool inside_n = merge_inside and not na(n_hi) and x_hi <= n_hi and x_lo >= n_lo
 
 // Resolve X: extend the current mono, or start a new one (and with which colour).
