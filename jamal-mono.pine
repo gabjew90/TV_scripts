@@ -1,207 +1,85 @@
 //@version=6
-indicator("Jamal Mono v1.2.0", shorttitle = "JMono1.2", overlay = false,
-     max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500)
+indicator("Jamal Mono v2.0.1", shorttitle = "JMono2.0", overlay = true, max_boxes_count = 500)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "1.2.0"
+SCRIPT_V = "2.0.1"
 
-// ════════════════ What this is ════════════════
-// A separate-pane candle chart of MONOLITHIC candles — bars merged into groups
-// and drawn as one candle each, so the grouping can be read directly instead of
-// inferred from levels.
+// ════════════════ What this is (v2.0.0 — clean restart) ════════════════
+// ONE rule, no toggles. A bar joins the current monolithic candle when it is an
+// INSIDE bar relative to the INDIVIDUAL candle immediately to its left:
+//     high <= previous high  AND  low >= previous low
+// Colour does not matter. A bar that is NOT inside its left neighbour starts a
+// new mono.
 //
-// A mono is drawn as:
-//     open  = the group's FIRST (oldest) bar's open
-//     close = the group's LAST (newest) bar's close
-//     high  = highest high across the group
-//     low   = lowest low across the group
-// Colour convention matches the jamal-ob walk-back exactly: RED is close < open,
-// so a FLAT DOJI (close == open) counts as GREEN. A mono is drawn in the colour
-// of the bar that STARTED it.
+// DIRECTION NOTE: the rule was specified right-to-left (most recent first, a
+// chain of inside candles absorbing from the newest end). Because containment
+// NESTS — if C is inside B and B is inside A, C is inside A — a chain collapses
+// to the same group whichever end you sweep from. The cut points are exactly
+// the bars that are not inside their left neighbour, so this single forward
+// pass produces the identical grouping.
 //
-// X-AXIS ALIGNMENT: the box renderer uses `xloc.bar_time` with a sub-bar offset
-// either side of the group, so a mono covering bars L..R is centred on exactly
-// the span those bars occupy in the price pane above. `xloc.bar_index` would put
-// the edges on bar CENTRES, making every mono half a bar narrow and collapsing
-// single-bar monos to zero width. The offset assumes evenly spaced bars, which
-// holds on 24/7 crypto; on a session-gapped symbol the edges drift across
-// weekend and holiday gaps.
+// VISUAL: overlay shading on the price chart, in the style of the Day of Week
+// Shading indicator. Each mono of 2+ bars is drawn as a translucent full-height
+// vertical band over the candles it spans; single-bar monos are left unshaded.
+// Adjacent bands alternate between two colours so back-to-back groups stay
+// distinguishable. Bands are BOXES, not bgcolor, because bgcolor cannot be
+// applied retroactively — a mono's first bar is only known to be in a group
+// once its second bar arrives, and a box created at that moment can span both.
+// Boxes are drawings and do not drive the price scale, so the tall bounds used
+// to fill the pane cannot stretch the chart's scaling.
 //
-// Y-AXIS SCALING is NOT under this script's control — see Pane scaling below.
+// The band's left/right edges sit half a bar beyond the mono's first and last
+// bar times, so the shading covers those bars fully. Assumes evenly spaced
+// bars (true on 24/7 crypto).
 //
-// NO LAG, NO LOOKAHEAD. Every rule reads only the bar being drawn and state
-// accumulated before it.
+// NO LAG, NO LOOKAHEAD. The live bar can still flip intrabar (a new high or
+// low can break it out of the chain); Pine's rollback handles that.
 //
-// DRAWING LIMITS: 500 boxes and 500 lines, so the box renderer shows the most
-// recent ~500 monos and TradingView drops older ones. On a chart with more monos
-// than that the early history renders empty in one-candle mode; switch the
-// renderer off to see all of it.
+// DRAWING LIMIT: 500 boxes = the most recent 500 multi-bar monos. NEAR 1D has
+// ~360 in the full loaded history, so the cap is not binding there.
 
-// ════════════════ Inputs — TWO toggles, then plain settings ════════════════
-use_absorb = input.bool(false, "Monolithic formation by ABSORPTION", group = "Grouping", tooltip = "OFF (default): monos form by COLOUR only - a mono is a maximal run of consecutive same-colour bars, which is the grouping the jamal-ob use_mono walk-back runs on. ON: an opposite-colour bar that is INSIDE the bar immediately before it is absorbed as the mono's LAST bar and ENDS it - the next bar always starts a fresh mono, whatever its colour. An opposite-colour bar that is NOT inside starts the next mono itself. A mono can therefore hold at most ONE absorbed bar, always the last.")
-one_candle = input.bool(true,  "One candle per mono", group = "Rendering", tooltip = "ON: each mono is drawn as a SINGLE candle spanning its bars, using a box for the body and a line for the wick. OFF: plotcandle repeats the growing mono on every bar of the group (a stair), because plotcandle is one-value-per-bar and cannot span bars. One-candle mode is capped at the most recent 500 monos by TradingView's drawing limit; repeat mode has no limit.")
-body_pct   = input.float(76, "Candle body width (% of bar span)", minval = 20, maxval = 100, step = 2, group = "Rendering", tooltip = "76% matches TradingView's own candle body-to-gap ratio. 100% tiles the monos edge to edge with no gap, which reads as a ribbon. Cosmetic only - the CENTRE of each mono is unchanged, so alignment with the price pane is unaffected.")
-wick_w     = input.int(2, "Wick thickness", minval = 1, maxval = 4, group = "Rendering")
-label_min  = input.int(3, "Label monos of N+ bars (0 = no labels)", minval = 0, group = "Rendering", tooltip = "Prints the bar count under each mono at least this long. A trailing * means the mono absorbed at least one bar, so it only has that shape because absorption is on. Raise it if labels crowd the pane; 0 turns them off.")
-col_up     = input.color(#2f7f6c, "Green mono", group = "Colours")
-col_dn     = input.color(#a94b57, "Red mono",   group = "Colours")
-col_lab    = input.color(#7c8ba0, "Labels", group = "Colours")
+// ════════════════ Inputs ════════════════
+col_a = input.color(color.new(#5c7cba, 74), "Band colour A")
+col_b = input.color(color.new(#c4901a, 74), "Band colour B")
 
 // ════════════════ Grouping ════════════════
-// BASE CASE — formation by COLOUR. A mono is a maximal run of consecutive
-// same-colour bars. This is always active and is what `use_mono` runs on.
-//
-// TOGGLE — formation by ABSORPTION (`use_absorb`). For an opposite-colour bar O
-// with immediate predecessor P (inside = O.high <= P.high and O.low >= P.low):
-//   O NOT inside P  -> O becomes the first bar of the next mono, which takes
-//                      O's colour. (Identical to the base case.)
-//   O inside P      -> O is absorbed as the mono's LAST bar — it sets the
-//                      mono's close — and ENDS the mono. The next bar always
-//                      starts a fresh mono, whatever its colour.
-//
-// v1.2.0 REMOVES v1.1.0's chain rule (O+1 inside O also absorbed, and so on).
-// An inside candle now "simply ends" the mono, per user instruction, so a mono
-// holds AT MOST ONE absorbed bar and it is always the last. The `m_sealed`
-// flag carries the forced break across the bar boundary.
-//
-// "INSIDE" IS AGAINST THE PREVIOUS SINGLE BAR, never the mono's accumulated
-// high/low. Measuring against the whole mono (v0.3.0-v0.8.0) let a mono that
-// had grown wide swallow everything inside it and produced 27- and 26-bar
-// monos.
-//
-// No-widening holds: P is already in the mono, so the mono's range contains P,
-// so anything inside P is inside the mono. An absorbed bar can never extend the
-// mono's high or low.
-//
-// EXPECTED SIDE EFFECT: the absorbed bar sets the mono's close, so a green mono
-// sealed by a red inside bar can close BELOW its own open while still drawn
-// green. The mono keeps the colour of the bar that STARTED it. Not a bug.
-//
-// CAVEAT, still open: "inside" is symmetric — a bar fails by taking out EITHER
-// P's high or P's low. The rule was first described with a green bar taking out
-// the LOW as the example; low-only would be narrower.
-bool is_red = close < open                   // flat doji -> green, same as the walk-back
+bool inside_prev = bar_index > 0 and high <= high[1] and low >= low[1]
 
-var bool  m_init  = false                    // Pine will not seed a bool with na
-var bool  m_red   = false
-var float m_o     = na
-var float m_h     = na
-var float m_l     = na
-var int   m_len   = 0
-var int   m_abs   = 0                        // 1 once this mono has taken its absorbed bar
-var int   m_count = 0                        // completed + current, for the data window
-var int   m_start = 0                        // bar_index the current mono began on
-var int   m_t0    = 0                        // time    the current mono began on
-var bool  m_sealed = false                   // mono was ENDED by an absorbed inside bar
+var int m_len   = 0                          // bars in the current mono
+var int m_count = 0                          // monos so far (completed + current)
+var int m_t0    = 0                          // time of the current mono's first bar
+var int m_bands = 0                          // multi-bar monos so far — drives colour alternation
 
-bool same_col    = m_init and is_red == m_red
-bool inside_prev = m_init and high <= high[1] and low >= low[1]
-
-bool new_run = false
-bool absorb  = false
-if not m_init
-    new_run := true
-else if m_sealed
-    new_run := true                          // the previous mono was ended last bar
-else if same_col
-    new_run := false                         // base case — colour run extends
-else if use_absorb and inside_prev
-    absorb := true                           // O inside P — absorbed, and ENDS the mono
-else
-    new_run := true                          // O not inside P — O starts the next mono
-
+bool new_run = not inside_prev
 if new_run
-    m_init   := true
-    m_red    := is_red                       // the mono takes the colour of the bar that STARTS it
-    m_o      := open
-    m_h      := high
-    m_l      := low
-    m_len    := 1
-    m_abs    := 0
-    m_count  += 1
-    m_start  := bar_index
-    m_t0     := time
-    m_sealed := false
+    m_count += 1
+    m_len   := 1
+    m_t0    := time
 else
-    m_h   := math.max(m_h, high)             // a no-op for an absorbed bar, by definition
-    m_l   := math.min(m_l, low)
     m_len += 1
-    if absorb
-        m_sealed := true                     // absorbed as the LAST bar — mono is closed
-        m_abs    += 1
 
-color m_col = m_red ? col_dn : col_up
+// ════════════════ Render — full-height band per multi-bar mono ════════════════
+var box b_band = na
+float half_ms  = timeframe.in_seconds() * 500.0     // half a bar, in ms
 
-// ════════════════ Render A — repeat mode ════════════════
-// Fed na when one-candle mode is on, which draws nothing.
-plotcandle(one_candle ? na : m_o,
-     one_candle ? na : m_h,
-     one_candle ? na : m_l,
-     one_candle ? na : close, "Mono",
-     color       = m_col,
-     wickcolor   = m_col,
-     bordercolor = m_col)
-
-// ════════════════ Render B — one candle per mono ════════════════
-// Body = box spanning the mono's full bar span; wick = line at its centre.
-// A doji mono (open == close) gives a zero-height box, which still renders as a
-// hairline because the border is drawn — the correct look for a doji.
-var box  b_body = na
-var line l_wick = na
-// Half the body width, in milliseconds. `body_pct` of the bar span, so the
-// CENTRE is unchanged whatever the width and alignment is unaffected.
-float half_ms = timeframe.in_seconds() * 1000.0 * (body_pct / 200.0)
-
-if one_candle
-    float body_t = math.max(m_o, close)
-    float body_b = math.min(m_o, close)
-    int   x_l    = int(m_t0 - half_ms)              // left edge of the mono's FIRST bar
-    int   x_r    = int(time + half_ms)              // right edge of the mono's LAST bar
-    int   x_c    = int((m_t0 + time) / 2)           // centre of the mono, for the wick
-    if new_run
-        b_body := box.new(x_l, body_t, x_r, body_b, xloc = xloc.bar_time,
-             border_color = m_col, border_width = 1, bgcolor = m_col)
-        l_wick := line.new(x_c, m_h, x_c, m_l, xloc = xloc.bar_time,
-             color = m_col, width = wick_w)
+if not new_run
+    if m_len == 2                            // mono just became multi-bar — band starts now
+        m_bands += 1
+        color bc = m_bands % 2 == 0 ? col_a : col_b
+        // v2.0.1: 50x above and below price stands in for "full height". The
+        // v2.0.0 bounds (1e12 / 1e-10) existed in the box model but rendered
+        // NOTHING - TradingView culls boxes with coordinates that extreme. A
+        // +/-50x envelope covers any realistic zoom, and boxes do not drive
+        // the price scale, so these bounds cannot stretch the chart.
+        b_band := box.new(int(m_t0 - half_ms), close * 50, int(time + half_ms), close / 50,
+             xloc = xloc.bar_time, border_width = 0, bgcolor = bc)
     else
-        box.set_right(b_body, x_r)                  // extend the live mono in place
-        box.set_top(b_body, body_t)
-        box.set_bottom(b_body, body_b)
-        line.set_xy1(l_wick, x_c, m_h)
-        line.set_xy2(l_wick, x_c, m_l)
-
-// ════════════════ Pane scaling — NOT SOLVED, do not retry blindly ════════════
-// Boxes and lines are DRAWINGS and do not drive a pane's price scale; only plots
-// do. Two attempts to anchor the scale with hidden plots of m_h/m_l both failed
-// and were removed:
-//   100% transparent — compiles and runs, but TradingView drops fully
-//     transparent plots from auto-scaling, so toggling it moved the axis not at
-//     all (measured on NEAR 1D: an identical 1.000-3.000 axis either way).
-//   97% transparent  — put the study into a RUNTIME error and the pane went
-//     blank. Not diagnosed; the error text was not reachable from the legend.
-// The dead space costs roughly 16% of the pane on NEAR 1D, which is not worth
-// breaking the render for. Pane HEIGHT, which matters more, is a chart-level
-// setting Pine cannot touch at all — drag the pane divider.
-
-// ════════════════ Annotations ════════════════
-// Bar count under a completed mono. A trailing * flags a mono that absorbed.
-if label_min > 0 and new_run and not na(m_len[1]) and m_len[1] >= label_min
-    int    lx = one_candle ? int(math.round((m_start[1] + bar_index - 1) / 2.0)) : bar_index - 1
-    string lt = str.tostring(m_len[1]) + (m_abs[1] > 0 ? "*" : "")
-    label.new(lx, m_l[1], lt,
-         yloc = yloc.price, style = label.style_label_up, size = size.tiny,
-         color = color.new(color.black, 100), textcolor = col_lab)
+        box.set_right(b_band, int(time + half_ms))  // chain keeps growing
 
 // ════════════════ Data window ════════════════
-plot(m_o,     "DW mono open",         display = display.data_window)
-plot(m_h,     "DW mono high",         display = display.data_window)
-plot(m_l,     "DW mono low",          display = display.data_window)
-plot(close,   "DW mono close",        display = display.data_window)
 plot(m_len,   "DW bars in this mono", display = display.data_window)
-plot(m_abs,   "DW bars absorbed",     display = display.data_window)
-plot(m_sealed ? 1 : 0, "DW mono sealed (1=ended by inside bar)", display = display.data_window)
-plot(m_red ? 1 : 0, "DW is red (1=red)", display = display.data_window)
 plot(m_count, "DW monos so far",      display = display.data_window)
+plot(inside_prev ? 1 : 0, "DW inside prev (1=yes)", display = display.data_window)
 
 // ════════════════ Version tag ════════════════
 var table vt = table.new(position.top_right, 1, 1)
