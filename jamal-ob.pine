@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.43.0", shorttitle = "JOB0.43", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.44.0", shorttitle = "JOB0.44", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.43.0"
+SCRIPT_V = "0.44.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -156,6 +156,8 @@ f_walkback_bull_mono(int maxlb, int s0, int t0) =>
     float g_lo = na
     float g_cl = na
     float g_nx = na                         // high of the single bar NEWER than that green run
+    float g_rhi = na                        // v0.44.0: high of the NEWER RED MONO (inside rule)
+    float last_red_hi = na                  // v0.44.0: most recently completed red mono's high
     bool  cur_red = close[s0] < open[s0]    // run currently being accumulated
     float cur_hi  = high[s0]
     float cur_lo  = low[s0]
@@ -180,17 +182,20 @@ f_walkback_bull_mono(int maxlb, int s0, int t0) =>
                 bool tookHi  = g_hi > cur_hi
                 bool hiTaken = not na(g_nx) and g_nx > g_hi
                 bool clAbove = g_cl > cur_op
-                if not inside and ((tookLo and tookHi) or (tookLo and hiTaken) or (not tookLo and clAbove))
+                bool insStop = inside and not na(g_rhi) and g_rhi > g_hi   // v0.44.0
+                if insStop or (not inside and ((tookLo and tookHi) or (tookLo and hiTaken) or (not tookLo and clAbove)))
                     ended := true
                     break
                 g_pend := false
             best_open := na(best_open) ? cur_op : math.max(best_open, cur_op)
+            last_red_hi := cur_hi
         else                                // a GREEN mono just completed — buffer it
             g_pend := true
             g_hi := cur_hi
             g_lo := cur_lo
             g_cl := cur_cl
             g_nx := cur_new >= 1 ? high[cur_new - 1] : na   // never the future: bar 0 has no newer bar
+            g_rhi := last_red_hi
         cur_red := r
         cur_hi  := high[i]
         cur_lo  := low[i]
@@ -212,6 +217,8 @@ f_walkback_bear_mono(int maxlb, int s0, int t0) =>
     float r_lo = na
     float r_cl = na
     float r_nx = na
+    float r_glo = na                        // v0.44.0: low of the NEWER GREEN MONO (inside rule)
+    float last_grn_lo = na
     bool  cur_grn = close[s0] > open[s0]
     float cur_hi  = high[s0]
     float cur_lo  = low[s0]
@@ -236,17 +243,20 @@ f_walkback_bear_mono(int maxlb, int s0, int t0) =>
                 bool tookLo  = r_lo < cur_lo
                 bool loTaken = not na(r_nx) and r_nx < r_lo
                 bool clBelow = r_cl < cur_op
-                if not inside and ((tookHi and tookLo) or (tookHi and loTaken) or (not tookHi and clBelow))
+                bool insStop = inside and not na(r_glo) and r_glo < r_lo   // v0.44.0
+                if insStop or (not inside and ((tookHi and tookLo) or (tookHi and loTaken) or (not tookHi and clBelow)))
                     ended := true
                     break
                 r_pend := false
             best_open := na(best_open) ? cur_op : math.min(best_open, cur_op)
+            last_grn_lo := cur_lo
         else
             r_pend := true
             r_hi := cur_hi
             r_lo := cur_lo
             r_cl := cur_cl
             r_nx := cur_new >= 1 ? low[cur_new - 1] : na
+            r_glo := last_grn_lo
         cur_grn := g
         cur_hi  := high[i]
         cur_lo  := low[i]
