@@ -1,9 +1,9 @@
 //@version=6
-indicator("Jamal Mono v0.2.0", shorttitle = "JMono0.2", overlay = false,
+indicator("Jamal Mono v0.3.0", shorttitle = "JMono0.3", overlay = false,
      max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.2.0"
+SCRIPT_V = "0.3.0"
 
 // ════════════════ What this is ════════════════
 // A separate-pane candle chart of MONOLITHIC candles — the same grouping the
@@ -26,6 +26,8 @@ SCRIPT_V = "0.2.0"
 //         plotcandle is one-value-per-bar and cannot span bars, which is the
 //         whole reason the box renderer exists.
 //
+// INSIDE-BAR MERGING (v0.3.0, `merge_inside`, default OFF) — see below.
+//
 // X-AXIS ALIGNMENT: the box renderer uses `xloc.bar_time` with a sub-bar
 // offset either side of the run, so a mono covering bars L..R is centred on
 // exactly the span those bars occupy in the price pane above. Using
@@ -45,14 +47,38 @@ SCRIPT_V = "0.2.0"
 // empty in one-candle mode. Switch the toggle off to see all of it.
 
 // ════════════════ Inputs ════════════════
-one_candle = input.bool(true,  "One candle per mono", tooltip = "ON: each run is drawn as a SINGLE candle spanning its bars, using a box for the body and a line for the wick. OFF: the v0.1.0 behaviour - plotcandle repeats the growing mono on every bar of the run (the stair). One-candle mode is limited to the most recent 500 monos by TradingView's drawing cap; repeat mode has no limit.")
-show_len   = input.bool(true,  "Label runs of 2+ bars", tooltip = "Prints the bar count under each completed multi-bar mono. Single-bar monos are left unlabelled to keep the pane quiet.")
-show_split = input.bool(true,  "Mark where each run starts", tooltip = "Only applies in repeat mode - in one-candle mode the box edges already mark every boundary.")
-col_up     = input.color(#2f7f6c, "Green mono", group = "Colours")
-col_dn     = input.color(#a94b57, "Red mono",   group = "Colours")
-col_lab    = input.color(#7c8ba0, "Labels / markers", group = "Colours")
+merge_inside = input.bool(false, "Merge inside candles into the run", group = "Grouping", tooltip = "OFF (default): a run ends the moment the bar colour flips - the grouping the jamal-ob use_mono walk-back actually runs on. ON: a bar of the OPPOSITE colour is absorbed into the run anyway if it is an INSIDE bar, i.e. it makes neither a new high nor a new low for the run so far. Only a bar that both flips colour AND breaks the run's high or low starts a new mono. WARNING: with this ON the pane NO LONGER matches what use_mono does - it is a what-if view, not a mirror of the walk.")
+one_candle   = input.bool(true,  "One candle per mono", group = "Rendering", tooltip = "ON: each run is drawn as a SINGLE candle spanning its bars, using a box for the body and a line for the wick. OFF: the v0.1.0 behaviour - plotcandle repeats the growing mono on every bar of the run (the stair). One-candle mode is limited to the most recent 500 monos by TradingView's drawing cap; repeat mode has no limit.")
+show_len     = input.bool(true,  "Label runs of 2+ bars", group = "Rendering", tooltip = "Prints the bar count under each completed multi-bar mono. A trailing * means the mono absorbed at least one opposite-colour inside bar, so it only exists because merge_inside is on. Single-bar monos are left unlabelled to keep the pane quiet.")
+show_split   = input.bool(true,  "Mark where each run starts", group = "Rendering", tooltip = "Only applies in repeat mode - in one-candle mode the box edges already mark every boundary.")
+col_up       = input.color(#2f7f6c, "Green mono", group = "Colours")
+col_dn       = input.color(#a94b57, "Red mono",   group = "Colours")
+col_lab      = input.color(#7c8ba0, "Labels / markers", group = "Colours")
 
 // ════════════════ Grouping ════════════════
+// Default: a run is a maximal stretch of same-colour bars.
+//
+// `merge_inside` ON adds one clause. A bar whose colour differs from the run's
+// is STILL absorbed if it is inside the run's range so far — high <= run high
+// AND low >= run low. Read plainly: a bar that makes neither a new high nor a
+// new low for the run does not break the run, whatever colour it is. Only a
+// bar that flips colour AND breaks the range starts a new mono.
+//
+// "Inside the RUN so far", not "inside the previous BAR". This is the
+// mono-native reading and matches how use_mono's own inside rule compares a
+// whole green mono against the whole red mono behind it. It is the more
+// permissive of the two: any bar inside the previous bar is necessarily inside
+// the run too, so the previous-bar definition is a strict subset.
+//
+// Absorbing an inside bar can never widen the mono, because by definition it
+// sits within the existing high/low. So merging cannot cascade — one absorbed
+// bar does not make the next bar more likely to be absorbed.
+//
+// CONSEQUENCE worth knowing: an absorbed opposite-colour bar still sets the
+// mono's CLOSE, so a green run that ends on an absorbed red bar can close
+// below its own open. The mono keeps the RUN's colour (its first bar's), which
+// is what the walk-back's notion of a run means, so in that case the body
+// direction and the colour disagree. Rare, and only possible with this toggle.
 bool is_red = close < open                   // flat doji -> green, same as the walk-back
 
 var bool  m_init  = false                    // Pine will not seed a bool with na
@@ -61,11 +87,14 @@ var float m_o     = na
 var float m_h     = na
 var float m_l     = na
 var int   m_len   = 0
+var int   m_ins   = 0                        // opposite-colour inside bars absorbed into THIS run
 var int   m_count = 0                        // completed + current, for the data window
 var int   m_start = 0                        // bar_index the current run began on
 var int   m_t0    = 0                        // time    the current run began on
 
-bool new_run = not m_init or is_red != m_red
+bool same_col = m_init and is_red == m_red
+bool inside   = m_init and high <= m_h and low >= m_l    // measured against the run so far
+bool new_run  = not m_init or not (same_col or (merge_inside and inside))
 
 if new_run
     m_init  := true
@@ -74,6 +103,7 @@ if new_run
     m_h     := high
     m_l     := low
     m_len   := 1
+    m_ins   := 0
     m_count += 1
     m_start := bar_index
     m_t0    := time
@@ -81,6 +111,8 @@ else
     m_h   := math.max(m_h, high)
     m_l   := math.min(m_l, low)
     m_len += 1
+    if not same_col
+        m_ins += 1                           // absorbed only because merge_inside is on
 
 color m_col = m_red ? col_dn : col_up
 
@@ -126,10 +158,12 @@ if one_candle
 
 // ════════════════ Annotations ════════════════
 // Bar count under a completed multi-bar run, printed on the bar the run ENDS.
-// In one-candle mode it is centred under that mono's box instead.
+// In one-candle mode it is centred under that mono's box instead. A trailing *
+// flags a mono that only exists in this shape because inside bars were merged.
 if show_len and new_run and not na(m_len[1]) and m_len[1] >= 2
-    int lx = one_candle ? int(math.round((m_start[1] + bar_index - 1) / 2.0)) : bar_index - 1
-    label.new(lx, m_l[1], str.tostring(m_len[1]),
+    int    lx = one_candle ? int(math.round((m_start[1] + bar_index - 1) / 2.0)) : bar_index - 1
+    string lt = str.tostring(m_len[1]) + (m_ins[1] > 0 ? "*" : "")
+    label.new(lx, m_l[1], lt,
          yloc = yloc.price, style = label.style_label_up, size = size.tiny,
          color = color.new(color.black, 100), textcolor = col_lab)
 
@@ -143,6 +177,7 @@ plot(m_h,     "DW mono high",        display = display.data_window)
 plot(m_l,     "DW mono low",         display = display.data_window)
 plot(close,   "DW mono close",       display = display.data_window)
 plot(m_len,   "DW bars in this run", display = display.data_window)
+plot(m_ins,   "DW inside bars merged in", display = display.data_window)
 plot(m_red ? 1 : 0, "DW is red (1=red)", display = display.data_window)
 plot(m_count, "DW monos so far",     display = display.data_window)
 
