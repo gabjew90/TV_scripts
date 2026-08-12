@@ -1,105 +1,201 @@
 //@version=6
-indicator("Jamal Mono v2.2.0", shorttitle = "JMono2.2", overlay = true,
+indicator("Jamal Mono v2.3.0", shorttitle = "JMono2.3", overlay = true,
      max_boxes_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "2.2.0"
+SCRIPT_V = "2.3.0"
 
 // ════════════════ What this is ════════════════
-// ONE rule, no toggles. The first candle of a mono is its ANCHOR. Every
-// subsequent candle joins the mono while it is INSIDE THE ANCHOR's range:
-//     high <= anchor high  AND  low >= anchor low
-// Colour does not matter. The first candle that pokes outside the anchor's
-// range starts a new mono and becomes the new anchor.
+// TWO-STAGE grouping, no toggles (v2.3.0):
 //
-// v2.2.0 DIRECTION CHANGE (user-specified): the test is LEFT TO RIGHT — each
-// candle absorbs all subsequent candles inside ITSELF. v2.0.x/v2.1.0 tested
-// each bar against its IMMEDIATE PREDECESSOR instead, which only absorbs
-// nested chains (each bar inside the one before it). Anchor-based absorption
-// is strictly broader: a bar can be inside the anchor without being inside
-// the bar right before it — e.g. a wide anchor followed by small alternating
-// bars that overlap each other but all sit within the anchor's range. Under
-// the pairwise rule that chain breaks at the first non-nested step; under the
-// anchor rule the whole consolidation joins the anchor's mono.
+// STAGE 1 — INSIDE / ANCHOR (v2.2.0 rule, unchanged). The first candle of a
+// group is its ANCHOR; every subsequent candle joins while it is inside the
+// anchor's range (high <= anchor high AND low >= anchor low); the first candle
+// to poke outside starts a new group as the new anchor. Colour is irrelevant.
+// A stage-1 mono's high/low ARE its anchor's; its open is the anchor's open;
+// its close is its newest bar's close.
 //
-// Because every absorbed bar is inside the anchor, the mono's high/low ARE the
-// anchor's high/low — absorption can never widen the mono.
+// STAGE 2 — COLOUR, applied ON TOP of stage 1. Each stage-1 mono has a colour:
+// RED if its close < its open, otherwise GREEN (a flat doji counts green, the
+// jamal-ob convention). Consecutive same-colour stage-1 monos merge into the
+// FINAL monolithic candle: open = first inner mono's open, close = last inner
+// mono's close, high/low = the extremes across the merged inner monos (stage 2
+// CAN widen past a single anchor, unlike stage 1).
 //
-// VISUAL: each mono of 2+ bars is drawn AS A CANDLE over the price chart:
-//     body = translucent box from the mono's OPEN (the anchor's open) to its
-//            CLOSE (newest bar's close), spanning the mono's bars
-//     wick = line at the mono's centre from its HIGH to its LOW (the anchor's)
-//     colour = the mono's own direction, green if close >= open, red otherwise,
-//              updating live as the mono's close moves
-// Single-bar monos are not drawn — the real candle already shows them.
+// LIVE BEHAVIOUR: the live inner mono's close moves, so its colour can flip,
+// which can attach it to or detach it from the final mono under construction.
+// The renderer handles that by re-drawing the affected boxes in place. Nothing
+// looks ahead; Pine's rollback handles intrabar flips.
 //
-// The box/wick edges use `xloc.bar_time` with a half-bar offset so the mono
-// covers its bars fully. Assumes evenly spaced bars (true on 24/7 crypto).
-// Boxes and lines are drawings and do not drive the price scale.
+// VISUAL: each final mono spanning 2+ bars is drawn AS A CANDLE over the price
+// chart — translucent body box (open..close), centre wick line (high..low),
+// coloured by the final mono's live direction. Single-bar finals are not drawn.
 //
-// NO LAG, NO LOOKAHEAD. The live bar can still flip intrabar (a new high or
-// low can poke outside the anchor); Pine's rollback handles that.
-//
-// DRAWING LIMIT: 500 boxes/lines = the most recent ~500 multi-bar monos.
+// DRAWING LIMIT: 500 boxes/lines = the most recent ~500 drawn final monos.
 
 // ════════════════ Inputs ════════════════
 col_up   = input.color(#26a69a, "Mono up",   group = "Colours")
 col_dn   = input.color(#ef5350, "Mono down", group = "Colours")
 fill_tr  = input.int(70, "Body fill transparency", minval = 0, maxval = 100, group = "Colours", tooltip = "The body is filled at this transparency so the real candles stay visible through it. The border and wick are drawn solid.")
 
+// ════════════════ Stage 1 state — the live inner (anchor) mono L ════════════
+var float a_o   = na                         // anchor open  = L's open
+var float a_h   = na                         // anchor high  = L's high
+var float a_l   = na                         // anchor low   = L's low
+var int   a_t0  = 0                          // time of the anchor bar
+var int   a_len = 0                          // bars in L
+var int   a_cnt = 0                          // stage-1 monos so far
+var bool  prev_l_red = false                 // L's colour as of the previous bar (locks on finalize)
+
+// ════════════════ Stage 2 state — the final mono under construction F ═══════
+// F holds the already-FINALIZED inner monos of the current final candle. The
+// live inner mono L is displayed attached to F whenever their colours match,
+// and becomes part of F only when L finalizes still matching.
+var bool  f_exists = false
+var bool  f_red    = false                   // colour of F's member inner monos
+var float f_o = na                           // F's open (first inner's open)
+var float f_c = na                           // F's close (last finalized inner's close)
+var float f_h = na
+var float f_l = na
+var int   f_t0  = 0                          // time of F's first bar
+var int   f_t1  = 0                          // time of F's last bar
+var int   f_len = 0                          // bars in F
+var int   f_cnt = 0                          // final monos so far (started)
+
+var box  boxF  = na                          // drawing for F (or F∪L while attached)
+var line wickF = na
+var box  boxL  = na                          // drawing for L alone while detached
+var line wickL = na
+
 // ════════════════ Grouping ════════════════
-var int   m_len   = 0                        // bars in the current mono
-var int   m_count = 0                        // monos so far (completed + current)
-var float m_o     = na                       // the anchor's open
-var float m_h     = na                       // the anchor's high = the mono's high
-var float m_l     = na                       // the anchor's low  = the mono's low
-var int   m_t0    = 0                        // time of the anchor bar
+bool inside_anchor = a_cnt > 0 and high <= a_h and low >= a_l
+bool new_inner     = not inside_anchor
 
-bool inside_anchor = m_count > 0 and high <= m_h and low >= m_l
-
-bool new_run = not inside_anchor
-if new_run
-    m_count += 1
-    m_len   := 1
-    m_o     := open
-    m_h     := high
-    m_l     := low
-    m_t0    := time
+if new_inner
+    if a_cnt > 0                             // finalize the previous L with its locked colour
+        if f_exists and prev_l_red == f_red
+            f_c   := close[1]                // L absorbed into F
+            f_h   := math.max(f_h, a_h)
+            f_l   := math.min(f_l, a_l)
+            f_t1  := time[1]
+            f_len += a_len
+        else                                 // F is complete; L becomes the new F
+            f_exists := true
+            f_red    := prev_l_red
+            f_o  := a_o
+            f_c  := close[1]
+            f_h  := a_h
+            f_l  := a_l
+            f_t0 := a_t0
+            f_t1 := time[1]
+            f_len := a_len
+            f_cnt += 1
+            boxF  := boxL                    // the committed F keeps its drawing; L's becomes F's
+            wickF := wickL
+            boxL  := na
+            wickL := na
+    a_o   := open                            // start the new inner mono — this bar is the anchor
+    a_h   := high
+    a_l   := low
+    a_t0  := time
+    a_len := 1
+    a_cnt += 1
 else
-    m_len += 1
+    a_len += 1
 
-// ════════════════ Render — the mono as a candle over the price chart ════════
-var box  b_body = na
-var line l_wick = na
-float half_ms   = timeframe.in_seconds() * 500.0    // half a bar, in ms
+bool l_red = close < a_o                     // L's LIVE colour (doji -> green)
 
-if not new_run
-    color mc     = close >= m_o ? col_up : col_dn   // the mono's own direction, live
-    float body_t = math.max(m_o, close)
-    float body_b = math.min(m_o, close)
-    int   x_r    = int(time + half_ms)              // right edge of the mono's last bar
-    int   x_c    = int((m_t0 + time) / 2)           // centre of the mono, for the wick
-    if m_len == 2                                   // mono just became multi-bar — draw it now
-        b_body := box.new(int(m_t0 - half_ms), body_t, x_r, body_b, xloc = xloc.bar_time,
+// ════════════════ Render ════════════════
+float half_ms = timeframe.in_seconds() * 500.0
+int   x_r     = int(time + half_ms)
+bool attached = f_exists and l_red == f_red  // L currently displays as part of F's final mono
+
+if attached
+    // ONE candle covering F ∪ L
+    float o  = f_o
+    float h  = math.max(f_h, a_h)
+    float l  = math.min(f_l, a_l)
+    color mc = close >= o ? col_up : col_dn
+    int  x_l = int(f_t0 - half_ms)
+    int  x_c = int((f_t0 + time) / 2)
+    if not na(boxL)                          // was detached — drop L's own drawing
+        box.delete(boxL)
+        line.delete(wickL)
+        boxL  := na
+        wickL := na
+    if na(boxF)                              // F∪L always spans 2+ bars
+        boxF  := box.new(x_l, math.max(o, close), x_r, math.min(o, close), xloc = xloc.bar_time,
              border_color = mc, border_width = 1, bgcolor = color.new(mc, fill_tr))
-        l_wick := line.new(x_c, m_h, x_c, m_l, xloc = xloc.bar_time, color = mc, width = 2)
-    else                                            // mono keeps growing — extend in place
-        box.set_right(b_body, x_r)
-        box.set_top(b_body, body_t)
-        box.set_bottom(b_body, body_b)
-        line.set_xy1(l_wick, x_c, m_h)
-        line.set_xy2(l_wick, x_c, m_l)
-    box.set_border_color(b_body, mc)                // direction can flip while the mono grows
-    box.set_bgcolor(b_body, color.new(mc, fill_tr))
-    line.set_color(l_wick, mc)
+        wickF := line.new(x_c, h, x_c, l, xloc = xloc.bar_time, color = mc, width = 2)
+    else
+        box.set_left(boxF, x_l)
+        box.set_right(boxF, x_r)
+        box.set_top(boxF, math.max(o, close))
+        box.set_bottom(boxF, math.min(o, close))
+        line.set_xy1(wickF, x_c, h)
+        line.set_xy2(wickF, x_c, l)
+    box.set_border_color(boxF, mc)
+    box.set_bgcolor(boxF, color.new(mc, fill_tr))
+    line.set_color(wickF, mc)
+else
+    // F stands alone (drawn only if 2+ bars)...
+    if f_exists
+        if f_len >= 2
+            color fc_ = f_c >= f_o ? col_up : col_dn
+            int  fx_l = int(f_t0 - half_ms)
+            int  fx_r = int(f_t1 + half_ms)
+            int  fx_c = int((f_t0 + f_t1) / 2)
+            if na(boxF)
+                boxF  := box.new(fx_l, math.max(f_o, f_c), fx_r, math.min(f_o, f_c), xloc = xloc.bar_time,
+                     border_color = fc_, border_width = 1, bgcolor = color.new(fc_, fill_tr))
+                wickF := line.new(fx_c, f_h, fx_c, f_l, xloc = xloc.bar_time, color = fc_, width = 2)
+            else                             // shrink back from a previously attached display
+                box.set_left(boxF, fx_l)
+                box.set_right(boxF, fx_r)
+                box.set_top(boxF, math.max(f_o, f_c))
+                box.set_bottom(boxF, math.min(f_o, f_c))
+                line.set_xy1(wickF, fx_c, f_h)
+                line.set_xy2(wickF, fx_c, f_l)
+            box.set_border_color(boxF, fc_)
+            box.set_bgcolor(boxF, color.new(fc_, fill_tr))
+            line.set_color(wickF, fc_)
+        else if not na(boxF)                 // single-bar F is not drawn
+            box.delete(boxF)
+            line.delete(wickF)
+            boxF  := na
+            wickF := na
+    // ...and L is its own provisional final mono (drawn only if 2+ bars)
+    if a_len >= 2
+        color lc_ = close >= a_o ? col_up : col_dn
+        int  lx_l = int(a_t0 - half_ms)
+        int  lx_c = int((a_t0 + time) / 2)
+        if na(boxL)
+            boxL  := box.new(lx_l, math.max(a_o, close), x_r, math.min(a_o, close), xloc = xloc.bar_time,
+                 border_color = lc_, border_width = 1, bgcolor = color.new(lc_, fill_tr))
+            wickL := line.new(lx_c, a_h, lx_c, a_l, xloc = xloc.bar_time, color = lc_, width = 2)
+        else
+            box.set_right(boxL, x_r)
+            box.set_top(boxL, math.max(a_o, close))
+            box.set_bottom(boxL, math.min(a_o, close))
+            line.set_xy1(wickL, lx_c, a_h)
+            line.set_xy2(wickL, lx_c, a_l)
+            box.set_border_color(boxL, lc_)
+            box.set_bgcolor(boxL, color.new(lc_, fill_tr))
+            line.set_color(wickL, lc_)
+    else if not na(boxL)
+        box.delete(boxL)
+        line.delete(wickL)
+        boxL  := na
+        wickL := na
+
+prev_l_red := l_red                          // lock-in candidate for the finalize step
 
 // ════════════════ Data window ════════════════
-plot(m_o,     "DW mono open",         display = display.data_window)
-plot(m_h,     "DW mono high",         display = display.data_window)
-plot(m_l,     "DW mono low",          display = display.data_window)
-plot(close,   "DW mono close",        display = display.data_window)
-plot(m_len,   "DW bars in this mono", display = display.data_window)
-plot(m_count, "DW monos so far",      display = display.data_window)
+plot(a_cnt, "DW stage-1 monos so far", display = display.data_window)
+plot(f_cnt, "DW final monos so far",   display = display.data_window)
+plot(a_len, "DW bars in live inner",   display = display.data_window)
+plot(f_len, "DW bars committed to current final", display = display.data_window)
+plot(attached ? 1 : 0, "DW live inner attached (1=yes)", display = display.data_window)
 
 // ════════════════ Version tag ════════════════
 var table vt = table.new(position.top_right, 1, 1)
