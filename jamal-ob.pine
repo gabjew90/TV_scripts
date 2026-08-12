@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.42.0", shorttitle = "JOB0.42", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.43.0", shorttitle = "JOB0.43", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.42.0"
+SCRIPT_V = "0.43.0"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -10,6 +10,8 @@ use_fill     = input.bool(false, "Gap close-fill trigger",
      tooltip = "OFF (default): the line moves only on new lows (green) / new highs (red). ON: adds the CLOSE-FILL trigger. A candle that CLOSES below the bottom of a bull gap (fully closing the gap - any margin) relocates the GREEN line via the normal full walk-back; a close above a bear gap's top relocates the RED line. Dipping into a gap without closing through it does nothing. v0.42.0 OPPOSITE-LINE GATE: each pathway is armed only once price has broken past the OTHER line - the green line's fill trigger requires close ABOVE the red line, the red line's requires close BELOW the green line. Fills that happen while price sits between the two lines do nothing, and do not consume the zone. v0.41.0 QUEUE: only the NEWEST zone not yet closed through is armed at any time; when it fires, the next-newest becomes armed on the following bar.")
 use_lit      = input.bool(false, "Bright-line trigger",
      tooltip = "OFF (default): no effect. ON: adds a THIRD Trigger to BOTH lines, mirrored (v0.39.0 shipped the red→green half only, as use_redlit; v0.40.0 renames it and adds the mirror). RED turns BRIGHT (first confirmed close below the upper line since its last relocation) → fires a normal bull walk-back, moving the GREEN line. GREEN turns BRIGHT (first confirmed close above the lower line) → fires a normal bear walk-back, moving the RED line. Same walks, same guard updates, same eligibility rule (a line holds if its walk finds no series). One-shot per line placement, because the reclaim latch only arms once between that line's own relocations. Tie-break when both fire on one bar: red→green resolves first and cancels the green's own lit event.")
+use_mono     = input.bool(false, "Monolithic grouping",
+     tooltip = "OFF (default): the v0.17 three-candle walk-back, unchanged. ON (v0.43.0): REPLACES both walk-backs entirely. Consecutive same-colour bars merge into one monolithic candle (open = open of the run's FIRST bar, close = close of its LAST bar, high/low = the run's extremes), so the series alternates red mono / green mono. Walking back a bull leg, each GREEN mono is judged against the RED mono behind it (P): inside P - keep walking; took P's low AND high - the fall starts here; took P's low only - the fall starts here ONLY if the very next BAR takes out the green's high, otherwise keep walking; closed above P's open - the fall starts here. Origin = the highest red-mono open reached. Bear side is the exact high/low mirror. Fits 7 of 8 user-marked cases vs 4 for the default walk, but changes roughly a third of all placements - see CHANGELOG.")
 start_ts     = input.time(timestamp("1 Aug 2022 00:00 +0000"), "State start date",
      tooltip = "The OB state machine ignores all bars before this date: no sweeps fire and walk-backs clamp here. Default = ~4 years back; symbols younger than that simply start at their first bar. Caps how stale a line can be. NOTE: if a device loads less history than this (e.g. mobile), the lines can differ across devices — tighten the date if that matters.")
 
@@ -137,6 +139,151 @@ f_walkback_bear(int maxlb, int s0, int t0) =>
             continue                                // red/doji pass-through: not a local bottom; R drops below it OR its high is BETWEEN the two highs → keep walking
         break                                       // red/doji STOPS: local bottom (low<L), OR R below it with high OUTSIDE the L–R high band (R engulfs / swing high)
     [best_open, leg_hi]
+
+// ════════════════ Monolithic walk-backs (v0.43.0 — `use_mono`, default OFF) ════════════════
+// Consecutive same-colour bars merge into one mono: open = the run's OLDEST bar's open,
+// close = its NEWEST bar's close, high/low = the run's extremes. The series then alternates
+// red mono / green mono, and every GREEN mono is judged against the RED mono behind it (P).
+// Walking BACKWARD a green run is met before its P, so the green is buffered and tested the
+// moment P completes. "The next candle" stays a SINGLE BAR by design: merging the newer reds
+// too inflates the high-taken test and breaks the ETH-Sep-2022 / BTC-Sep-2022 fixtures.
+// Returns the same [open, leg extreme] pair as the v0.17 walks, so the guard is unchanged.
+f_walkback_bull_mono(int maxlb, int s0, int t0) =>
+    float best_open = na
+    float leg_lo    = low[s0]
+    bool  g_pend    = false                 // a green mono awaiting its P
+    float g_hi = na
+    float g_lo = na
+    float g_cl = na
+    float g_nx = na                         // high of the single bar NEWER than that green run
+    bool  cur_red = close[s0] < open[s0]    // run currently being accumulated
+    float cur_hi  = high[s0]
+    float cur_lo  = low[s0]
+    float cur_op  = open[s0]
+    float cur_cl  = close[s0]
+    int   cur_new = s0
+    bool  ended   = false
+    for i = s0 + 1 to s0 + maxlb
+        if na(time[i]) or time[i] < t0
+            break
+        bool r = close[i] < open[i]
+        if r == cur_red
+            cur_hi := math.max(cur_hi, high[i])
+            cur_lo := math.min(cur_lo, low[i])
+            cur_op := open[i]               // walking back, the last one seen is the oldest
+            leg_lo := math.min(leg_lo, low[i])
+            continue
+        if cur_red                          // a RED mono just completed — it is the buffered green's P
+            if g_pend                       // TEST FIRST: if the green ends the walk, P is not in the leg
+                bool inside  = g_hi <= cur_hi and g_lo >= cur_lo
+                bool tookLo  = g_lo < cur_lo
+                bool tookHi  = g_hi > cur_hi
+                bool hiTaken = not na(g_nx) and g_nx > g_hi
+                bool clAbove = g_cl > cur_op
+                if not inside and ((tookLo and tookHi) or (tookLo and hiTaken) or (not tookLo and clAbove))
+                    ended := true
+                    break
+                g_pend := false
+            best_open := na(best_open) ? cur_op : math.max(best_open, cur_op)
+        else                                // a GREEN mono just completed — buffer it
+            g_pend := true
+            g_hi := cur_hi
+            g_lo := cur_lo
+            g_cl := cur_cl
+            g_nx := cur_new >= 1 ? high[cur_new - 1] : na   // never the future: bar 0 has no newer bar
+        cur_red := r
+        cur_hi  := high[i]
+        cur_lo  := low[i]
+        cur_op  := open[i]
+        cur_cl  := close[i]
+        cur_new := i
+        leg_lo  := math.min(leg_lo, low[i])
+    if not ended and cur_red                // loop hit the edge mid-run
+        best_open := na(best_open) ? cur_op : math.max(best_open, cur_op)
+    [best_open, leg_lo]
+
+// EXACT high↔low mirror. Green monos are in-leg (running MIN of green-mono opens); every RED
+// mono is judged against the GREEN mono behind it.
+f_walkback_bear_mono(int maxlb, int s0, int t0) =>
+    float best_open = na
+    float leg_hi    = high[s0]
+    bool  r_pend    = false
+    float r_hi = na
+    float r_lo = na
+    float r_cl = na
+    float r_nx = na
+    bool  cur_grn = close[s0] > open[s0]
+    float cur_hi  = high[s0]
+    float cur_lo  = low[s0]
+    float cur_op  = open[s0]
+    float cur_cl  = close[s0]
+    int   cur_new = s0
+    bool  ended   = false
+    for i = s0 + 1 to s0 + maxlb
+        if na(time[i]) or time[i] < t0
+            break
+        bool g = close[i] > open[i]
+        if g == cur_grn
+            cur_hi := math.max(cur_hi, high[i])
+            cur_lo := math.min(cur_lo, low[i])
+            cur_op := open[i]
+            leg_hi := math.max(leg_hi, high[i])
+            continue
+        if cur_grn                          // mirror: test before contributing
+            if r_pend
+                bool inside  = r_hi <= cur_hi and r_lo >= cur_lo
+                bool tookHi  = r_hi > cur_hi
+                bool tookLo  = r_lo < cur_lo
+                bool loTaken = not na(r_nx) and r_nx < r_lo
+                bool clBelow = r_cl < cur_op
+                if not inside and ((tookHi and tookLo) or (tookHi and loTaken) or (not tookHi and clBelow))
+                    ended := true
+                    break
+                r_pend := false
+            best_open := na(best_open) ? cur_op : math.min(best_open, cur_op)
+        else
+            r_pend := true
+            r_hi := cur_hi
+            r_lo := cur_lo
+            r_cl := cur_cl
+            r_nx := cur_new >= 1 ? low[cur_new - 1] : na
+        cur_grn := g
+        cur_hi  := high[i]
+        cur_lo  := low[i]
+        cur_op  := open[i]
+        cur_cl  := close[i]
+        cur_new := i
+        leg_hi  := math.max(leg_hi, high[i])
+    if not ended and cur_grn
+        best_open := na(best_open) ? cur_op : math.min(best_open, cur_op)
+    [best_open, leg_hi]
+
+// ════════════════ Walk selectors — every Trigger routes through these ════════════════
+f_wb_bull(int maxlb, int s0, int t0, bool mono) =>
+    float o = na
+    float e = na
+    if mono
+        [a, b] = f_walkback_bull_mono(maxlb, s0, t0)
+        o := a
+        e := b
+    else
+        [a, b] = f_walkback_bull(maxlb, s0, t0)
+        o := a
+        e := b
+    [o, e]
+
+f_wb_bear(int maxlb, int s0, int t0, bool mono) =>
+    float o = na
+    float e = na
+    if mono
+        [a, b] = f_walkback_bear_mono(maxlb, s0, t0)
+        o := a
+        e := b
+    else
+        [a, b] = f_walkback_bear(maxlb, s0, t0)
+        o := a
+        e := b
+    [o, e]
 
 // ════════════════ State ════════════════
 bool active = time >= start_ts                       // machine is dead before the start date
@@ -301,7 +448,7 @@ bool bear_did_reloc = false
 bool bull_did_reloc = false
 if bear_wick or bear_fill
     int s0s = close > open ? 0 : 1
-    [oRs, whi] = f_walkback_bear(max_lookback, s0s, start_ts)
+    [oRs, whi] = f_wb_bear(max_lookback, s0s, start_ts, use_mono)
     if not na(oRs)                     // eligible only if the walk-back finds a real supply (an up-series behind the entry)
         upper_line    := oRs
         bear_guard_hi := math.max(high, whi)
@@ -310,7 +457,7 @@ if bear_wick or bear_fill
             fill_bear_rl += 1          // v0.41.0: close-fill was the SOLE cause of this red move
 if bull_wick or bull_fill
     int s0b = close < open ? 0 : 1
-    [oRb, wlo] = f_walkback_bull(max_lookback, s0b, start_ts)
+    [oRb, wlo] = f_wb_bull(max_lookback, s0b, start_ts, use_mono)
     if not na(oRb)                     // eligible only if the walk-back finds a real demand (a down-series behind the entry)
         lower_line    := oRb
         bull_guard_lo := math.min(low, wlo)
@@ -355,7 +502,7 @@ else if not na(lower_line)
 // ──────────────── PASS 2: cross (bright-line) triggers ────────────────
 if use_lit and bear_lit_evt and not bull_did_reloc                           // RED bright → move the GREEN line
     int s0b2 = close < open ? 0 : 1
-    [oRb2, wlo2] = f_walkback_bull(max_lookback, s0b2, start_ts)
+    [oRb2, wlo2] = f_wb_bull(max_lookback, s0b2, start_ts, use_mono)
     if not na(oRb2)
         lower_line        := oRb2
         bull_guard_lo     := math.min(low, wlo2)
@@ -366,7 +513,7 @@ if use_lit and bear_lit_evt and not bull_did_reloc                           // 
         redlit_reloc_n    += 1
 if use_lit and bull_lit_evt and not bear_did_reloc                           // GREEN bright → move the RED line
     int s0s2 = close > open ? 0 : 1
-    [oRs2, whi2] = f_walkback_bear(max_lookback, s0s2, start_ts)
+    [oRs2, whi2] = f_wb_bear(max_lookback, s0s2, start_ts, use_mono)
     if not na(oRs2)
         upper_line        := oRs2
         bear_guard_hi     := math.max(high, whi2)
