@@ -1,8 +1,8 @@
 //@version=6
-indicator("Jamal OB v0.44.0", shorttitle = "JOB0.44", overlay = true, max_boxes_count = 50)
+indicator("Jamal OB v0.44.1", shorttitle = "JOB0.44", overlay = true, max_boxes_count = 50)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.44.0"
+SCRIPT_V = "0.44.1"
 
 // ════════════════ Inputs ════════════════
 max_lookback = input.int(200, "Walk-back max lookback (bars)", minval = 10)
@@ -165,6 +165,7 @@ f_walkback_bull_mono(int maxlb, int s0, int t0) =>
     float cur_cl  = close[s0]
     int   cur_new = s0
     bool  ended   = false
+    bool  first_run = true                  // v0.44.1: the anchor's own mono is in-leg, never judged
     for i = s0 + 1 to s0 + maxlb
         if na(time[i]) or time[i] < t0
             break
@@ -226,6 +227,7 @@ f_walkback_bear_mono(int maxlb, int s0, int t0) =>
     float cur_cl  = close[s0]
     int   cur_new = s0
     bool  ended   = false
+    bool  first_run = true                  // v0.44.1 mirror
     for i = s0 + 1 to s0 + maxlb
         if na(time[i]) or time[i] < t0
             break
@@ -251,12 +253,14 @@ f_walkback_bear_mono(int maxlb, int s0, int t0) =>
             best_open := na(best_open) ? cur_op : math.min(best_open, cur_op)
             last_grn_lo := cur_lo
         else
-            r_pend := true
-            r_hi := cur_hi
-            r_lo := cur_lo
-            r_cl := cur_cl
-            r_nx := cur_new >= 1 ? low[cur_new - 1] : na
-            r_glo := last_grn_lo
+            if not first_run                // v0.44.1: skip the anchor's own mono
+                r_pend := true
+                r_hi := cur_hi
+                r_lo := cur_lo
+                r_cl := cur_cl
+                r_nx := cur_new >= 1 ? low[cur_new - 1] : na
+                r_glo := last_grn_lo
+        first_run := false
         cur_grn := g
         cur_hi  := high[i]
         cur_lo  := low[i]
