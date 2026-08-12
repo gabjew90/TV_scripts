@@ -1017,6 +1017,23 @@ Read as a commitment filter: demand re-anchors only after supply has been overco
 **Comparison table, NEAR.P 1D:** off 1,085 · v0.3.0 301 · v0.4.0 781 · v0.5.0 280 · **v0.6.0 863**. The jump from 280 to 863 is the whole point: sealing stops the cascade, so merging now folds roughly 222 monos into their predecessors instead of collapsing the chart into a few dozen giants.
 **Reading note:** `m_ins` counts opposite-colour bars in the mono from BOTH paths — one absorbed by `inside_p`, or one that opened the mono under the `inside_n` colour-adoption rule. So `m_ins = 1` with `m_sealed = 0` is a legitimate combination (the current NEAR mono is exactly that) and does not indicate a missed seal.
 **Not done:** unchanged from v0.5.0 — no calibration case checked against this grouping, the previous-over-next precedence is asserted not tested, the symmetric-vs-low-only question is still open, and `use_mono` in jamal-ob remains colour-flip-only.
+**Status:** superseded by v0.7.0 — the forward-absorb clause is removed.
+
+## Mono v0.7.0 — forward-absorb removed; lag and the renderer restriction go with it
+**Date:** 2026-08-12 · **On-chart:** "Jamal Mono v0.7.0" (shorttitle "JMono0.7")
+**User question, answered before the change:** "how does it handle multiple inside candles?"
+- **Consecutive OPPOSITE-colour inside bars:** only the FIRST is absorbed. It seals the mono, so the second starts a new mono even though it is also inside. A mono holds at most one absorbed bar, always the last.
+- **SAME-colour inside bars:** never tested for inside-ness at all. `same_col` is evaluated first in the chain, so they are ordinary run extensions and never seal. The inside rule only ever applies to bars that flip the colour.
+Both behaviours are now written into the source comments so the question does not have to be re-derived.
+**User instruction:** "let's remove the forward absorb logic inside candle."
+**Change:** the `inside_n` clause and everything it dragged in are deleted — `n_hi`, `n_lo`, `n_red`, `take_col` and the colour-adoption rule. The grouping is now a single added clause: an opposite-colour bar inside the mono so far is absorbed and seals it; anything else starts a new mono.
+**Three simplifications fall out for free, which is the real value of the removal:**
+1. **The one-bar lag is gone.** It existed solely to see the next bar. `k` is deleted along with every `[k]` offset and the `ready` guard; the script reads only the bar being drawn and prior state. The live bar is grouped again in real time, and the "DW lag" plot is removed as meaningless.
+2. **Repeat mode works under merging again.** It had been force-disabled because `plotcandle` takes no `offset` and would draw a bar to the right under the lag. With no lag there is nothing to correct, so `use_box` is deleted and `one_candle` is honoured in both modes.
+3. **`m_ins` has one meaning again** — bars absorbed by the inside rule. Under v0.4.0-v0.6.0 it also counted the bar that opened a mono under colour-adoption, which made `m_ins = 1` with `m_sealed = 0` a legitimate but confusing combination. Renamed "DW inside bars absorbed".
+**Tests run:** compile 0/0, saved as script version 10. **NEAR.P 1D, crosshair on the last bar, merging ON → 917 monos**, no lag field. Current mono: 3 bars (10-12 Aug), open 1.598, high 1.683, low 1.536, close 1.636, 0 absorbed, not sealed — open/high/low identical to the merging-OFF reading, confirming the live bar is back in the current mono now the lag is gone.
+**Comparison table, NEAR.P 1D:** off 1,085 · v0.3.0 301 · v0.4.0 781 · v0.5.0 280 · v0.6.0 863 · **v0.7.0 917**. The rise from 863 is exactly the removal: bars the forward rule used to fold into the following mono now form their own again.
+**Not done:** no calibration case checked against this grouping; the symmetric-vs-low-only question is still open (a bar breaks the mono by taking out either extreme, where the rule was given with the low as the example); `use_mono` in jamal-ob remains colour-flip-only and unaffected.
 **Status:** shipped, `merge_inside` default OFF so the pane keeps matching the walk by default.
 
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
