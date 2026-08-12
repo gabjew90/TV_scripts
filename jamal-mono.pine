@@ -1,0 +1,89 @@
+//@version=6
+indicator("Jamal Mono v0.1.0", shorttitle = "JMono0.1", overlay = false, max_labels_count = 500)
+
+// ════════════════ Identity ════════════════
+SCRIPT_V = "0.1.0"
+
+// ════════════════ What this is ════════════════
+// A separate-pane candle chart of MONOLITHIC candles — the same grouping the
+// jamal-ob `use_mono` walk-back uses, drawn so it can be read directly instead
+// of inferred from levels.
+//
+// A mono = a run of consecutive same-colour bars merged into one candle:
+//     open  = the run's FIRST (oldest) bar's open
+//     close = the run's LAST (newest) bar's close
+//     high  = highest high across the run
+//     low   = lowest low across the run
+// Colour convention matches the walk-back exactly: RED is close < open, so a
+// FLAT DOJI (close == open) counts as GREEN.
+//
+// RENDERING: the mono is drawn on every bar of its run, updating as the run
+// extends. So the rightmost bar of a run shows the completed mono, and the bars
+// before it show that mono part-formed. Nothing is drawn retroactively and
+// nothing looks ahead. The only repaint is the ordinary one: the live bar's own
+// colour can flip intrabar, which can start or extend a run until it closes.
+
+// ════════════════ Inputs ════════════════
+show_len   = input.bool(true,  "Label runs of 2+ bars", tooltip = "Prints the bar count under each completed multi-bar mono. Single-bar monos are left unlabelled to keep the pane quiet.")
+show_split = input.bool(true,  "Mark where each run starts")
+col_up     = input.color(#2f7f6c, "Green mono", group = "Colours")
+col_dn     = input.color(#a94b57, "Red mono",   group = "Colours")
+col_lab    = input.color(#7c8ba0, "Labels / markers", group = "Colours")
+
+// ════════════════ Grouping ════════════════
+bool is_red = close < open                   // flat doji -> green, same as the walk-back
+
+var bool  m_init  = false                    // Pine will not seed a bool with na
+var bool  m_red   = false
+var float m_o     = na
+var float m_h     = na
+var float m_l     = na
+var int   m_len   = 0
+var int   m_count = 0                        // completed + current, for the data window
+
+bool new_run = not m_init or is_red != m_red
+
+if new_run
+    m_init  := true
+    m_red   := is_red
+    m_o     := open
+    m_h     := high
+    m_l     := low
+    m_len   := 1
+    m_count += 1
+else
+    m_h   := math.max(m_h, high)
+    m_l   := math.min(m_l, low)
+    m_len += 1
+
+color m_col = m_red ? col_dn : col_up
+
+// ════════════════ Render ════════════════
+plotcandle(m_o, m_h, m_l, close, "Mono",
+     color       = m_col,
+     wickcolor   = m_col,
+     bordercolor = m_col)
+
+// bar count under a completed multi-bar run, printed on the bar the run ENDS
+if show_len and new_run and not na(m_len[1]) and m_len[1] >= 2
+    label.new(bar_index - 1, m_l[1], str.tostring(m_len[1]),
+         yloc = yloc.price, style = label.style_label_up, size = size.tiny,
+         color = color.new(color.black, 100), textcolor = col_lab)
+
+// faint tick where each new run begins
+plotchar(show_split and new_run ? m_o : na, "Run start", "▏", location.absolute,
+     col_lab, size = size.tiny)
+
+// ════════════════ Data window ════════════════
+plot(m_o,     "DW mono open",        display = display.data_window)
+plot(m_h,     "DW mono high",        display = display.data_window)
+plot(m_l,     "DW mono low",         display = display.data_window)
+plot(close,   "DW mono close",       display = display.data_window)
+plot(m_len,   "DW bars in this run", display = display.data_window)
+plot(m_red ? 1 : 0, "DW is red (1=red)", display = display.data_window)
+plot(m_count, "DW monos so far",     display = display.data_window)
+
+// ════════════════ Version tag ════════════════
+var table vt = table.new(position.top_right, 1, 1)
+if barstate.islast
+    table.cell(vt, 0, 0, "Jamal Mono v" + SCRIPT_V, text_color = color.white, bgcolor = color.new(color.black, 20))

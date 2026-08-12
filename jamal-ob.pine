@@ -191,12 +191,14 @@ f_walkback_bull_mono(int maxlb, int s0, int t0) =>
             best_open := na(best_open) ? cur_op : math.max(best_open, cur_op)
             last_red_hi := cur_hi
         else                                // a GREEN mono just completed — buffer it
-            g_pend := true
-            g_hi := cur_hi
-            g_lo := cur_lo
-            g_cl := cur_cl
-            g_nx := cur_new >= 1 ? high[cur_new - 1] : na   // never the future: bar 0 has no newer bar
-            g_rhi := last_red_hi
+            if not first_run                // v0.44.1: skip the anchor's own mono
+                g_pend := true
+                g_hi := cur_hi
+                g_lo := cur_lo
+                g_cl := cur_cl
+                g_nx := cur_new >= 1 ? high[cur_new - 1] : na   // never the future: bar 0 has no newer bar
+                g_rhi := last_red_hi
+        first_run := false
         cur_red := r
         cur_hi  := high[i]
         cur_lo  := low[i]
