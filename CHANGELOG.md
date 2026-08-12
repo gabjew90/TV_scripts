@@ -1050,7 +1050,30 @@ Both removed along with the `fit_scale` input rather than ship a control that do
 **Tests run:** compile 0/0, saved as script version 13, error cleared and pane rendering again. **NEAR.P 1D, crosshair on the last bar, merging ON → 850 monos**, against v0.7.0's 917: the group rule folds ~67 further monos into their predecessors. Current mono: 3 bars (10-12 Aug), open 1.598, high 1.683, low 1.536, close 1.637, 0 absorbed. Labels confirmed printing only on 3+ bar monos.
 **Process note:** a crosshair click earlier in the session pinned the data window to 23 Mar, and the first reading of this build (797 monos) was taken from there. Caught by cross-checking Jamal OB's lines against their known values. Synthetic `pointermove` did not clear it; a real `ui_mouse_click` on the price pane did. **`data_get_study_values` reads at the CROSSHAIR — verify position, not just symbol and resolution.**
 **Not done:** no calibration case checked against this grouping; the symmetric-vs-low-only question is still open; `use_mono` in jamal-ob remains colour-flip-only and unaffected.
-**Status:** shipped, `merge_inside` default OFF so the pane keeps matching the walk by default.
+**Status:** superseded by v1.0.0 — grouping restated as two independent toggles.
+
+## Mono v1.0.0 — grouping restated as TWO independent merge rules
+**Date:** 2026-08-12 · **On-chart:** "Jamal Mono v1.0.0" (shorttitle "JMono1.0")
+**User spec:** "two toggles: monolithic candle for consecutive colors / monolithic candle for inside candles ('inside' as seen by the most immediate candle, not monolithic) / both toggles should play nicely together."
+**The whole grouping is now two rules.** A bar CONTINUES the current mono if either accepts it, and starts a new mono if neither does:
+- **COLOUR** (`merge_color`, default ON) — the bar is the same colour as the mono. This is the classic rule and the one `use_mono` runs on.
+- **INSIDE** (`merge_inside`, default OFF) — the bar is inside the bar IMMEDIATELY BEFORE IT (`high <= high[1] and low >= low[1]`). Colour is irrelevant to this rule.
+
+**What changed from v0.9.0/v0.8.0.** Colour merging was previously hardcoded as the base grouping with the inside rule bolted on as a special case; it is now a peer toggle, so all four combinations are meaningful. And the absorption machinery is GONE — `m_sealed`, `m_absorbing`, `m_abs_red`, the group-colour tracking and the "an absorbed bar also ends the mono" rule from v0.6.0-v0.8.0. That rule existed only because "inside" used to be measured against the mono's whole accumulated range, so without a stop a wide mono swallowed everything (the 27- and 26-bar monos). Measuring against the previous single bar removes that failure structurally: an absorbed group is a NESTED CHAIN, each bar contained by the one before it, which shrinks and terminates on its own. A sealing rule would also not compose cleanly with two independent toggles. **Flagged to the user as a deliberate drop, since it reverses an earlier explicit instruction whose premise no longer holds.**
+**No-widening still holds:** `bar[1]` is already in the mono, so the mono's range contains it, so anything inside `bar[1]` is inside the mono. An INSIDE-rule join can never extend the mono's high or low.
+**Inputs cut to exactly two toggles,** per the request. `show_len` folded into `label_min` (0 = no labels) and `show_split` deleted — it only applied in repeat mode and was redundant once the box edges mark every boundary. Remaining non-toggle settings: `body_pct`, `wick_w`, `label_min`, three colours.
+**Tests run:** compile 0/0, saved as script version 14. **NEAR.P 1D, crosshair on the last bar — all four combinations:**
+
+| colour | inside | monos |
+|---|---|---|
+| off | off | 2,128 |
+| ON | off | **1,085** |
+| off | ON | 1,766 |
+| ON | ON | 831 |
+
+Three checks pass. **Colour-only reproduces 1,085 exactly**, the baseline every prior version measured, so the restructure did not disturb the classic grouping. **Both-off gives 2,128 = one mono per bar**, which independently confirms the loaded bar count and that the degenerate case behaves. And the counts are **monotonic in both toggles** — adding a merge rule can only merge more, never less — which is the property an OR of two independent rules must have and the concrete meaning of "play nicely together".
+**Not done:** no calibration case checked against the inside grouping; the symmetric-vs-low-only question is still open (a bar fails the inside test by taking out either the previous bar's high or its low, where the rule was first described with the low as the example); `use_mono` in jamal-ob is unaffected and still colour-only.
+**Status:** shipped. Defaults (colour ON, inside OFF) make the pane mirror `use_mono` exactly.
 
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
