@@ -1,9 +1,9 @@
 //@version=6
-indicator("Jamal Mono v0.7.0", shorttitle = "JMono0.7", overlay = false,
+indicator("Jamal Mono v0.8.0", shorttitle = "JMono0.8", overlay = false,
      max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "0.7.0"
+SCRIPT_V = "0.8.0"
 
 // ════════════════ What this is ════════════════
 // A separate-pane candle chart of MONOLITHIC candles — the same grouping the
@@ -34,9 +34,12 @@ SCRIPT_V = "0.7.0"
 // offset assumes evenly spaced bars, which holds on 24/7 crypto; on a
 // session-gapped symbol the edges drift across weekend/holiday gaps.
 //
+// Y-AXIS SCALING is NOT under this script's control — see the Pane scaling
+// note below. Boxes and lines are drawings, and drawings do not drive a pane's
+// price scale. Two attempts to anchor it with hidden plots both failed.
+//
 // NO LAG, NO LOOKAHEAD (v0.7.0). Every rule reads only the bar being drawn and
-// state accumulated before it. The one-bar lag v0.4.0-v0.6.0 needed for the
-// forward-absorb rule is gone with that rule.
+// state accumulated before it.
 //
 // DRAWING LIMITS: 500 boxes and 500 lines, so the box renderer shows the most
 // recent ~500 monos and TradingView drops older ones. On a chart with more
@@ -44,9 +47,12 @@ SCRIPT_V = "0.7.0"
 // empty in one-candle mode. Switch the toggle off to see all of it.
 
 // ════════════════ Inputs ════════════════
-merge_inside = input.bool(false, "Merge inside candles into a mono", group = "Grouping", tooltip = "OFF (default): a run ends the moment the bar colour flips - the grouping the jamal-ob use_mono walk-back actually runs on. ON: an OPPOSITE-COLOUR bar that is INSIDE THE MONO SO FAR (high <= mono high and low >= mono low, judged against the whole accumulated run, not the single bar before it) is absorbed into that mono AND ENDS IT - it becomes the mono's last bar and sets its close, and the next bar starts a fresh mono whatever its colour. So a mono holds at most ONE absorbed bar and it is always the last: of two consecutive opposite-colour inside bars, only the first is absorbed. Same-colour bars are ordinary run extensions and are never tested for inside-ness. WARNING: with this ON the pane NO LONGER matches what use_mono does; it is a what-if view, not a mirror of the walk.")
+merge_inside = input.bool(false, "Merge inside candles into a mono", group = "Grouping", tooltip = "OFF (default): a run ends the moment the bar colour flips - the grouping the jamal-ob use_mono walk-back actually runs on. ON: an OPPOSITE-COLOUR bar that is INSIDE THE MONO SO FAR (high <= mono high and low >= mono low, judged against the whole accumulated run) is absorbed into that mono. Absorption then CONTINUES for as many consecutive bars as stay inside AND keep the same colour as the first absorbed one. The first bar that is not inside, or is inside but a different colour, ENDS the mono and starts a new one. Same-colour bars are ordinary run extensions and are never tested for inside-ness. WARNING: with this ON the pane NO LONGER matches what use_mono does; it is a what-if view, not a mirror of the walk.")
 one_candle   = input.bool(true,  "One candle per mono", group = "Rendering", tooltip = "ON: each run is drawn as a SINGLE candle spanning its bars, using a box for the body and a line for the wick. OFF: the v0.1.0 behaviour - plotcandle repeats the growing mono on every bar of the run (the stair). One-candle mode is limited to the most recent 500 monos by TradingView's drawing cap; repeat mode has no limit.")
-show_len     = input.bool(true,  "Label runs of 2+ bars", group = "Rendering", tooltip = "Prints the bar count under each completed multi-bar mono. A trailing * means the mono ends in an absorbed opposite-colour inside bar, so it only has that shape because merge_inside is on.")
+body_pct     = input.float(76, "Candle body width (% of bar span)", minval = 20, maxval = 100, step = 2, group = "Rendering", tooltip = "76% matches TradingView's own candle body-to-gap ratio. 100% tiles the monos edge to edge with no gap, which reads as a ribbon. Cosmetic only - the CENTRE of each mono is unchanged, so alignment with the price pane is unaffected.")
+wick_w       = input.int(2, "Wick thickness", minval = 1, maxval = 4, group = "Rendering")
+show_len     = input.bool(true,  "Label mono bar counts", group = "Rendering", tooltip = "A trailing * means the mono ends in absorbed opposite-colour inside bars, so it only has that shape because merge_inside is on.")
+label_min    = input.int(3, "...only for monos of N+ bars", minval = 2, group = "Rendering", tooltip = "Raise this if the labels crowd the pane. 2 labels every multi-bar mono; 3 (default) keeps the pane readable at normal zoom.")
 show_split   = input.bool(true,  "Mark where each run starts", group = "Rendering", tooltip = "Only applies in repeat mode - in one-candle mode the box edges already mark every boundary.")
 col_up       = input.color(#2f7f6c, "Green mono", group = "Colours")
 col_dn       = input.color(#a94b57, "Red mono",   group = "Colours")
@@ -55,94 +61,96 @@ col_lab      = input.color(#7c8ba0, "Labels / markers", group = "Colours")
 // ════════════════ Grouping ════════════════
 // Default: a mono is a maximal stretch of same-colour bars.
 //
-// `merge_inside` ON adds ONE clause. For a bar X of the OPPOSITE colour to the
-// mono in progress:
+// `merge_inside` ON adds an ABSORPTION phase. For a bar X of the OPPOSITE
+// colour to the mono in progress:
 //     X inside the mono so far (X.high <= mono high and X.low >= mono low)
-//         -> X is absorbed into the mono AND ENDS IT. X becomes the mono's last
-//            bar and sets its close; the bar after X starts a fresh mono
-//            whatever its colour. `m_sealed` carries that across the boundary.
+//         -> X is absorbed, and the mono enters absorbing state, remembering
+//            X's colour as the absorption group's colour.
 //     otherwise
-//         -> X breaks the mono and starts its own, as it would with merging off.
+//         -> X breaks the mono and starts its own, as with merging off.
+// Once absorbing, the mono keeps taking bars for as long as each one is inside
+// AND matches the group's colour (v0.8.0). The first bar that fails either test
+// ENDS the mono and starts a new one — including a bar that is the same colour
+// as the MONO, because the absorption group has ended by then.
 //
-// HOW MULTIPLE INSIDE CANDLES BEHAVE (the two cases worth knowing):
-//   Consecutive OPPOSITE-colour inside bars — only the FIRST is absorbed. It
-//   seals the mono, so the second starts a new mono even though it is also
-//   inside. A mono therefore holds AT MOST ONE absorbed bar, always the last.
-//   SAME-colour inside bars — never tested for inside-ness at all. `same_col`
-//   is checked first, so they are ordinary run extensions and never seal. The
-//   inside rule only ever applies to bars that flip the colour.
+// v0.7.0 absorbed exactly ONE bar and sealed immediately. v0.8.0 lets the group
+// run, so a mono can end in several absorbed bars rather than one.
 //
-// Sealing is what keeps mono lengths sane. Without it (v0.3.0/v0.5.0) a mono
-// that had grown wide kept swallowing everything that fell inside it, giving
-// 27- and 26-bar monos on NEAR daily.
+// Absorbing can never widen the mono: an inside bar sits within the existing
+// high/low by definition, so `inside_m` is tested against a range that does not
+// move during absorption. That is what stops the group running away, and it is
+// why the runaway 27- and 26-bar monos of v0.3.0/v0.5.0 do not come back — those
+// came from absorption NOT ending the mono at all.
 //
-// EXPECTED SIDE EFFECT: the mono's close comes from an opposite-colour bar, so
-// a green mono sealed by a red inside bar can close BELOW its own open while
-// still drawn green. The mono keeps the RUN's colour, which is what a run
-// means. Not a bug.
+// SAME-colour bars are never tested for inside-ness: `same_col` is checked
+// before `inside_m`, so they are ordinary run extensions. The inside rule only
+// ever applies to bars that flip the colour.
+//
+// EXPECTED SIDE EFFECT: the mono's close comes from an absorbed opposite-colour
+// bar, so a green mono ending in red absorbed bars can close BELOW its own open
+// while still drawn green. The mono keeps the RUN's colour. Not a bug.
 //
 // CAVEAT, still open: "not inside" is symmetric here, so a bar breaks the mono
 // by taking out EITHER its high or its low. The rule was specified with a green
 // bar taking out the LOW as the example; low-only (mirrored to high-only for a
 // red bar against a green mono) would be a narrower rule and is NOT this.
-//
-// HISTORY: v0.3.0 mono-based inside, absorption did not end the mono. v0.4.0
-// switched both tests to single neighbour bars (wrong — only the forward one
-// should have been) and added the forward-absorb clause. v0.5.0 restored the
-// mono-based test. v0.6.0 made absorption end the mono. v0.7.0 REMOVES the
-// forward-absorb clause entirely, which also removes the one-bar lag it forced
-// and restores repeat mode under merging.
 bool is_red = close < open                   // flat doji -> green, same as the walk-back
 
-var bool  m_init   = false                   // Pine will not seed a bool with na
-var bool  m_red    = false
-var float m_o      = na
-var float m_h      = na
-var float m_l      = na
-var int   m_len    = 0
-var int   m_ins    = 0                       // 1 once this mono has absorbed its inside bar
-var int   m_count  = 0                       // completed + current, for the data window
-var int   m_start  = 0                       // bar_index the current mono began on
-var int   m_t0     = 0                       // time    the current mono began on
-var bool  m_sealed = false                   // mono was ENDED by absorbing an inside bar
+var bool  m_init  = false                    // Pine will not seed a bool with na
+var bool  m_red   = false
+var float m_o     = na
+var float m_h     = na
+var float m_l     = na
+var int   m_len   = 0
+var int   m_ins   = 0                        // bars absorbed by the inside rule into THIS mono
+var int   m_count = 0                        // completed + current, for the data window
+var int   m_start = 0                        // bar_index the current mono began on
+var int   m_t0    = 0                        // time    the current mono began on
+var bool  m_absorbing = false                // mono is in its absorption phase
+var bool  m_abs_red   = false                // colour of the absorption group
 
 bool same_col = m_init and is_red == m_red
 bool inside_m = merge_inside and m_init and high <= m_h and low >= m_l   // vs the MONO so far
 
-bool new_run  = false
-bool seal_now = false                        // this bar closes the mono after joining it
+bool new_run   = false
+bool abs_start = false                       // first absorbed bar — opens the group
+bool abs_cont  = false                       // group continues
 if not m_init
-    new_run  := true
-else if m_sealed
-    new_run  := true                         // previous mono was ENDED last bar
+    new_run := true
+else if m_absorbing
+    if inside_m and is_red == m_abs_red
+        abs_cont := true                     // still inside and still the group's colour
+    else
+        new_run := true                      // group ended -> so does the mono
 else if same_col
-    new_run  := false                        // ordinary run extension
+    new_run := false                         // ordinary run extension
 else if inside_m
-    new_run  := false                        // absorbed by the mono...
-    seal_now := true                         // ...and it also ENDS the mono
+    abs_start := true                        // opposite colour but inside -> absorb
 else
-    new_run  := true                         // ordinary colour flip
+    new_run := true                          // ordinary colour flip
 
 if new_run
-    m_init   := true
-    m_red    := is_red
-    m_o      := open
-    m_h      := high
-    m_l      := low
-    m_len    := 1
-    m_ins    := 0
-    m_count  += 1
-    m_start  := bar_index
-    m_t0     := time
-    m_sealed := false
+    m_init      := true
+    m_red       := is_red
+    m_o         := open
+    m_h         := high
+    m_l         := low
+    m_len       := 1
+    m_ins       := 0
+    m_count     += 1
+    m_start     := bar_index
+    m_t0        := time
+    m_absorbing := false
 else
-    m_h   := math.max(m_h, high)
+    m_h   := math.max(m_h, high)             // a no-op while absorbing, by definition
     m_l   := math.min(m_l, low)
     m_len += 1
-    if not same_col
-        m_ins += 1                           // absorbed only because merge_inside is on
-if seal_now
-    m_sealed := true                         // absorbed, and the mono is now closed
+    if abs_start
+        m_absorbing := true
+        m_abs_red   := is_red
+        m_ins       += 1
+    else if abs_cont
+        m_ins += 1
 
 color m_col = m_red ? col_dn : col_up
 
@@ -162,11 +170,9 @@ plotcandle(one_candle ? na : m_o,
 // hairline because the border is drawn — the correct look for a doji.
 var box  b_body = na
 var line l_wick = na
-// 0.38 of a bar each side = 76% of the bar span, the same body-to-gap ratio
-// TradingView's own candles use. Full 0.5 would tile edge to edge with no gap
-// and read as a ribbon rather than candles. The CENTRE is unchanged either way,
-// so this is cosmetic only and does not affect alignment.
-float half_ms = timeframe.in_seconds() * 380.0      // 0.38 bar, in milliseconds
+// Half the body width, in milliseconds. `body_pct` of the bar span, so the
+// CENTRE is unchanged whatever the width and alignment is unaffected.
+float half_ms = timeframe.in_seconds() * 1000.0 * (body_pct / 200.0)
 
 if one_candle
     float body_t = math.max(m_o, close)
@@ -178,7 +184,7 @@ if one_candle
         b_body := box.new(x_l, body_t, x_r, body_b, xloc = xloc.bar_time,
              border_color = m_col, border_width = 1, bgcolor = m_col)
         l_wick := line.new(x_c, m_h, x_c, m_l, xloc = xloc.bar_time,
-             color = m_col, width = 1)
+             color = m_col, width = wick_w)
     else
         box.set_right(b_body, x_r)                  // extend the live mono in place
         box.set_top(b_body, body_t)
@@ -186,10 +192,23 @@ if one_candle
         line.set_xy1(l_wick, x_c, m_h)
         line.set_xy2(l_wick, x_c, m_l)
 
+// ════════════════ Pane scaling — NOT SOLVED, do not retry blindly ════════════
+// Boxes and lines are DRAWINGS and do not drive a pane's price scale; only
+// plots do. Two attempts to anchor the scale with hidden plots of m_h/m_l both
+// failed and were removed:
+//   100% transparent — compiles and runs, but TradingView drops fully
+//     transparent plots from auto-scaling, so toggling it moved the axis not at
+//     all (measured on NEAR 1D: an identical 1.000-3.000 axis either way).
+//   97% transparent  — put the study into a RUNTIME error and the pane went
+//     blank. Not diagnosed; the error text was not reachable from the legend.
+// The dead space costs roughly 16% of the pane on NEAR 1D, which is not worth
+// breaking the render for. Pane HEIGHT, which matters more, is a chart-level
+// setting Pine cannot touch at all — drag the pane divider.
+
 // ════════════════ Annotations ════════════════
-// Bar count under a completed multi-bar mono. A trailing * flags a mono that
-// ends in an absorbed inside bar.
-if show_len and new_run and not na(m_len[1]) and m_len[1] >= 2
+// Bar count under a completed mono. A trailing * flags a mono that ends in
+// absorbed inside bars.
+if show_len and new_run and not na(m_len[1]) and m_len[1] >= label_min
     int    lx = one_candle ? int(math.round((m_start[1] + bar_index - 1) / 2.0)) : bar_index - 1
     string lt = str.tostring(m_len[1]) + (m_ins[1] > 0 ? "*" : "")
     label.new(lx, m_l[1], lt,
@@ -207,7 +226,7 @@ plot(m_l,     "DW mono low",          display = display.data_window)
 plot(close,   "DW mono close",        display = display.data_window)
 plot(m_len,   "DW bars in this mono", display = display.data_window)
 plot(m_ins,   "DW inside bars absorbed", display = display.data_window)
-plot(m_sealed ? 1 : 0, "DW mono sealed (1=ended by inside bar)", display = display.data_window)
+plot(m_absorbing ? 1 : 0, "DW absorbing (1=in group)", display = display.data_window)
 plot(m_red ? 1 : 0, "DW is red (1=red)", display = display.data_window)
 plot(m_count, "DW monos so far",      display = display.data_window)
 
