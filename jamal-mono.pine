@@ -1,9 +1,9 @@
 //@version=6
-indicator("Jamal Mono v2.4.0", shorttitle = "JMono2.4", overlay = false,
+indicator("Jamal Mono v2.5.0", shorttitle = "JMono2.5", overlay = false,
      max_boxes_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "2.4.0"
+SCRIPT_V = "2.5.0"
 
 // ════════════════ What this is ════════════════
 // TWO-STAGE grouping, no toggles (v2.3.0):
@@ -27,14 +27,15 @@ SCRIPT_V = "2.4.0"
 // The renderer handles that by re-drawing the affected boxes in place. Nothing
 // looks ahead; Pine's rollback handles intrabar flips.
 //
-// VISUAL: each final mono spanning 2+ bars is drawn AS A CANDLE in this
-// indicator's own pane below the chart (v2.4.0) — translucent body box
-// (open..close), centre wick line (high..low), coloured by the final mono's
-// live direction. Single-bar finals are not drawn. The pane shares the bar
-// axis with the chart; two invisible high/low plots anchor its price scale,
-// since boxes and lines do not participate in pane autoscaling.
+// VISUAL: every final mono is drawn AS A CANDLE in this indicator's own pane
+// below the chart (v2.4.0) — translucent body box (open..close), centre wick
+// line (high..low), coloured by the final mono's live direction. Single-bar
+// finals are drawn too (v2.5.0): the pane has no real candles underneath, so
+// skipping them left gaps. The pane shares the bar axis with the chart; two
+// invisible high/low plots anchor its price scale, since boxes and lines do
+// not participate in pane autoscaling.
 //
-// DRAWING LIMIT: 500 boxes/lines = the most recent ~500 drawn final monos.
+// DRAWING LIMIT: 500 boxes/lines = the most recent 500 final monos.
 
 // ════════════════ Inputs ════════════════
 col_up   = input.color(#26a69a, "Mono up",   group = "Colours")
@@ -141,55 +142,45 @@ if attached
     box.set_bgcolor(boxF, color.new(mc, fill_tr))
     line.set_color(wickF, mc)
 else
-    // F stands alone (drawn only if 2+ bars)...
+    // F stands alone (drawn at ANY length since v2.5.0 — the pane has no real
+    // candles underneath, so undrawn single-bar finals left gaps)...
     if f_exists
-        if f_len >= 2
-            color fc_ = f_c >= f_o ? col_up : col_dn
-            int  fx_l = int(f_t0 - half_ms)
-            int  fx_r = int(f_t1 + half_ms)
-            int  fx_c = int((f_t0 + f_t1) / 2)
-            if na(boxF)
-                boxF  := box.new(fx_l, math.max(f_o, f_c), fx_r, math.min(f_o, f_c), xloc = xloc.bar_time,
-                     border_color = fc_, border_width = 1, bgcolor = color.new(fc_, fill_tr))
-                wickF := line.new(fx_c, f_h, fx_c, f_l, xloc = xloc.bar_time, color = fc_, width = 2)
-            else                             // shrink back from a previously attached display
-                box.set_left(boxF, fx_l)
-                box.set_right(boxF, fx_r)
-                box.set_top(boxF, math.max(f_o, f_c))
-                box.set_bottom(boxF, math.min(f_o, f_c))
-                line.set_xy1(wickF, fx_c, f_h)
-                line.set_xy2(wickF, fx_c, f_l)
-            box.set_border_color(boxF, fc_)
-            box.set_bgcolor(boxF, color.new(fc_, fill_tr))
-            line.set_color(wickF, fc_)
-        else if not na(boxF)                 // single-bar F is not drawn
-            box.delete(boxF)
-            line.delete(wickF)
-            boxF  := na
-            wickF := na
-    // ...and L is its own provisional final mono (drawn only if 2+ bars)
-    if a_len >= 2
-        color lc_ = close >= a_o ? col_up : col_dn
-        int  lx_l = int(a_t0 - half_ms)
-        int  lx_c = int((a_t0 + time) / 2)
-        if na(boxL)
-            boxL  := box.new(lx_l, math.max(a_o, close), x_r, math.min(a_o, close), xloc = xloc.bar_time,
-                 border_color = lc_, border_width = 1, bgcolor = color.new(lc_, fill_tr))
-            wickL := line.new(lx_c, a_h, lx_c, a_l, xloc = xloc.bar_time, color = lc_, width = 2)
-        else
-            box.set_right(boxL, x_r)
-            box.set_top(boxL, math.max(a_o, close))
-            box.set_bottom(boxL, math.min(a_o, close))
-            line.set_xy1(wickL, lx_c, a_h)
-            line.set_xy2(wickL, lx_c, a_l)
-            box.set_border_color(boxL, lc_)
-            box.set_bgcolor(boxL, color.new(lc_, fill_tr))
-            line.set_color(wickL, lc_)
-    else if not na(boxL)
-        box.delete(boxL)
-        line.delete(wickL)
-        boxL  := na
-        wickL := na
+        color fc_ = f_c >= f_o ? col_up : col_dn
+        int  fx_l = int(f_t0 - half_ms)
+        int  fx_r = int(f_t1 + half_ms)
+        int  fx_c = int((f_t0 + f_t1) / 2)
+        if na(boxF)
+            boxF  := box.new(fx_l, math.max(f_o, f_c), fx_r, math.min(f_o, f_c), xloc = xloc.bar_time,
+                 border_color = fc_, border_width = 1, bgcolor = color.new(fc_, fill_tr))
+            wickF := line.new(fx_c, f_h, fx_c, f_l, xloc = xloc.bar_time, color = fc_, width = 2)
+        else                                 // shrink back from a previously attached display
+            box.set_left(boxF, fx_l)
+            box.set_right(boxF, fx_r)
+            box.set_top(boxF, math.max(f_o, f_c))
+            box.set_bottom(boxF, math.min(f_o, f_c))
+            line.set_xy1(wickF, fx_c, f_h)
+            line.set_xy2(wickF, fx_c, f_l)
+        box.set_border_color(boxF, fc_)
+        box.set_bgcolor(boxF, color.new(fc_, fill_tr))
+        line.set_color(wickF, fc_)
+    // ...and L is its own provisional final mono, drawn at any length too
+    color lc_ = close >= a_o ? col_up : col_dn
+    int  lx_l = int(a_t0 - half_ms)
+    int  lx_c = int((a_t0 + time) / 2)
+    if na(boxL)
+        boxL  := box.new(lx_l, math.max(a_o, close), x_r, math.min(a_o, close), xloc = xloc.bar_time,
+             border_color = lc_, border_width = 1, bgcolor = color.new(lc_, fill_tr))
+        wickL := line.new(lx_c, a_h, lx_c, a_l, xloc = xloc.bar_time, color = lc_, width = 2)
+    else
+        box.set_left(boxL, lx_l)
+        box.set_right(boxL, x_r)
+        box.set_top(boxL, math.max(a_o, close))
+        box.set_bottom(boxL, math.min(a_o, close))
+        line.set_xy1(wickL, lx_c, a_h)
+        line.set_xy2(wickL, lx_c, a_l)
+        box.set_border_color(boxL, lc_)
+        box.set_bgcolor(boxL, color.new(lc_, fill_tr))
+        line.set_color(wickL, lc_)
 
 prev_l_red := l_red                          // lock-in candidate for the finalize step
 
