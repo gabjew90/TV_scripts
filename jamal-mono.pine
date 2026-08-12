@@ -1,9 +1,9 @@
 //@version=6
-indicator("Jamal Mono v1.1.0", shorttitle = "JMono1.1", overlay = false,
+indicator("Jamal Mono v1.2.0", shorttitle = "JMono1.2", overlay = false,
      max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "1.1.0"
+SCRIPT_V = "1.2.0"
 
 // ════════════════ What this is ════════════════
 // A separate-pane candle chart of MONOLITHIC candles — bars merged into groups
@@ -38,7 +38,7 @@ SCRIPT_V = "1.1.0"
 // renderer off to see all of it.
 
 // ════════════════ Inputs — TWO toggles, then plain settings ════════════════
-use_absorb = input.bool(false, "Monolithic formation by ABSORPTION", group = "Grouping", tooltip = "OFF (default): monos form by COLOUR only - a mono is a maximal run of consecutive same-colour bars, which is the grouping the jamal-ob use_mono walk-back runs on. ON: adds absorption. An opposite-colour bar that is INSIDE the bar immediately before it is pulled into the current mono instead of starting a new one, and the mono then keeps absorbing for as long as each following bar is inside its OWN immediate predecessor. The first bar that is not inside its predecessor ends the mono and starts the next one.")
+use_absorb = input.bool(false, "Monolithic formation by ABSORPTION", group = "Grouping", tooltip = "OFF (default): monos form by COLOUR only - a mono is a maximal run of consecutive same-colour bars, which is the grouping the jamal-ob use_mono walk-back runs on. ON: an opposite-colour bar that is INSIDE the bar immediately before it is absorbed as the mono's LAST bar and ENDS it - the next bar always starts a fresh mono, whatever its colour. An opposite-colour bar that is NOT inside starts the next mono itself. A mono can therefore hold at most ONE absorbed bar, always the last.")
 one_candle = input.bool(true,  "One candle per mono", group = "Rendering", tooltip = "ON: each mono is drawn as a SINGLE candle spanning its bars, using a box for the body and a line for the wick. OFF: plotcandle repeats the growing mono on every bar of the group (a stair), because plotcandle is one-value-per-bar and cannot span bars. One-candle mode is capped at the most recent 500 monos by TradingView's drawing limit; repeat mode has no limit.")
 body_pct   = input.float(76, "Candle body width (% of bar span)", minval = 20, maxval = 100, step = 2, group = "Rendering", tooltip = "76% matches TradingView's own candle body-to-gap ratio. 100% tiles the monos edge to edge with no gap, which reads as a ribbon. Cosmetic only - the CENTRE of each mono is unchanged, so alignment with the price pane is unaffected.")
 wick_w     = input.int(2, "Wick thickness", minval = 1, maxval = 4, group = "Rendering")
@@ -51,44 +51,35 @@ col_lab    = input.color(#7c8ba0, "Labels", group = "Colours")
 // BASE CASE — formation by COLOUR. A mono is a maximal run of consecutive
 // same-colour bars. This is always active and is what `use_mono` runs on.
 //
-// TOGGLE — formation by ABSORPTION (`use_absorb`). Adds one exception and one
-// follow-on to the base case:
-//   1. An opposite-colour bar O ALWAYS starts a new mono...
-//   2. ...UNLESS O is INSIDE the bar immediately before it, P
-//      (O.high <= P.high and O.low >= P.low). Then O is absorbed into the
-//      current mono, and the mono enters its ABSORBING phase.
-//   3. Once absorbing, the next bar is absorbed too if it is inside ITS OWN
-//      immediate predecessor — O+1 inside O, then O+2 inside O+1, and so on.
-//      The chain is nested, each bar judged against the bar right before it,
-//      never against the mono's accumulated range.
-//   4. The first bar that is NOT inside its predecessor ends the mono and
-//      becomes the first bar of the next one.
+// TOGGLE — formation by ABSORPTION (`use_absorb`). For an opposite-colour bar O
+// with immediate predecessor P (inside = O.high <= P.high and O.low >= P.low):
+//   O NOT inside P  -> O becomes the first bar of the next mono, which takes
+//                      O's colour. (Identical to the base case.)
+//   O inside P      -> O is absorbed as the mono's LAST bar — it sets the
+//                      mono's close — and ENDS the mono. The next bar always
+//                      starts a fresh mono, whatever its colour.
 //
-// ABSORPTION IS TERMINAL. A mono that has started absorbing cannot go back to
-// extending by colour: step 4 ends it. So a bar the same colour as the mono,
-// arriving after absorption has begun and not inside its predecessor, starts a
-// NEW mono rather than resuming the run. This follows from rule 4 being stated
-// without a colour condition, and it is the only reading under which "and so on
-// and so forth" terminates cleanly.
+// v1.2.0 REMOVES v1.1.0's chain rule (O+1 inside O also absorbed, and so on).
+// An inside candle now "simply ends" the mono, per user instruction, so a mono
+// holds AT MOST ONE absorbed bar and it is always the last. The `m_sealed`
+// flag carries the forced break across the bar boundary.
 //
-// "INSIDE" IS ALWAYS AGAINST THE PREVIOUS SINGLE BAR, never against the mono's
-// accumulated high/low. Measuring against the whole mono (tried in v0.3.0-v0.8.0)
-// let a mono that had grown wide swallow everything that fell inside it and
-// produced 27- and 26-bar monos. A nested chain shrinks and terminates on its own.
+// "INSIDE" IS AGAINST THE PREVIOUS SINGLE BAR, never the mono's accumulated
+// high/low. Measuring against the whole mono (v0.3.0-v0.8.0) let a mono that
+// had grown wide swallow everything inside it and produced 27- and 26-bar
+// monos.
 //
-// The no-widening property holds: the predecessor is already in the mono, so the
-// mono's range contains it, so anything inside the predecessor is inside the mono.
-// An absorbed bar can never extend the mono's high or low.
+// No-widening holds: P is already in the mono, so the mono's range contains P,
+// so anything inside P is inside the mono. An absorbed bar can never extend the
+// mono's high or low.
 //
-// EXPECTED SIDE EFFECT: a mono's close comes from its last bar whatever that
-// bar's colour, so a green mono ending in an absorbed red bar can close BELOW
-// its own open while still drawn green. The mono keeps the colour of the bar
-// that STARTED it. Not a bug.
+// EXPECTED SIDE EFFECT: the absorbed bar sets the mono's close, so a green mono
+// sealed by a red inside bar can close BELOW its own open while still drawn
+// green. The mono keeps the colour of the bar that STARTED it. Not a bug.
 //
-// CAVEAT, still open: "inside" is symmetric — a bar fails the test by taking out
-// EITHER the previous bar's high or its low. The rule was first described with a
-// green bar taking out the LOW as the example; low-only (mirrored to high-only
-// for a red bar) would be narrower and is NOT what this implements.
+// CAVEAT, still open: "inside" is symmetric — a bar fails by taking out EITHER
+// P's high or P's low. The rule was first described with a green bar taking out
+// the LOW as the example; low-only would be narrower.
 bool is_red = close < open                   // flat doji -> green, same as the walk-back
 
 var bool  m_init  = false                    // Pine will not seed a bool with na
@@ -97,11 +88,11 @@ var float m_o     = na
 var float m_h     = na
 var float m_l     = na
 var int   m_len   = 0
-var int   m_abs   = 0                        // bars absorbed into THIS mono
+var int   m_abs   = 0                        // 1 once this mono has taken its absorbed bar
 var int   m_count = 0                        // completed + current, for the data window
 var int   m_start = 0                        // bar_index the current mono began on
 var int   m_t0    = 0                        // time    the current mono began on
-var bool  m_absorbing = false                // mono is in its absorbing phase
+var bool  m_sealed = false                   // mono was ENDED by an absorbed inside bar
 
 bool same_col    = m_init and is_red == m_red
 bool inside_prev = m_init and high <= high[1] and low >= low[1]
@@ -110,37 +101,34 @@ bool new_run = false
 bool absorb  = false
 if not m_init
     new_run := true
-else if m_absorbing
-    if inside_prev
-        absorb := true                       // rule 3 — chain continues
-    else
-        new_run := true                      // rule 4 — chain broken, mono ends here
+else if m_sealed
+    new_run := true                          // the previous mono was ended last bar
 else if same_col
     new_run := false                         // base case — colour run extends
 else if use_absorb and inside_prev
-    absorb := true                           // rule 2 — opposite colour but inside P
+    absorb := true                           // O inside P — absorbed, and ENDS the mono
 else
-    new_run := true                          // rule 1 — opposite colour starts a new mono
+    new_run := true                          // O not inside P — O starts the next mono
 
 if new_run
-    m_init      := true
-    m_red       := is_red                    // the mono takes the colour of the bar that STARTS it
-    m_o         := open
-    m_h         := high
-    m_l         := low
-    m_len       := 1
-    m_abs       := 0
-    m_count     += 1
-    m_start     := bar_index
-    m_t0        := time
-    m_absorbing := false
+    m_init   := true
+    m_red    := is_red                       // the mono takes the colour of the bar that STARTS it
+    m_o      := open
+    m_h      := high
+    m_l      := low
+    m_len    := 1
+    m_abs    := 0
+    m_count  += 1
+    m_start  := bar_index
+    m_t0     := time
+    m_sealed := false
 else
     m_h   := math.max(m_h, high)             // a no-op for an absorbed bar, by definition
     m_l   := math.min(m_l, low)
     m_len += 1
     if absorb
-        m_absorbing := true
-        m_abs       += 1
+        m_sealed := true                     // absorbed as the LAST bar — mono is closed
+        m_abs    += 1
 
 color m_col = m_red ? col_dn : col_up
 
@@ -211,7 +199,7 @@ plot(m_l,     "DW mono low",          display = display.data_window)
 plot(close,   "DW mono close",        display = display.data_window)
 plot(m_len,   "DW bars in this mono", display = display.data_window)
 plot(m_abs,   "DW bars absorbed",     display = display.data_window)
-plot(m_absorbing ? 1 : 0, "DW absorbing (1=in chain)", display = display.data_window)
+plot(m_sealed ? 1 : 0, "DW mono sealed (1=ended by inside bar)", display = display.data_window)
 plot(m_red ? 1 : 0, "DW is red (1=red)", display = display.data_window)
 plot(m_count, "DW monos so far",      display = display.data_window)
 
