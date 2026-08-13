@@ -1,12 +1,12 @@
 //@version=6
-indicator("Jamal Mono v2.5.0", shorttitle = "JMono2.5", overlay = false,
+indicator("Jamal Mono v2.6.0", shorttitle = "JMono2.6", overlay = false,
      max_boxes_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "2.5.0"
+SCRIPT_V = "2.6.0"
 
 // ════════════════ What this is ════════════════
-// TWO-STAGE grouping, no toggles (v2.3.0):
+// THREE-STAGE grouping, no toggles (v2.6.0):
 //
 // STAGE 1 — INSIDE / ANCHOR (v2.2.0 rule, unchanged). The first candle of a
 // group is its ANCHOR; every subsequent candle joins while it is inside the
@@ -22,18 +22,30 @@ SCRIPT_V = "2.5.0"
 // mono's close, high/low = the extremes across the merged inner monos (stage 2
 // CAN widen past a single anchor, unlike stage 1).
 //
+// STAGE 3 — LONE SINGLES (v2.6.0). A final that completes as ONE BAR never
+// survives on its own, regardless of colour:
+//   a) if its range is inside the PRECEDING final's range (high <= its high
+//      AND low >= its low), the preceding mono ABSORBS it — that mono extends
+//      by one bar and its close becomes the single's close;
+//   b) otherwise it merges FORWARD into the following final, becoming its
+//      opening bar (the merged final's open and first bar are the single's).
+// The two same-colour finals this leaves adjacent are NOT re-merged: the
+// boundary marks where the swallowed single was. For future stage-2 decisions
+// a final's colour stays that of its stage-1 members; the swallowed single is
+// an impurity that shifts only the OHLC. Everything stays causal: a single is
+// only known to be lone when the next differently-coloured stage-1 mono
+// finalizes, so at the live edge a single may display until that happens.
+//
 // LIVE BEHAVIOUR: the live inner mono's close moves, so its colour can flip,
 // which can attach it to or detach it from the final mono under construction.
 // The renderer handles that by re-drawing the affected boxes in place. Nothing
 // looks ahead; Pine's rollback handles intrabar flips.
 //
 // VISUAL: every final mono is drawn AS A CANDLE in this indicator's own pane
-// below the chart (v2.4.0) — translucent body box (open..close), centre wick
-// line (high..low), coloured by the final mono's live direction. Single-bar
-// finals are drawn too (v2.5.0): the pane has no real candles underneath, so
-// skipping them left gaps. The pane shares the bar axis with the chart; two
-// invisible high/low plots anchor its price scale, since boxes and lines do
-// not participate in pane autoscaling.
+// below the chart — translucent body box (open..close), centre wick line
+// (high..low), coloured by the final mono's live direction. The pane shares
+// the bar axis with the chart; two invisible high/low plots anchor its price
+// scale, since boxes and lines do not participate in pane autoscaling.
 //
 // DRAWING LIMIT: 500 boxes/lines = the most recent 500 final monos.
 
@@ -41,6 +53,8 @@ SCRIPT_V = "2.5.0"
 col_up   = input.color(#26a69a, "Mono up",   group = "Colours")
 col_dn   = input.color(#ef5350, "Mono down", group = "Colours")
 fill_tr  = input.int(70, "Body fill transparency", minval = 0, maxval = 100, group = "Colours", tooltip = "The body is filled at this transparency so the real candles stay visible through it. The border and wick are drawn solid.")
+
+float half_ms = timeframe.in_seconds() * 500.0   // half a bar, in ms (box edges sit at ±half a bar)
 
 // ════════════════ Stage 1 state — the live inner (anchor) mono L ════════════
 var float a_o   = na                         // anchor open  = L's open
@@ -66,10 +80,24 @@ var int   f_t1  = 0                          // time of F's last bar
 var int   f_len = 0                          // bars in F
 var int   f_cnt = 0                          // final monos so far (started)
 
+// ════════════════ Stage 3 state — the committed PRECEDING final P ═══════════
+// Kept so a lone single that completes inside P's range can be absorbed
+// backward: P's box is re-extended in place. P is always the newest committed
+// final, so its drawing can never have been evicted by the 500 cap.
+var bool  p_exists = false
+var float p_o = na
+var float p_c = na
+var float p_h = na
+var float p_l = na
+var int   p_t0 = 0
+var int   p_t1 = 0
+
 var box  boxF  = na                          // drawing for F (or F∪L while attached)
 var line wickF = na
 var box  boxL  = na                          // drawing for L alone while detached
 var line wickL = na
+var box  boxP  = na                          // drawing for the committed P
+var line wickP = na
 
 // ════════════════ Grouping ════════════════
 bool inside_anchor = a_cnt > 0 and high <= a_h and low >= a_l
@@ -78,26 +106,85 @@ bool new_inner     = not inside_anchor
 if new_inner
     if a_cnt > 0                             // finalize the previous L with its locked colour
         if f_exists and prev_l_red == f_red
-            f_c   := close[1]                // L absorbed into F
+            f_c   := close[1]                // stage 2: L absorbed into F
             f_h   := math.max(f_h, a_h)
             f_l   := math.min(f_l, a_l)
             f_t1  := time[1]
             f_len += a_len
-        else                                 // F is complete; L becomes the new F
-            f_exists := true
-            f_red    := prev_l_red
-            f_o  := a_o
-            f_c  := close[1]
-            f_h  := a_h
-            f_l  := a_l
-            f_t0 := a_t0
-            f_t1 := time[1]
-            f_len := a_len
-            f_cnt += 1
-            boxF  := boxL                    // the committed F keeps its drawing; L's becomes F's
-            wickF := wickL
-            boxL  := na
-            wickL := na
+        else                                 // F is complete — stage 3 decides its fate
+            bool lone_f   = f_exists and f_len == 1
+            bool eat_back = lone_f and p_exists and f_h <= p_h and f_l >= p_l
+            if eat_back
+                // STAGE 3a: the lone F is inside P — P absorbs it backward
+                p_c  := f_c
+                p_t1 := f_t1
+                if not na(boxP)
+                    color pc_  = p_c >= p_o ? col_up : col_dn
+                    int   px_c = int((p_t0 + p_t1) / 2)
+                    box.set_right(boxP, int(p_t1 + half_ms))
+                    box.set_top(boxP, math.max(p_o, p_c))
+                    box.set_bottom(boxP, math.min(p_o, p_c))
+                    box.set_border_color(boxP, pc_)
+                    box.set_bgcolor(boxP, color.new(pc_, fill_tr))
+                    line.set_xy1(wickP, px_c, p_h)
+                    line.set_xy2(wickP, px_c, p_l)
+                    line.set_color(wickP, pc_)
+                box.delete(boxF)             // the single's own drawing goes
+                line.delete(wickF)
+                // L becomes the new F (P stays P; the dissolved single never becomes P)
+                f_red := prev_l_red
+                f_o  := a_o
+                f_c  := close[1]
+                f_h  := a_h
+                f_l  := a_l
+                f_t0 := a_t0
+                f_t1 := time[1]
+                f_len := a_len               // f_cnt net unchanged: −1 dissolved, +1 started
+                boxF  := boxL
+                wickF := wickL
+                boxL  := na
+                wickL := na
+            else if lone_f
+                // STAGE 3b: the lone F merges forward — it becomes the opening
+                // bar of L's final. f_o, f_t0 (and f_cnt) stay the single's.
+                f_red := prev_l_red
+                f_c   := close[1]
+                f_h   := math.max(f_h, a_h)
+                f_l   := math.min(f_l, a_l)
+                f_t1  := time[1]
+                f_len += a_len
+                box.delete(boxF)             // the single's own drawing goes
+                line.delete(wickF)
+                boxF  := boxL                // L's drawing becomes the merged final's
+                wickF := wickL
+                boxL  := na
+                wickL := na
+            else
+                // multi-bar F commits and becomes P; L becomes the new F
+                if f_exists
+                    p_exists := true
+                    p_o  := f_o
+                    p_c  := f_c
+                    p_h  := f_h
+                    p_l  := f_l
+                    p_t0 := f_t0
+                    p_t1 := f_t1
+                    boxP  := boxF            // hand P the committed drawing
+                    wickP := wickF
+                f_exists := true
+                f_red    := prev_l_red
+                f_o  := a_o
+                f_c  := close[1]
+                f_h  := a_h
+                f_l  := a_l
+                f_t0 := a_t0
+                f_t1 := time[1]
+                f_len := a_len
+                f_cnt += 1
+                boxF  := boxL                // the committed F keeps its drawing; L's becomes F's
+                wickF := wickL
+                boxL  := na
+                wickL := na
     a_o   := open                            // start the new inner mono — this bar is the anchor
     a_h   := high
     a_l   := low
@@ -110,8 +197,7 @@ else
 bool l_red = close < a_o                     // L's LIVE colour (doji -> green)
 
 // ════════════════ Render ════════════════
-float half_ms = timeframe.in_seconds() * 500.0
-int   x_r     = int(time + half_ms)
+int  x_r      = int(time + half_ms)
 bool attached = f_exists and l_red == f_red  // L currently displays as part of F's final mono
 
 if attached
@@ -142,8 +228,8 @@ if attached
     box.set_bgcolor(boxF, color.new(mc, fill_tr))
     line.set_color(wickF, mc)
 else
-    // F stands alone (drawn at ANY length since v2.5.0 — the pane has no real
-    // candles underneath, so undrawn single-bar finals left gaps)...
+    // F stands alone (drawn at ANY length — the pane has no real candles
+    // underneath; a lone F displays until stage 3 resolves it)...
     if f_exists
         color fc_ = f_c >= f_o ? col_up : col_dn
         int  fx_l = int(f_t0 - half_ms)
