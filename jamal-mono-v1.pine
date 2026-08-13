@@ -1,15 +1,16 @@
 //@version=6
-indicator("Jamal Mono v1", shorttitle = "JMono1", overlay = false,
+indicator("Jamal Mono v1.1.0", shorttitle = "JMono1.1", overlay = false,
      max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "1 (v0.2 design)"
+SCRIPT_V = "1.1.0"
 
 // ════════════════ What this is ════════════════
 // "Jamal Mono v1" — the ORIGINAL v0.2.0 design, resurrected 2026-08-12 as its
 // own saved script (TradingView script "Jamal Mono v1", repo file
 // jamal-mono-v1.pine) alongside "Jamal Mono v2" (the three-stage rebuild in
-// jamal-mono.pine). Code identical to commit e2a4e38 except this identity.
+// jamal-mono.pine). v1.0 was commit e2a4e38 verbatim; v1.1.0 adds
+// inside-absorption to one-candle mode (below).
 //
 // A separate-pane candle chart of MONOLITHIC candles — the same grouping the
 // jamal-ob `use_mono` walk-back uses, drawn so it can be read directly instead
@@ -30,6 +31,17 @@ SCRIPT_V = "1 (v0.2 design)"
 //         its run, so the run appears as a stair of growing candles. Pine's
 //         plotcandle is one-value-per-bar and cannot span bars, which is the
 //         whole reason the box renderer exists.
+//
+// INSIDE-ABSORPTION (v1.1.0, one-candle mode only): with `one_candle` ON the
+// mono also ABSORBS opposite-colour candles to its right while they stay
+// inside its accumulated high/low range (high <= mono high AND low >= mono
+// low). An absorbed candle extends the run's length and moves its close but
+// cannot move its extremes (it is inside). A new mono starts only when a
+// candle BOTH differs in colour AND pokes outside the range. Same-colour
+// candles continue the run as always, extending the range. The mono keeps the
+// run's colour identity throughout — an absorbed opposite candle does not
+// change which colour continues the run. With `one_candle` OFF the grouping
+// is the untouched v0.2 colour run (the stair renderer shows plain runs).
 //
 // X-AXIS ALIGNMENT: the box renderer uses `xloc.bar_time` with a sub-bar
 // offset either side of the run, so a mono covering bars L..R is centred on
@@ -70,7 +82,10 @@ var int   m_count = 0                        // completed + current, for the dat
 var int   m_start = 0                        // bar_index the current run began on
 var int   m_t0    = 0                        // time    the current run began on
 
-bool new_run = not m_init or is_red != m_red
+// v1.1.0: in one-candle mode an opposite-colour candle inside the mono's
+// accumulated range is absorbed instead of starting a new run.
+bool inside_mono = m_init and one_candle and high <= m_h and low >= m_l
+bool new_run     = not m_init or (is_red != m_red and not inside_mono)
 
 if new_run
     m_init  := true
