@@ -1,9 +1,9 @@
 //@version=6
-indicator("Jamal Mono v2.6.0", shorttitle = "JMono2.6", overlay = false,
+indicator("Jamal Mono v2.6.1", shorttitle = "JMono2.6", overlay = false,
      max_boxes_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "2.6.0"
+SCRIPT_V = "2.6.1"
 
 // ════════════════ What this is ════════════════
 // THREE-STAGE grouping, no toggles (v2.6.0):
@@ -197,6 +197,14 @@ else
 bool l_red = close < a_o                     // L's LIVE colour (doji -> green)
 
 // ════════════════ Render ════════════════
+// v2.6.1: the series' first bar time. The chart's FIRST mono must not put its
+// box edge at `first bar - half a bar` — that timestamp predates the series,
+// and TradingView's mobile renderer extends such a box indefinitely to the
+// left (caught by the user on HYPE 1D in jamal-mono-v1; same pattern here).
+var int t_series0 = 0
+if barstate.isfirst
+    t_series0 := time
+
 int  x_r      = int(time + half_ms)
 bool attached = f_exists and l_red == f_red  // L currently displays as part of F's final mono
 
@@ -206,7 +214,7 @@ if attached
     float h  = math.max(f_h, a_h)
     float l  = math.min(f_l, a_l)
     color mc = close >= o ? col_up : col_dn
-    int  x_l = int(f_t0 - half_ms)
+    int  x_l = math.max(int(f_t0 - half_ms), t_series0)
     int  x_c = int((f_t0 + time) / 2)
     if not na(boxL)                          // was detached — drop L's own drawing
         box.delete(boxL)
@@ -232,7 +240,7 @@ else
     // underneath; a lone F displays until stage 3 resolves it)...
     if f_exists
         color fc_ = f_c >= f_o ? col_up : col_dn
-        int  fx_l = int(f_t0 - half_ms)
+        int  fx_l = math.max(int(f_t0 - half_ms), t_series0)
         int  fx_r = int(f_t1 + half_ms)
         int  fx_c = int((f_t0 + f_t1) / 2)
         if na(boxF)
@@ -251,7 +259,7 @@ else
         line.set_color(wickF, fc_)
     // ...and L is its own provisional final mono, drawn at any length too
     color lc_ = close >= a_o ? col_up : col_dn
-    int  lx_l = int(a_t0 - half_ms)
+    int  lx_l = math.max(int(a_t0 - half_ms), t_series0)
     int  lx_c = int((a_t0 + time) / 2)
     if na(boxL)
         boxL  := box.new(lx_l, math.max(a_o, close), x_r, math.min(a_o, close), xloc = xloc.bar_time,

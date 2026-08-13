@@ -1,9 +1,9 @@
 //@version=6
-indicator("Jamal Mono v1.3.0", shorttitle = "JMono1.3", overlay = false,
+indicator("Jamal Mono v1.3.1", shorttitle = "JMono1.3", overlay = false,
      max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "1.3.0"
+SCRIPT_V = "1.3.1"
 
 // ════════════════ What this is ════════════════
 // "Jamal Mono v1" — the ORIGINAL v0.2.0 design, resurrected 2026-08-12 as its
@@ -151,10 +151,19 @@ var line l_wick = na
 // so this is cosmetic only and does not affect alignment.
 float half_ms = timeframe.in_seconds() * 380.0      // 0.38 bar, in milliseconds
 
+// v1.3.1: the series' first bar time. The chart's FIRST mono must not put its
+// box edge at `first bar - 0.38 bar` — that timestamp predates the series, and
+// TradingView's mobile renderer extends such a box indefinitely to the left
+// (the "infinity first candle" the user caught on HYPE 1D, where the short
+// history keeps the first box under the 500 cap; desktop clamps it instead).
+var int t_series0 = 0
+if barstate.isfirst
+    t_series0 := time
+
 if one_candle
     float body_t = math.max(m_o, close)
     float body_b = math.min(m_o, close)
-    int   x_l    = int(m_t0 - half_ms)              // left edge of the run's FIRST bar
+    int   x_l    = math.max(int(m_t0 - half_ms), t_series0)   // left edge, clamped to the series start
     int   x_r    = int(time + half_ms)              // right edge of the run's LAST bar
     int   x_c    = int((m_t0 + time) / 2)           // centre of the run, for the wick
     if new_run
