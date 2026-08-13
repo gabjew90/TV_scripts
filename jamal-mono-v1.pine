@@ -1,9 +1,9 @@
 //@version=6
-indicator("Jamal Mono v1.1.0", shorttitle = "JMono1.1", overlay = false,
+indicator("Jamal Mono v1.2.0", shorttitle = "JMono1.2", overlay = false,
      max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "1.1.0"
+SCRIPT_V = "1.2.0"
 
 // ════════════════ What this is ════════════════
 // "Jamal Mono v1" — the ORIGINAL v0.2.0 design, resurrected 2026-08-12 as its
@@ -32,16 +32,22 @@ SCRIPT_V = "1.1.0"
 //         plotcandle is one-value-per-bar and cannot span bars, which is the
 //         whole reason the box renderer exists.
 //
-// INSIDE-ABSORPTION (v1.1.0, one-candle mode only): with `one_candle` ON the
-// mono also ABSORBS opposite-colour candles to its right while they stay
-// inside its accumulated high/low range (high <= mono high AND low >= mono
-// low). An absorbed candle extends the run's length and moves its close but
-// cannot move its extremes (it is inside). A new mono starts only when a
-// candle BOTH differs in colour AND pokes outside the range. Same-colour
-// candles continue the run as always, extending the range. The mono keeps the
-// run's colour identity throughout — an absorbed opposite candle does not
-// change which colour continues the run. With `one_candle` OFF the grouping
-// is the untouched v0.2 colour run (the stair renderer shows plain runs).
+// INSIDE-ABSORPTION (v1.1.0, one-candle mode only; SEAL fixed in v1.2.0):
+// with `one_candle` ON the mono also ABSORBS opposite-colour candles to its
+// right while they stay inside its high/low range (high <= mono high AND
+// low >= mono low). An absorbed candle extends the run's length and moves its
+// close but cannot move the extremes (it is inside).
+//
+// THE SEAL (v1.2.0): the FIRST absorbed opposite-colour candle SEALS the
+// mono — colour grouping stops for it. A sealed mono only keeps absorbing
+// inside candles (any colour); its range is frozen at what the colour run
+// built; and the first candle to poke outside starts a new mono REGARDLESS of
+// colour. Without the seal (v1.1.0) same-colour candles kept rejoining and
+// widening the range after absorptions, so the range snowballed until whole
+// counter-rallies counted as "inside" — BTC 1D produced a 161-bar mono. With
+// the seal, a trend splits at its first real pullback breakout.
+// With `one_candle` OFF the grouping is the untouched v0.2 colour run (the
+// stair renderer shows plain runs; the seal never engages).
 //
 // X-AXIS ALIGNMENT: the box renderer uses `xloc.bar_time` with a sub-bar
 // offset either side of the run, so a mono covering bars L..R is centred on
@@ -62,7 +68,7 @@ SCRIPT_V = "1.1.0"
 // empty in one-candle mode. Switch the toggle off to see all of it.
 
 // ════════════════ Inputs ════════════════
-one_candle = input.bool(true,  "One candle per mono", tooltip = "ON: each run is drawn as a SINGLE candle spanning its bars, using a box for the body and a line for the wick. OFF: the v0.1.0 behaviour - plotcandle repeats the growing mono on every bar of the run (the stair). One-candle mode is limited to the most recent 500 monos by TradingView's drawing cap; repeat mode has no limit.")
+one_candle = input.bool(true,  "One candle per mono", tooltip = "ON: each run is drawn as a SINGLE candle spanning its bars (box body + line wick), and the mono absorbs candles that stay inside its range - the first absorbed opposite-colour candle seals it (colour grouping stops; the next poke outside starts a new mono). OFF: the v0.1.0 behaviour - plotcandle repeats the growing mono on every bar of the run (the stair), plain colour runs with no absorption. One-candle mode is limited to the most recent 500 monos by TradingView's drawing cap; repeat mode has no limit.")
 show_len   = input.bool(true,  "Label runs of 2+ bars", tooltip = "Prints the bar count under each completed multi-bar mono. Single-bar monos are left unlabelled to keep the pane quiet.")
 show_split = input.bool(true,  "Mark where each run starts", tooltip = "Only applies in repeat mode - in one-candle mode the box edges already mark every boundary.")
 col_up     = input.color(#2f7f6c, "Green mono", group = "Colours")
@@ -72,8 +78,9 @@ col_lab    = input.color(#7c8ba0, "Labels / markers", group = "Colours")
 // ════════════════ Grouping ════════════════
 bool is_red = close < open                   // flat doji -> green, same as the walk-back
 
-var bool  m_init  = false                    // Pine will not seed a bool with na
-var bool  m_red   = false
+var bool  m_init   = false                   // Pine will not seed a bool with na
+var bool  m_red    = false
+var bool  m_sealed = false                   // v1.2.0: true once an opposite-colour inside candle was absorbed
 var float m_o     = na
 var float m_h     = na
 var float m_l     = na
@@ -82,14 +89,18 @@ var int   m_count = 0                        // completed + current, for the dat
 var int   m_start = 0                        // bar_index the current run began on
 var int   m_t0    = 0                        // time    the current run began on
 
-// v1.1.0: in one-candle mode an opposite-colour candle inside the mono's
-// accumulated range is absorbed instead of starting a new run.
+// v1.1.0: in one-candle mode a candle inside the mono's range is absorbed.
+// v1.2.0: colour continuation only while UNSEALED — the first absorbed
+// opposite-colour candle seals the mono, freezing its range; after that only
+// inside candles continue it, and any poke outside starts a new mono.
 bool inside_mono = m_init and one_candle and high <= m_h and low >= m_l
-bool new_run     = not m_init or (is_red != m_red and not inside_mono)
+bool colour_cont = m_init and is_red == m_red and not m_sealed
+bool new_run     = not m_init or not (colour_cont or inside_mono)
 
 if new_run
-    m_init  := true
-    m_red   := is_red
+    m_init   := true
+    m_red    := is_red
+    m_sealed := false
     m_o     := open
     m_h     := high
     m_l     := low
@@ -98,9 +109,11 @@ if new_run
     m_start := bar_index
     m_t0    := time
 else
-    m_h   := math.max(m_h, high)
+    m_h   := math.max(m_h, high)             // no-op once sealed (continuation is inside-only)
     m_l   := math.min(m_l, low)
     m_len += 1
+    if is_red != m_red                       // an opposite candle only continues by being inside
+        m_sealed := true
 
 color m_col = m_red ? col_dn : col_up
 
