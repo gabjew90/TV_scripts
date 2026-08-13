@@ -1,9 +1,9 @@
 //@version=6
-indicator("Jamal Mono v1.2.0", shorttitle = "JMono1.2", overlay = false,
+indicator("Jamal Mono v1.3.0", shorttitle = "JMono1.3", overlay = false,
      max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500)
 
 // ════════════════ Identity ════════════════
-SCRIPT_V = "1.2.0"
+SCRIPT_V = "1.3.0"
 
 // ════════════════ What this is ════════════════
 // "Jamal Mono v1" — the ORIGINAL v0.2.0 design, resurrected 2026-08-12 as its
@@ -48,6 +48,16 @@ SCRIPT_V = "1.2.0"
 // the seal, a trend splits at its first real pullback breakout.
 // With `one_candle` OFF the grouping is the untouched v0.2 colour run (the
 // stair renderer shows plain runs; the seal never engages).
+//
+// RENDER COLOUR = DIRECTION (v1.3.0): the drawn mono is coloured by its OWN
+// direction, close >= open ? green : red, updated live — NOT by the run's
+// starting colour. Under pure colour runs the two were always identical
+// (no-gap crypto), but absorption lets the close drift across the open: on
+// ETH 1D the Feb-3-2025 crash bar (green, giant lower wick) sealed and
+// absorbed a month of decline, ending open 2870 -> close ~2200, and the box
+// was painted GREEN — so the eye read its open at the BOTTOM (~2200),
+// "floating in outer space". Direction colouring fixes the read; the run's
+// starting colour (m_red) still drives the GROUPING exactly as before.
 //
 // X-AXIS ALIGNMENT: the box renderer uses `xloc.bar_time` with a sub-bar
 // offset either side of the run, so a mono covering bars L..R is centred on
@@ -115,7 +125,9 @@ else
     if is_red != m_red                       // an opposite candle only continues by being inside
         m_sealed := true
 
-color m_col = m_red ? col_dn : col_up
+// v1.3.0: colour = the mono's LIVE direction (doji -> green), not the run's
+// starting colour — absorption can pull the close across the open.
+color m_col = close >= m_o ? col_up : col_dn
 
 // ════════════════ Render A — repeat mode (v0.1.0) ════════════════
 // Fed na when one-candle mode is on, which draws nothing.
@@ -154,8 +166,11 @@ if one_candle
         box.set_right(b_body, x_r)                  // extend the live run in place
         box.set_top(b_body, body_t)
         box.set_bottom(b_body, body_b)
+        box.set_border_color(b_body, m_col)         // v1.3.0: direction can flip while the run grows
+        box.set_bgcolor(b_body, m_col)
         line.set_xy1(l_wick, x_c, m_h)
         line.set_xy2(l_wick, x_c, m_l)
+        line.set_color(l_wick, m_col)
 
 // ════════════════ Annotations ════════════════
 // Bar count under a completed multi-bar run, printed on the bar the run ENDS.
