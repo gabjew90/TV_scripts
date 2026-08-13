@@ -1188,6 +1188,15 @@ A one-bar final is always colour-sandwiched (same-colour neighbours would have m
 **Process note:** chart time-navigation (`chart_scroll_to_date`, `chart_set_visible_range`) reported success but the view stayed pinned near the live edge on BTC after the symbol switch, so date-specific visual checks were replaced by the offline computation + box-dump cross-check (the stronger method per the v2.1.0 lesson anyway).
 **Status:** shipped. Repo and TradingView copies code-identical.
 
+## Mono — split into two saved scripts: "Jamal Mono v2" (current) and "Jamal Mono v1" (the v0.2.0 design, resurrected)
+**Date:** 2026-08-12 · **User instruction:** "can we save this as Jamal Mono v2? and then separately load Jamal Mono v1 as how it was designed in v0.2"
+**What changed**
+- The TradingView script "Jamal Mono" was RENAMED to **"Jamal Mono v2"** (same script id USER;5bd9edba…, so the chart instance kept running v2.6.0 untouched). Repo file unchanged: `jamal-mono.pine`.
+- A NEW TradingView script **"Jamal Mono v1"** was created via Make-a-copy + rename, holding the v0.2.0 design byte-for-byte from commit e2a4e38 except the identity lines (title "Jamal Mono v1", shorttitle "JMono1", SCRIPT_V "1 (v0.2 design)"). Repo file: **`jamal-mono-v1.pine`**. This is the pre-restart colour-run design: a mono = a run of consecutive same-colour bars; own pane; `one_candle` box+wick renderer with the plotcandle stair fallback, run-length labels, run-start ticks. It knows nothing of anchors, stage 2, or stage 3.
+- Both are on the BTC 1D chart in their own panes (v2.6.0 entity LDkYeF, v1 entity 2nWZYl). The add was NOT blocked by the Essential plan cap this time (the user had freed two slots earlier).
+**Note for tooling:** `pine_open("Jamal Mono")` is now ambiguous — two scripts match. Use the exact names "Jamal Mono v1" / "Jamal Mono v2".
+**Status:** both live. This ends the single-script era; the v2 line continues in `jamal-mono.pine`.
+
 # ========================= JAMAL FABLE — TRADE-FIRST SIGNAL + HARNESS (BUILD LOG) =========================
 **Charter (2026-06-09):** the v1–v9 restart, inverted — trade-first, instrument-minimal, validation-before-conviction. Two trades only (pullback-continuation; flush-and-reclaim with in-trend 2A + chop 2B variants), structural BOS/CHoCH regime engine carried from v9, derivatives factors day one, and the validation harness built BEFORE the indicator earns conviction: Pine emits decision-time events as machine labels; the repo parses, fetches exchange bars, aligns, and judges. "TV draws it, something outside TV judges it." Spec: `docs/superpowers/specs/2026-06-09-jamal-fable-design.md` (rev 2 + v0.1 amendments). Plan: `docs/superpowers/plans/2026-06-09-jamal-fable.md`.
 

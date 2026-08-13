@@ -1,0 +1,157 @@
+//@version=6
+indicator("Jamal Mono v1", shorttitle = "JMono1", overlay = false,
+     max_labels_count = 500, max_boxes_count = 500, max_lines_count = 500)
+
+// ════════════════ Identity ════════════════
+SCRIPT_V = "1 (v0.2 design)"
+
+// ════════════════ What this is ════════════════
+// "Jamal Mono v1" — the ORIGINAL v0.2.0 design, resurrected 2026-08-12 as its
+// own saved script (TradingView script "Jamal Mono v1", repo file
+// jamal-mono-v1.pine) alongside "Jamal Mono v2" (the three-stage rebuild in
+// jamal-mono.pine). Code identical to commit e2a4e38 except this identity.
+//
+// A separate-pane candle chart of MONOLITHIC candles — the same grouping the
+// jamal-ob `use_mono` walk-back uses, drawn so it can be read directly instead
+// of inferred from levels.
+//
+// A mono = a run of consecutive same-colour bars merged into one candle:
+//     open  = the run's FIRST (oldest) bar's open
+//     close = the run's LAST (newest) bar's close
+//     high  = highest high across the run
+//     low   = lowest low across the run
+// Colour convention matches the walk-back exactly: RED is close < open, so a
+// FLAT DOJI (close == open) counts as GREEN.
+//
+// TWO RENDERERS (v0.2.0), chosen by `one_candle`:
+//   ON  — ONE candle per mono, drawn with a box (body) + line (wick) so it can
+//         span the whole run. A 4-bar run is one candle four bars wide.
+//   OFF — the v0.1.0 renderer: `plotcandle` repeats the mono on every bar of
+//         its run, so the run appears as a stair of growing candles. Pine's
+//         plotcandle is one-value-per-bar and cannot span bars, which is the
+//         whole reason the box renderer exists.
+//
+// X-AXIS ALIGNMENT: the box renderer uses `xloc.bar_time` with a sub-bar
+// offset either side of the run, so a mono covering bars L..R is centred on
+// exactly the span those bars occupy in the price pane above. Using
+// `xloc.bar_index` instead would put the edges on bar CENTRES, making every
+// mono half a bar narrow and collapsing single-bar monos to zero width. The
+// offset assumes evenly spaced bars, which holds on 24/7 crypto; on a
+// session-gapped symbol the edges drift across weekend/holiday gaps.
+//
+// Nothing draws retroactively and nothing looks ahead. The live run's box is
+// updated in place as the run extends. The only repaint is the ordinary one:
+// the live bar's own colour can flip intrabar, which can start or extend a run
+// until it closes.
+//
+// DRAWING LIMITS: 500 boxes and 500 lines, so the box renderer shows the most
+// recent ~500 monos and TradingView drops older ones. On a chart with more
+// monos than that (NEAR daily currently has ~1,085) the early history renders
+// empty in one-candle mode. Switch the toggle off to see all of it.
+
+// ════════════════ Inputs ════════════════
+one_candle = input.bool(true,  "One candle per mono", tooltip = "ON: each run is drawn as a SINGLE candle spanning its bars, using a box for the body and a line for the wick. OFF: the v0.1.0 behaviour - plotcandle repeats the growing mono on every bar of the run (the stair). One-candle mode is limited to the most recent 500 monos by TradingView's drawing cap; repeat mode has no limit.")
+show_len   = input.bool(true,  "Label runs of 2+ bars", tooltip = "Prints the bar count under each completed multi-bar mono. Single-bar monos are left unlabelled to keep the pane quiet.")
+show_split = input.bool(true,  "Mark where each run starts", tooltip = "Only applies in repeat mode - in one-candle mode the box edges already mark every boundary.")
+col_up     = input.color(#2f7f6c, "Green mono", group = "Colours")
+col_dn     = input.color(#a94b57, "Red mono",   group = "Colours")
+col_lab    = input.color(#7c8ba0, "Labels / markers", group = "Colours")
+
+// ════════════════ Grouping ════════════════
+bool is_red = close < open                   // flat doji -> green, same as the walk-back
+
+var bool  m_init  = false                    // Pine will not seed a bool with na
+var bool  m_red   = false
+var float m_o     = na
+var float m_h     = na
+var float m_l     = na
+var int   m_len   = 0
+var int   m_count = 0                        // completed + current, for the data window
+var int   m_start = 0                        // bar_index the current run began on
+var int   m_t0    = 0                        // time    the current run began on
+
+bool new_run = not m_init or is_red != m_red
+
+if new_run
+    m_init  := true
+    m_red   := is_red
+    m_o     := open
+    m_h     := high
+    m_l     := low
+    m_len   := 1
+    m_count += 1
+    m_start := bar_index
+    m_t0    := time
+else
+    m_h   := math.max(m_h, high)
+    m_l   := math.min(m_l, low)
+    m_len += 1
+
+color m_col = m_red ? col_dn : col_up
+
+// ════════════════ Render A — repeat mode (v0.1.0) ════════════════
+// Fed na when one-candle mode is on, which draws nothing.
+plotcandle(one_candle ? na : m_o,
+     one_candle ? na : m_h,
+     one_candle ? na : m_l,
+     one_candle ? na : close, "Mono",
+     color       = m_col,
+     wickcolor   = m_col,
+     bordercolor = m_col)
+
+// ════════════════ Render B — one candle per mono ════════════════
+// Body = box spanning the run's full bar span; wick = line at the run's centre.
+// A doji mono (open == close) gives a zero-height box, which still renders as a
+// hairline because the border is drawn — the correct look for a doji.
+var box  b_body = na
+var line l_wick = na
+// 0.38 of a bar each side = 76% of the bar span, the same body-to-gap ratio
+// TradingView's own candles use. Full 0.5 would tile edge to edge with no gap
+// and read as a ribbon rather than candles. The CENTRE is unchanged either way,
+// so this is cosmetic only and does not affect alignment.
+float half_ms = timeframe.in_seconds() * 380.0      // 0.38 bar, in milliseconds
+
+if one_candle
+    float body_t = math.max(m_o, close)
+    float body_b = math.min(m_o, close)
+    int   x_l    = int(m_t0 - half_ms)              // left edge of the run's FIRST bar
+    int   x_r    = int(time + half_ms)              // right edge of the run's LAST bar
+    int   x_c    = int((m_t0 + time) / 2)           // centre of the run, for the wick
+    if new_run
+        b_body := box.new(x_l, body_t, x_r, body_b, xloc = xloc.bar_time,
+             border_color = m_col, border_width = 1, bgcolor = m_col)
+        l_wick := line.new(x_c, m_h, x_c, m_l, xloc = xloc.bar_time,
+             color = m_col, width = 1)
+    else
+        box.set_right(b_body, x_r)                  // extend the live run in place
+        box.set_top(b_body, body_t)
+        box.set_bottom(b_body, body_b)
+        line.set_xy1(l_wick, x_c, m_h)
+        line.set_xy2(l_wick, x_c, m_l)
+
+// ════════════════ Annotations ════════════════
+// Bar count under a completed multi-bar run, printed on the bar the run ENDS.
+// In one-candle mode it is centred under that mono's box instead.
+if show_len and new_run and not na(m_len[1]) and m_len[1] >= 2
+    int lx = one_candle ? int(math.round((m_start[1] + bar_index - 1) / 2.0)) : bar_index - 1
+    label.new(lx, m_l[1], str.tostring(m_len[1]),
+         yloc = yloc.price, style = label.style_label_up, size = size.tiny,
+         color = color.new(color.black, 100), textcolor = col_lab)
+
+// Faint tick where each new run begins — redundant once the boxes draw the edges.
+plotchar(show_split and new_run and not one_candle ? m_o : na, "Run start", "▏",
+     location.absolute, col_lab, size = size.tiny)
+
+// ════════════════ Data window ════════════════
+plot(m_o,     "DW mono open",        display = display.data_window)
+plot(m_h,     "DW mono high",        display = display.data_window)
+plot(m_l,     "DW mono low",         display = display.data_window)
+plot(close,   "DW mono close",       display = display.data_window)
+plot(m_len,   "DW bars in this run", display = display.data_window)
+plot(m_red ? 1 : 0, "DW is red (1=red)", display = display.data_window)
+plot(m_count, "DW monos so far",     display = display.data_window)
+
+// ════════════════ Version tag ════════════════
+var table vt = table.new(position.top_right, 1, 1)
+if barstate.islast
+    table.cell(vt, 0, 0, "Jamal Mono v" + SCRIPT_V, text_color = color.white, bgcolor = color.new(color.black, 20))
